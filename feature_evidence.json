@@ -1,0 +1,77 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-fix-the-student-registration-flow-so-that-every-new-student-who-submits-the-register-form-is-correctly-persisted-the-registerstudent-function-must-create-both-a-user-record-and-a-pending-student-record-in-the-local-store-handle-all-validation-errors-gracefully-and-redirect-to-login-with-a-success-toast-on-completion-debug-and-resolve-any-existing-bugs-e-g-missing-store-writes-incorrect-field-mapping-or-silent-failures-that-prevent-registration-from-saving-the-student",
+      "featureTitle": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
+      "files": [
+        "frontend/src/pages/Register.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-28"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-a-whatsapp-cta-button-with-the-number-9424135055-inside-every-course-subsection-across-the-app-course-cards-on-the-landing-page-course-detail-sections-on-admin-courses-student-courses-and-the-course-selection-step-of-student-book-the-button-must-open-https-wa-me-919424135055-in-a-new-tab-with-a-pre-filled-message-like-hi-i-want-to-book-a-demo-session-the-button-should-be-visually-distinct-using-the-whatsapp-green-color-25d366-and-include-the-whatsapp-icon",
+      "featureTitle": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
+      "files": [
+        "frontend/src/components/WhatsAppButton.tsx",
+        "frontend/src/pages/Landing.tsx",
+        "frontend/src/pages/admin/Courses.tsx",
+        "frontend/src/pages/student/Book.tsx",
+        "frontend/src/pages/student/Courses.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-29"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-apply-the-uploaded-the-rajat-s-equation-logo-rajats-equation-logo-png-as-the-brand-identity-across-the-entire-app-replace-any-existing-mathtutor-pro-text-or-placeholder-logo-with-this-logo-image-in-the-admin-sidebar-header-the-student-sidebar-header-the-public-landing-page-navbar-and-the-login-and-register-page-headers-also-use-the-logo-as-the-browser-favicon-favicon-ico-favicon-png-maintain-the-logo-s-original-dark-teal-color-palette-1d3d4f-when-rendering-it-inline-update-the-app-name-in-index-html-title-to-the-rajat-s-equation",
+      "featureTitle": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
+      "files": [
+        "frontend/index.html",
+        "frontend/src/layouts/AdminLayout.tsx",
+        "frontend/src/layouts/StudentLayout.tsx",
+        "frontend/src/pages/Landing.tsx",
+        "frontend/src/pages/Login.tsx",
+        "frontend/src/pages/Register.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0"
+      ],
+      "testIds": [
+        "REQ-30"
+      ],
+      "confidence": "high"
+    }
+  ]
+}

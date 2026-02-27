@@ -1,0 +1,107 @@
+{
+  "kind": "implementation_plan",
+  "version": "1.0",
+  "title": "Fix student registration, add WhatsApp CTA on course sections, and apply Rajat's Equation logo as brand language",
+  "requirements": [
+    {
+      "id": "REQ-28",
+      "summary": "Fix the student registration flow to correctly persist every new student submission",
+      "acceptanceCriteria": [
+        "Submitting the /register form with valid name, email, phone, and password creates a new user and a pending student record in the store",
+        "After successful registration, user is redirected to /login with a success toast message",
+        "Submitting with invalid or duplicate data shows an appropriate inline or toast error",
+        "Registration works for multiple successive students without data being overwritten or lost"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/Register.tsx",
+          "operation": "modify",
+          "description": "Debug and fix the registerStudent form submission handler to ensure both user and pending student records are correctly created in the localStorage store. Verify that store.createUser() and store.createStudent() are called with proper field mapping (name, email, phone, password hash). Add error handling for duplicate emails and validation failures. Ensure successful registration redirects to /login with a success toast using toast.success() from sonner. Test that multiple successive registrations persist correctly without overwriting previous data."
+        }
+      ]
+    },
+    {
+      "id": "REQ-29",
+      "summary": "Add a WhatsApp CTA button with number 9424135055 inside every course subsection across the app",
+      "acceptanceCriteria": [
+        "Every course card and course subsection on the Landing page shows a WhatsApp CTA button",
+        "Every course row/card on /student/courses shows a WhatsApp CTA button",
+        "The course selection step on /student/book includes a WhatsApp CTA per course",
+        "Clicking any WhatsApp CTA opens https://wa.me/919424135055 with a pre-filled demo booking message in a new tab",
+        "Button is styled in WhatsApp green (#25D366) with a WhatsApp icon"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/WhatsAppButton.tsx",
+          "operation": "create",
+          "description": "Create a reusable WhatsAppButton component that renders a button styled in WhatsApp green (#25D366) with a WhatsApp icon. The button opens https://wa.me/919424135055 with a pre-filled message 'Hi, I want to book a demo session.' in a new tab using target='_blank' and rel='noopener noreferrer'. Accept optional className prop for layout flexibility. Use MessageCircle icon from lucide-react or a WhatsApp-specific icon if available."
+        },
+        {
+          "path": "frontend/src/pages/Landing.tsx",
+          "operation": "modify",
+          "description": "Import and add the WhatsAppButton component inside every course card rendered in the courses section. Position the button prominently below the course description or alongside the 'Learn More' CTA. Ensure the button is visible for each course displayed on the landing page."
+        },
+        {
+          "path": "frontend/src/pages/student/Courses.tsx",
+          "operation": "modify",
+          "description": "Import and add the WhatsAppButton component to each enrolled course card displayed on the student courses page. Position it below the course pricing info or near the 'View Materials' link. Ensure it appears for every enrolled course."
+        },
+        {
+          "path": "frontend/src/pages/student/Book.tsx",
+          "operation": "modify",
+          "description": "Import and add the WhatsAppButton component to each course option rendered in the course selection step (step 1) of the booking flow. Position it inside or adjacent to each course card/option so users can contact via WhatsApp before booking."
+        },
+        {
+          "path": "frontend/src/pages/admin/Courses.tsx",
+          "operation": "modify",
+          "description": "Import and add the WhatsAppButton component to each course row or card in the admin courses management table. Position it in the actions column or below the course name so admins can also quickly contact via WhatsApp for demo coordination."
+        }
+      ]
+    },
+    {
+      "id": "REQ-30",
+      "summary": "Apply the uploaded 'The Rajat's Equation' logo as the brand identity across the entire app",
+      "acceptanceCriteria": [
+        "Admin sidebar header displays the Rajat's Equation logo instead of text or old logo",
+        "Student sidebar header displays the Rajat's Equation logo instead of text or old logo",
+        "Landing page navbar displays the Rajat's Equation logo",
+        "Login and Register page headers display the Rajat's Equation logo",
+        "Browser tab favicon uses the Rajat's Equation logo",
+        "The <title> in index.html reads 'The Rajat's Equation'",
+        "No 'MathTutor Pro' branding text remains visible in the UI"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/layouts/AdminLayout.tsx",
+          "operation": "modify",
+          "description": "Replace the sidebar header text 'MathTutor Pro Admin' with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate width/height styling (e.g., h-12 or h-16) to maintain the logo's dark teal color (#1d3d4f) and aspect ratio. Remove any hardcoded 'MathTutor Pro' text from the sidebar."
+        },
+        {
+          "path": "frontend/src/layouts/StudentLayout.tsx",
+          "operation": "modify",
+          "description": "Replace the sidebar header text 'MathTutor Pro' with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate width/height styling (e.g., h-12 or h-16) to maintain the logo's dark teal color (#1d3d4f) and aspect ratio. Remove any hardcoded 'MathTutor Pro' text from the sidebar."
+        },
+        {
+          "path": "frontend/src/pages/Landing.tsx",
+          "operation": "modify",
+          "description": "Replace the navbar brand text 'MathTutor Pro' with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate navbar-sized styling (e.g., h-10 or h-12). Ensure the logo is clearly visible on the landing page header. Remove any 'MathTutor Pro' text from the navbar."
+        },
+        {
+          "path": "frontend/src/pages/Login.tsx",
+          "operation": "modify",
+          "description": "Replace the login page header text 'MathTutor Pro' or any logo placeholder with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate sizing (e.g., h-16 or h-20) centered above the login form. Remove any 'MathTutor Pro' branding text."
+        },
+        {
+          "path": "frontend/src/pages/Register.tsx",
+          "operation": "modify",
+          "description": "Replace the register page header text 'MathTutor Pro' or any logo placeholder with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate sizing (e.g., h-16 or h-20) centered above the registration form. Remove any 'MathTutor Pro' branding text."
+        },
+        {
+          "path": "frontend/index.html",
+          "operation": "modify",
+          "description": "Update the <title> tag to read 'The Rajat's Equation' instead of 'MathTutor Pro'. Replace the existing favicon <link> tags with a reference to the generated favicon at /assets/generated/rajats-equation-favicon.dim_64x64.png. Use both <link rel='icon' type='image/png'> and <link rel='apple-touch-icon'> for broader compatibility. Ensure the favicon displays the square-root-R monogram in dark teal (#1d3d4f)."
+        }
+      ]
+    }
+  ]
+}

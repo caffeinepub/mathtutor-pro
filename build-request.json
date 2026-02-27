@@ -1,0 +1,87 @@
+{
+  "kind": "build_request",
+  "title": "Fix student registration, add WhatsApp CTA on course sections, and apply Rajat's Equation logo as brand language",
+  "projectName": "The Rajat's Equation",
+  "priority": "high",
+  "requirements": [
+    {
+      "id": "REQ-28",
+      "text": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "my registration is not working properly that will register every student"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Submitting the /register form with valid name, email, phone, and password creates a new user and a pending student record in the store",
+        "After successful registration, user is redirected to /login with a success toast message",
+        "Submitting with invalid or duplicate data shows an appropriate inline or toast error",
+        "Registration works for multiple successive students without data being overwritten or lost"
+      ]
+    },
+    {
+      "id": "REQ-29",
+      "text": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "in every course subsection give an option to connect with me on whatsapp 9424135055 to book a demo"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Every course card and course subsection on the Landing page shows a WhatsApp CTA button",
+        "Every course row/card on /student/courses shows a WhatsApp CTA button",
+        "The course selection step on /student/book includes a WhatsApp CTA per course",
+        "Clicking any WhatsApp CTA opens https://wa.me/919424135055 with a pre-filled demo booking message in a new tab",
+        "Button is styled in WhatsApp green (#25D366) with a WhatsApp icon"
+      ]
+    },
+    {
+      "id": "REQ-30",
+      "text": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-1"
+        ],
+        "quotes": [
+          "use this logo as brand language"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Admin sidebar header displays the Rajat's Equation logo instead of text or old logo",
+        "Student sidebar header displays the Rajat's Equation logo instead of text or old logo",
+        "Landing page navbar displays the Rajat's Equation logo",
+        "Login and Register page headers display the Rajat's Equation logo",
+        "Browser tab favicon uses the Rajat's Equation logo",
+        "The <title> in index.html reads 'The Rajat's Equation'",
+        "No 'MathTutor Pro' branding text remains visible in the UI"
+      ]
+    }
+  ],
+  "constraints": [
+    "WhatsApp link must use international format: https://wa.me/919424135055",
+    "Do not alter immutable frontend paths: frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, frontend/src/components/ui",
+    "Logo image must be served from frontend/public/assets/generated as a static asset"
+  ],
+  "nonGoals": [
+    "No new backend Motoko changes for the WhatsApp CTA (it is a pure frontend link)",
+    "No redesign of the overall color scheme beyond applying the logo brand colors",
+    "No changes to admin-side registration or user management logic",
+    "No real-time WhatsApp API integration — only a static wa.me link"
+  ],
+  "imageRequirements": {
+    "required": [
+      "Clean recreation of 'The Rajat's Equation' logo with the square-root-R monogram symbol above the serif wordmark 'THE RAJAT'S EQUATION', dark teal color (#1d3d4f) on transparent background (rajats-equation-logo.dim_400x300.png)",
+      "Small square favicon version of the Rajat's Equation square-root-R monogram only, dark teal (#1d3d4f) on transparent background (rajats-equation-favicon.dim_64x64.png)"
+    ],
+    "edits": []
+  }
+}

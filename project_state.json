@@ -1,0 +1,344 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 5,
+  "summary": "Full-stack MathTutor Pro web application with admin and student portals. React+TypeScript frontend, Node.js/Express+SQLite backend, JWT auth, Stripe payments (INR), course management, session scheduling, study materials, access code generation, Google Meet links, in-app notifications, and a professional Tailwind CSS UI with deep blue/gold color scheme.",
+  "architectural_notes": [
+    "React+TypeScript (Vite) frontend + Node.js/Express+TypeScript backend + better-sqlite3; monorepo with concurrently",
+    "Deep blue (#1e3a8a) + Gold (#f59e0b) color scheme; Inter font; fully responsive Tailwind CSS UI",
+    "DB tables: users, students, courses, sessions, payments, materials, notifications",
+    "Seed: admin@mathtutor.com/Admin@123, 5 courses with INR pricing, 2 sample students, 2 sessions, 3 materials",
+    "Access codes generated on student approval; format MTH-XXXX (8-char alphanumeric)",
+    "Stripe Checkout with INR PaymentIntent; webhook confirms payment; HTML receipt generation"
+  ],
+  "known_issues": [
+    "Student registration is broken — not registering students correctly"
+  ],
+  "isFixRequest": true,
+  "imageRequirements": "## Required Images\n- Clean recreation of 'The Rajat's Equation' logo with the square-root-R monogram symbol above the serif wordmark 'THE RAJAT'S EQUATION', dark teal color (#1d3d4f) on transparent background (rajats-equation-logo.dim_400x300.png)\n- Small square favicon version of the Rajat's Equation square-root-R monogram only, dark teal (#1d3d4f) on transparent background (rajats-equation-favicon.dim_64x64.png)",
+  "existing_features": [
+    {
+      "id": "feature-build-a-login-page-at-login-with-email-password-fields-and-a-role-selector-student-admin-on-success-store-the-session-token-and-redirect-to-the-appropriate-portal-admin-or-student",
+      "title": "Build a Login page at `/login` with email + password fields and a role selector (student / admin). On success, store the session token and redirect to the appropriate portal (/admin or /student).",
+      "reqIds": [
+        "REQ-8"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-build-the-admin-dashboard-at-admin-showing-stats-cards-total-students-total-payments-total-sessions-total-materials-a-recent-activity-feed-and-quick-navigation-links-to-all-admin-sections",
+      "title": "Build the Admin Dashboard at `/admin` showing stats cards (total students, total payments, total sessions, total materials), a recent activity feed, and quick-navigation links to all admin sections.",
+      "reqIds": [
+        "REQ-10"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-build-the-payments-management-page-at-admin-payments-showing-a-table-of-all-payment-records-with-columns-for-student-name-amount-inr-status-payment-method-date-and-a-receipt-link-include-a-filter-by-payment-status",
+      "title": "Build the Payments Management page at `/admin/payments` showing a table of all payment records with columns for student name, amount (INR), status, payment method, date, and a receipt link. Include a filter by payment status.",
+      "reqIds": [
+        "REQ-12"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-build-a-shared-notification-bell-component-that-appears-in-both-admin-and-student-navbars-it-shows-an-unread-count-badge-and-clicking-it-opens-a-dropdown-listing-the-latest-notifications-with-title-message-and-a-mark-as-read-action-fetch-notifications-from-the-backend-on-mount-and-poll-or-refresh-on-navigation",
+      "title": "Build a shared Notification Bell component that appears in both admin and student navbars. It shows an unread count badge, and clicking it opens a dropdown listing the latest notifications with title, message, and a mark-as-read action. Fetch notifications from the backend on mount and poll or refresh on navigation.",
+      "reqIds": [
+        "REQ-25"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-route-protection-and-layout-scaffolding-public-routes-login-register-are-accessible-without-auth-admin-routes-require-role-admin-student-routes-require-role-student-and-status-approved-pending-rejected-students-who-access-student-see-a-status-page-instead-of-being-redirected-to-login",
+      "title": "Implement route protection and layout scaffolding: public routes (/, /login, /register) are accessible without auth; /admin/* routes require role=admin; /student/* routes require role=student and status=approved. Pending/rejected students who access /student/* see a status page instead of being redirected to login.",
+      "reqIds": [
+        "REQ-26"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-a-consistent-visual-theme-across-all-pages-primary-color-deep-blue-1e3a8a-accent-color-gold-f59e0b-background-white-light-grey-inter-font-loaded-via-google-fonts-or-bundled-admin-and-student-sections-use-a-sidebar-layout-apply-status-badge-colors-pending-yellow-approved-green-rejected-red-cancelled-red-completed-grey-all-interactive-elements-have-loading-states-use-toast-notifications-bottom-right-for-action-feedback",
+      "title": "Apply a consistent visual theme across all pages: primary color deep blue (#1e3a8a), accent color gold (#f59e0b), background white/light grey, Inter font (loaded via Google Fonts or bundled). Admin and student sections use a sidebar layout. Apply status badge colors (pending=yellow, approved=green, rejected=red, cancelled=red, completed=grey). All interactive elements have loading states. Use toast notifications (bottom-right) for action feedback.",
+      "reqIds": [
+        "REQ-27"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-the-student-registration-flow-so-that-every-new-student-who-submits-the-register-form-is-correctly-persisted-the-registerstudent-function-must-create-both-a-user-record-and-a-pending-student-record-in-the-local-store-handle-all-validation-errors-gracefully-and-redirect-to-login-with-a-success-toast-on-completion-debug-and-resolve-any-existing-bugs-e-g-missing-store-writes-incorrect-field-mapping-or-silent-failures-that-prevent-registration-from-saving-the-student",
+      "title": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
+      "reqIds": [
+        "REQ-28"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-whatsapp-cta-button-with-the-number-9424135055-inside-every-course-subsection-across-the-app-course-cards-on-the-landing-page-course-detail-sections-on-admin-courses-student-courses-and-the-course-selection-step-of-student-book-the-button-must-open-https-wa-me-919424135055-in-a-new-tab-with-a-pre-filled-message-like-hi-i-want-to-book-a-demo-session-the-button-should-be-visually-distinct-using-the-whatsapp-green-color-25d366-and-include-the-whatsapp-icon",
+      "title": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
+      "reqIds": [
+        "REQ-29"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-apply-the-uploaded-the-rajat-s-equation-logo-rajats-equation-logo-png-as-the-brand-identity-across-the-entire-app-replace-any-existing-mathtutor-pro-text-or-placeholder-logo-with-this-logo-image-in-the-admin-sidebar-header-the-student-sidebar-header-the-public-landing-page-navbar-and-the-login-and-register-page-headers-also-use-the-logo-as-the-browser-favicon-favicon-ico-favicon-png-maintain-the-logo-s-original-dark-teal-color-palette-1d3d4f-when-rendering-it-inline-update-the-app-name-in-index-html-title-to-the-rajat-s-equation",
+      "title": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
+      "reqIds": [
+        "REQ-30"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Admin portal: student management with approve/reject/delete and access code generation",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Admin portal: sessions management with scheduling and Google Meet link entry",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Admin portal: payments management with history and status filtering",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Admin portal: courses CRUD with pricing management",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Admin portal: study materials upload/remove per course",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-6",
+      "summary": "Admin portal: send notifications to students",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Student portal: dashboard, enrolled courses, sessions with Meet links, materials, payments, booking flow",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Stripe payment integration with PaymentIntent, webhook, INR currency, and receipt generation",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "JWT auth with bcrypt, role-based middleware, access code display (MTH-XXXX format)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "In-app notification bell with DB-backed notifications for payment, approval, session confirm, material upload events",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-11",
+      "summary": "Implement a single Motoko actor backend with the following stable data stores: users (id, email, passwordHash, role, name, phone, createdAt), students (id, userId, accessCode, status, enrolledCourses, createdAt), courses (id, name, description, groupPricePerHour, oneOnOnePricePerHour, isActive, createdAt), sessions (id, studentId, courseId, sessionType, scheduledAt, durationHours, status, meetLink, notes, createdAt), payments (id, studentId, sessionId, amount, currency, status, paymentMethod, stripePaymentId, receiptUrl, createdAt), materials (id, courseId, title, description, fileType, uploadedBy, createdAt), and notifications (id, userId, type, title, message, isRead, createdAt).",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-12",
+      "summary": "Seed the backend with: 1 admin user (email: admin@mathtutor.com, password: Admin@123), 5 courses with the exact pricing from the spec (JEE Mains ₹250/₹350, JEE Advanced ₹350/₹500, Board Exams ₹150/₹250, Foundation Course ₹100/₹200, Math Olympiad ₹200/₹300), 2 sample students (1 approved with a generated MTH-XXXX access code, 1 pending), 2 sample sessions, and 3 sample materials. Seeding must be idempotent (only runs if data is empty).",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-13",
+      "summary": "Expose backend query and update functions for authentication: registerStudent (email, password, name, phone → creates user + pending student record), login (email, password, role → returns session token on success), and getMe (token → returns current user profile).",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-14",
+      "summary": "Expose backend admin functions: getDashboardStats, listStudents, approveStudent (generates unique 8-char MTH-XXXX access code and sets status to approved), rejectStudent, deleteStudent, listPayments, createSession, updateSession (add meet link, confirm), listSessions, createMaterial, deleteMaterial, listMaterials, createCourse, updateCourse, deleteCourse, listCourses, sendNotification (to one or all students).",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-15",
+      "summary": "Expose backend student functions: getProfile, listEnrolledCourses, listMySessions (with meet links), listMyMaterials (filtered to enrolled courses), listMyPayments, bookSession (course, type, date/time, duration), initiatePayment (creates a pending payment record and returns a client reference), markPaymentComplete (called after Stripe confirmation), listMyNotifications, markNotificationRead.",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-16",
+      "summary": "Expose a public backend function listPublicCourses that returns all active courses with name, description, group price, and one-on-one price, usable without authentication.",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-17",
+      "summary": "Build a public Landing page at route `/` with: a hero section (headline, subheadline, CTA buttons for Login and Register), a course pricing table showing all active courses with group and one-on-one prices in INR, feature highlights, and a footer.",
+      "reqIds": [
+        "REQ-7"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-19",
+      "summary": "Build a Register page at `/register` with fields for name, email, phone, and password. On submission, call registerStudent and redirect to login with a success message. Registration creates a pending student record.",
+      "reqIds": [
+        "REQ-9"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-21",
+      "summary": "Build the Students Management page at `/admin/students` showing a table of all students with columns for name, email, status, access code, and enrolled courses. Include approve, reject, and delete action buttons per row. Approved students display their MTH-XXXX access code.",
+      "reqIds": [
+        "REQ-11"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-23",
+      "summary": "Build the Sessions Management page at `/admin/sessions` where the admin can create new sessions (select student, course, session type, date/time, duration) and view all existing sessions. Each session row has an 'Edit' action to add or update a Google Meet link and change status.",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-24",
+      "summary": "Build the Courses Management page at `/admin/courses` with a table of all courses and a form (modal) to create, edit, and delete courses. Fields: name, description, group price per hour (INR), one-on-one price per hour (INR), active toggle.",
+      "reqIds": [
+        "REQ-14"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-25",
+      "summary": "Build the Materials Management page at `/admin/materials` where the admin can upload new study materials (title, description, course association, file type: pdf/video/doc) and delete existing ones. List all materials grouped or filterable by course.",
+      "reqIds": [
+        "REQ-15"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-26",
+      "summary": "Build the Admin Notifications page at `/admin/notifications` with a form to compose and send a notification (title + message) to a specific student (by selecting from a dropdown) or to all students at once.",
+      "reqIds": [
+        "REQ-16"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-27",
+      "summary": "Build the Student Dashboard at `/student` showing: enrolled courses summary cards, upcoming sessions (next 3) with Meet links, unread notifications count, and quick-link navigation to all student sections.",
+      "reqIds": [
+        "REQ-17"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-28",
+      "summary": "Build the My Courses page at `/student/courses` listing the student's enrolled courses with course details and a link to view associated study materials.",
+      "reqIds": [
+        "REQ-18"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-29",
+      "summary": "Build the Study Materials page at `/student/materials` listing materials filtered to the student's enrolled courses, grouped by course, showing title, file type, description, and a download/view button.",
+      "reqIds": [
+        "REQ-19"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-30",
+      "summary": "Build the My Sessions page at `/student/sessions` listing upcoming and past sessions. Each session card shows: course name, date/time, session type, status, duration, notes, and Google Meet link (when confirmed).",
+      "reqIds": [
+        "REQ-20"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-31",
+      "summary": "Build the Payment History page at `/student/payments` showing a list of the student's payment records with columns for date, amount (INR), status, session reference, and a receipt view button.",
+      "reqIds": [
+        "REQ-21"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-32",
+      "summary": "Build the Book Session page at `/student/book` with a multi-step flow: Step 1 – select course and session type (group/one-on-one); Step 2 – select date, time, and duration (hours); Step 3 – show price summary and trigger the payment flow. After successful payment, confirm the booking.",
+      "reqIds": [
+        "REQ-22"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-33",
+      "summary": "Build the Student Profile page at `/student/profile` displaying: name, email, phone, enrollment status, and the student's MTH-XXXX access code in a prominent card. Include a copy-to-clipboard button for the access code.",
+      "reqIds": [
+        "REQ-23"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-34",
+      "summary": "Implement Stripe payment integration on the frontend using Stripe.js. The Book Session flow must create a PaymentIntent via the backend, render Stripe Elements or redirect to Stripe Checkout in INR, and handle payment confirmation. On success, call markPaymentComplete and generate an HTML receipt viewable in a modal.",
+      "reqIds": [
+        "REQ-24"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-35",
+      "summary": "Fix student registration so it works properly and registers every student correctly",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-36",
+      "summary": "Add a WhatsApp CTA button (number: 9424135055) in every course subsection to book a demo",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-37",
+      "summary": "Apply uploaded logo as brand language across the app (navbar, landing page, favicon, etc.)",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "MathTutor Pro",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}

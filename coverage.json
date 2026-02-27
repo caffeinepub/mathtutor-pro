@@ -1,0 +1,105 @@
+{
+  "kind": "coverage_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-27T13:08:25.291Z",
+  "sources": {
+    "buildRequest": true,
+    "implementationPlan": true
+  },
+  "requirements": {
+    "total": 3,
+    "implemented": 3,
+    "items": [
+      {
+        "id": "REQ-28",
+        "summary": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/Register.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/Register.tsx"
+        ]
+      },
+      {
+        "id": "REQ-29",
+        "summary": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/WhatsAppButton.tsx",
+          "frontend/src/pages/Landing.tsx",
+          "frontend/src/pages/student/Courses.tsx",
+          "frontend/src/pages/student/Book.tsx",
+          "frontend/src/pages/admin/Courses.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/WhatsAppButton.tsx",
+          "frontend/src/pages/Landing.tsx",
+          "frontend/src/pages/student/Courses.tsx",
+          "frontend/src/pages/student/Book.tsx",
+          "frontend/src/pages/admin/Courses.tsx"
+        ]
+      },
+      {
+        "id": "REQ-30",
+        "summary": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/layouts/AdminLayout.tsx",
+          "frontend/src/layouts/StudentLayout.tsx",
+          "frontend/src/pages/Landing.tsx",
+          "frontend/src/pages/Login.tsx",
+          "frontend/src/pages/Register.tsx",
+          "frontend/index.html"
+        ],
+        "matchedFiles": [
+          "frontend/src/layouts/AdminLayout.tsx",
+          "frontend/src/layouts/StudentLayout.tsx",
+          "frontend/src/pages/Landing.tsx",
+          "frontend/src/pages/Login.tsx",
+          "frontend/src/pages/Register.tsx",
+          "frontend/index.html"
+        ]
+      }
+    ]
+  },
+  "changedFiles": [
+    "build-request.json",
+    "build-template/README.md",
+    "feature_evidence.json",
+    "frontend-file-summaries.txt",
+    "frontend-implementation-plan.json",
+    "frontend/index.html",
+    "frontend/public/assets/generated/rajats-equation-favicon.dim_64x64.png",
+    "frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png",
+    "frontend/src/components/NotificationBell.tsx",
+    "frontend/src/components/ReceiptModal.tsx",
+    "frontend/src/components/WhatsAppButton.tsx",
+    "frontend/src/layouts/AdminLayout.tsx",
+    "frontend/src/layouts/RootLayout.tsx",
+    "frontend/src/layouts/StudentLayout.tsx",
+    "frontend/src/lib/store.ts",
+    "frontend/src/pages/Landing.tsx",
+    "frontend/src/pages/Login.tsx",
+    "frontend/src/pages/PaymentSuccess.tsx",
+    "frontend/src/pages/Register.tsx",
+    "frontend/src/pages/admin/Courses.tsx",
+    "frontend/src/pages/admin/Dashboard.tsx",
+    "frontend/src/pages/admin/Materials.tsx",
+    "frontend/src/pages/admin/Notifications.tsx",
+    "frontend/src/pages/admin/Payments.tsx",
+    "frontend/src/pages/admin/Sessions.tsx",
+    "frontend/src/pages/admin/Students.tsx",
+    "frontend/src/pages/student/Book.tsx",
+    "frontend/src/pages/student/Courses.tsx",
+    "frontend/src/pages/student/Dashboard.tsx",
+    "frontend/src/pages/student/Materials.tsx",
+    "frontend/src/pages/student/Payments.tsx",
+    "frontend/src/pages/student/Profile.tsx",
+    "frontend/src/pages/student/Sessions.tsx",
+    "project_state.json",
+    "scratch/component-selection.json",
+    "spec.md",
+    "spec_vs_diff_report.json"
+  ]
+}
