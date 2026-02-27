@@ -1,87 +1,224 @@
 {
   "kind": "build_request",
-  "title": "Fix student registration, add WhatsApp CTA on course sections, and apply Rajat's Equation logo as brand language",
-  "projectName": "The Rajat's Equation",
+  "title": "Add per-student sessions, materials, and attendance management (admin + student dashboard)",
+  "projectName": "Rajat Math Academy",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-28",
-      "text": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
-      "target": "frontend",
+      "id": "REQ-1",
+      "text": "Extend the backend data model to support student-specific sessions. Add a Session type with fields: id, studentId, date, time, durationHours, meetLink, topic (optional), and createdAt. Store sessions in a stable var map keyed by session ID. Expose functions: addSession(studentId, date, time, durationHours, meetLink, topic), getSessionsForStudent(studentId), deleteSession(sessionId). Only the admin may call addSession and deleteSession; any authenticated user may call getSessionsForStudent but results must be filtered to the caller's own studentId (or unrestricted for admin).",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-4"
         ],
         "quotes": [
-          "my registration is not working properly that will register every student"
+          "Add a session only for that student",
+          "That session must appear ONLY in that selected student's dashboard",
+          "Other students must NOT see it"
         ]
       },
       "acceptanceCriteria": [
-        "Submitting the /register form with valid name, email, phone, and password creates a new user and a pending student record in the store",
-        "After successful registration, user is redirected to /login with a success toast message",
-        "Submitting with invalid or duplicate data shows an appropriate inline or toast error",
-        "Registration works for multiple successive students without data being overwritten or lost"
+        "Admin can create a session record associated with a specific studentId.",
+        "getSessionsForStudent returns only sessions belonging to the requested student.",
+        "A student querying another student's sessions receives an empty or unauthorized result.",
+        "All session fields (date, time, durationHours, meetLink, topic) are persisted correctly."
       ]
     },
     {
-      "id": "REQ-29",
-      "text": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
-      "target": "frontend",
+      "id": "REQ-2",
+      "text": "Extend the backend data model to support student-specific materials. Add a Material type with fields: id, studentId, title, description (optional), fileData (Blob or Base64 for uploads), fileLink (URL, optional), relatedCourse, uploadedAt. Store materials in a stable var map keyed by material ID. Expose functions: addMaterial(studentId, title, description, fileData?, fileLink?, relatedCourse), getMaterialsForStudent(studentId), deleteMaterial(materialId). Admin-only mutations; student access is filtered to own studentId.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-4"
         ],
         "quotes": [
-          "in every course subsection give an option to connect with me on whatsapp 9424135055 to book a demo"
+          "Upload or add materials only for that student",
+          "Material must appear ONLY in that student's portal",
+          "Other students must NOT see it",
+          "File link or document"
         ]
       },
       "acceptanceCriteria": [
-        "Every course card and course subsection on the Landing page shows a WhatsApp CTA button",
-        "Every course row/card on /student/courses shows a WhatsApp CTA button",
-        "The course selection step on /student/book includes a WhatsApp CTA per course",
-        "Clicking any WhatsApp CTA opens https://wa.me/919424135055 with a pre-filled demo booking message in a new tab",
-        "Button is styled in WhatsApp green (#25D366) with a WhatsApp icon"
+        "Admin can add a material record tied to a specific studentId with either a file upload or a URL link.",
+        "getMaterialsForStudent returns only that student's materials.",
+        "File upload data is stored in-canister; URL-based materials store the link.",
+        "Students cannot access other students' materials."
       ]
     },
     {
-      "id": "REQ-30",
-      "text": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
-      "target": "frontend",
+      "id": "REQ-3",
+      "text": "Extend the backend to support attendance tracking. Add an Attendance type with fields: id, studentId, sessionId, status (Present | Absent), markedAt. Store attendance records in a stable var map. Expose functions: markAttendance(studentId, sessionId, status), getAttendanceForStudent(studentId), getAttendanceSummary(studentId) returning {totalSessions, presentCount, absentCount}. Admin-only mutation; student may call getAttendanceForStudent and getAttendanceSummary for their own ID only.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-4"
         ],
         "quotes": [
-          "use this logo as brand language"
+          "Mark attendance: Present / Absent",
+          "Attendance must be linked to session + student",
+          "Student → Sessions → Attendance"
         ]
       },
       "acceptanceCriteria": [
-        "Admin sidebar header displays the Rajat's Equation logo instead of text or old logo",
-        "Student sidebar header displays the Rajat's Equation logo instead of text or old logo",
-        "Landing page navbar displays the Rajat's Equation logo",
-        "Login and Register page headers display the Rajat's Equation logo",
-        "Browser tab favicon uses the Rajat's Equation logo",
-        "The <title> in index.html reads 'The Rajat's Equation'",
-        "No 'MathTutor Pro' branding text remains visible in the UI"
+        "Admin can mark a student as Present or Absent for a specific session.",
+        "getAttendanceForStudent returns all attendance records for that student.",
+        "getAttendanceSummary returns correct totalSessions, presentCount, and absentCount.",
+        "Attendance records are linked to both sessionId and studentId."
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "Add a 'Manage Student Sessions' section to the Admin Panel. The page must: list all approved/enrolled students in a dropdown for selection; show a form to add a new session for the selected student (fields: Date, Time, Duration in hours, Google Meet link, Session topic [optional]); display a table of existing sessions for the selected student with delete capability. Use large, clearly-labelled buttons. Keep the layout clean and simple.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "Manage Student Sessions",
+          "Select a specific enrolled student",
+          "Add a session only for that student",
+          "Big buttons",
+          "No complex design"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Admin can select any approved student from a dropdown.",
+        "Submitting the form creates a session record for that student and clears the form.",
+        "The session list below the form updates immediately after saving.",
+        "All required fields (date, time, duration, meet link) are validated before submission.",
+        "Topic field is optional and saves correctly when provided or left blank."
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "text": "Add a 'Manage Student Materials' section to the Admin Panel. The page must: let admin select an approved student; provide a form with fields: Title, Description (optional), File Upload (stored in-canister) or File Link (URL), Related Course; display a list of existing materials for the selected student with delete capability. Support both file upload and URL-based materials in the same form (radio or toggle to switch mode). Use large buttons and a clean layout.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "Manage Student Materials",
+          "Upload or add materials only for that student",
+          "File link or document",
+          "Related course",
+          "Big buttons"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Admin can switch between file upload mode and URL link mode.",
+        "Submitting the form stores the material linked to the selected student.",
+        "The materials list updates immediately after saving.",
+        "Title and Related Course are required; Description is optional.",
+        "File upload stores binary data in-canister; URL link stores the provided URL string."
+      ]
+    },
+    {
+      "id": "REQ-6",
+      "text": "Add an 'Attendance Management' section to the Admin Panel. The page must: let admin select a student; load that student's sessions in a second dropdown; let admin mark attendance as Present or Absent for the selected session; display a table showing all attendance records for the selected student (session date, topic, status). Use large buttons and a clean layout.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "Attendance Management",
+          "Select student",
+          "Select session",
+          "Mark attendance: Present / Absent",
+          "Attendance should be stored per session per student"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Selecting a student populates the session dropdown with that student's sessions.",
+        "Admin can mark Present or Absent and save; the attendance table updates immediately.",
+        "Existing attendance status for a session is shown correctly in the table.",
+        "Saving attendance calls the backend markAttendance function."
+      ]
+    },
+    {
+      "id": "REQ-7",
+      "text": "Update the Student Dashboard to include three sections: (1) My Sessions – shows each session's date, time, Google Meet link (as a Join button), duration, topic, and attendance status (Present/Absent/Not Marked); (2) My Materials – shows only materials assigned to this student with title, related course, and a view/download button for each; (3) My Attendance Summary – shows Total Sessions, Present Count, and Absent Count as stat cards. All data must be fetched for the logged-in student's ID only. Use clean layout and large buttons.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "My Sessions",
+          "My Materials",
+          "My Attendance Summary",
+          "Total sessions",
+          "Present count",
+          "Absent count",
+          "Download/view option",
+          "Everything must be student-specific"
+        ]
+      },
+      "acceptanceCriteria": [
+        "My Sessions lists only sessions assigned to the logged-in student.",
+        "Google Meet link renders as a clickable 'Join' button opening in a new tab.",
+        "Attendance status (Present/Absent/Not Marked) is shown per session.",
+        "My Materials lists only materials assigned to the logged-in student with working view/download links.",
+        "My Attendance Summary stat cards show correct totals derived from backend getAttendanceSummary.",
+        "No other student's sessions, materials, or attendance data is visible."
+      ]
+    },
+    {
+      "id": "REQ-8",
+      "text": "Add navigation links for the three new admin sections (Manage Student Sessions, Manage Student Materials, Attendance Management) to the AdminLayout sidebar. Each link must be clearly labelled and route to the corresponding admin page. Update the route tree to include these new admin routes with the same admin auth guard as existing admin routes.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "In Admin Panel, create a section called",
+          "Create a section in Admin Panel",
+          "In Admin Panel, create"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Sidebar shows links for Manage Student Sessions, Manage Student Materials, and Attendance Management.",
+        "Clicking each link navigates to the correct page.",
+        "All three routes are protected by the admin auth guard.",
+        "Active route is visually highlighted in the sidebar."
+      ]
+    },
+    {
+      "id": "REQ-9",
+      "text": "Generate a migration file (backend/migration.mo) that preserves all existing stable state (users, students, courses, payments, notifications) and initialises the new stable vars for sessions, materials, and attendance as empty maps during canister upgrade.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Upgrading the canister does not lose existing student, course, or payment records.",
+        "New sessions, materials, and attendance maps initialise as empty on first upgrade.",
+        "No compile errors in migration.mo."
       ]
     }
   ],
   "constraints": [
-    "WhatsApp link must use international format: https://wa.me/919424135055",
-    "Do not alter immutable frontend paths: frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, frontend/src/components/ui",
-    "Logo image must be served from frontend/public/assets/generated as a static asset"
+    "Do not change the existing username/password authentication system.",
+    "Do not modify files listed in frontend.immutablePaths.",
+    "All session, material, and attendance data must be strictly isolated per student — no cross-student data leakage.",
+    "Keep UI clean with large buttons and simple layout as specified."
   ],
   "nonGoals": [
-    "No new backend Motoko changes for the WhatsApp CTA (it is a pure frontend link)",
-    "No redesign of the overall color scheme beyond applying the logo brand colors",
-    "No changes to admin-side registration or user management logic",
-    "No real-time WhatsApp API integration — only a static wa.me link"
+    "Internet Identity or OAuth-based login.",
+    "Real-time notifications or WebSocket updates.",
+    "Third-party file storage (all uploads stored in-canister).",
+    "Group sessions visible to multiple students simultaneously.",
+    "Payment or booking flow changes."
   ],
   "imageRequirements": {
-    "required": [
-      "Clean recreation of 'The Rajat's Equation' logo with the square-root-R monogram symbol above the serif wordmark 'THE RAJAT'S EQUATION', dark teal color (#1d3d4f) on transparent background (rajats-equation-logo.dim_400x300.png)",
-      "Small square favicon version of the Rajat's Equation square-root-R monogram only, dark teal (#1d3d4f) on transparent background (rajats-equation-favicon.dim_64x64.png)"
-    ],
+    "required": [],
     "edits": []
   }
 }

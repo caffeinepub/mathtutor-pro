@@ -1,171 +1,129 @@
 import React, { useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { getStore, type Session } from '../../lib/store';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Clock, Video, Plus } from 'lucide-react';
-import WhatsAppButton from '@/components/WhatsAppButton';
+import { getStore, getAuthState } from '../../lib/store';
+import { Calendar, Video, Clock, MessageCircle, BookOpen } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 
 export default function StudentSessions() {
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const auth = getAuthState();
   const store = getStore();
+  const student = store.students.find((s) => s.userId === auth.userId);
+  const sessions = student
+    ? store.sessions.filter((s) => s.studentId === student.id)
+    : [];
 
-  const student = store.students.find((s) => s.userId === currentUser?.id);
-  const sessions: Session[] = store.sessions.filter((s) => s.studentId === student?.id);
+  const upcoming = sessions.filter((s) => s.status === 'scheduled');
+  const past = sessions.filter((s) => s.status === 'completed' || s.status === 'cancelled');
 
-  const now = new Date();
-  const upcomingSessions = sessions.filter(
-    (s) =>
-      (s.status === 'confirmed' || s.status === 'pending') && new Date(s.date) >= now
-  );
-  const pastSessions = sessions.filter(
-    (s) => s.status === 'completed' || new Date(s.date) < now
-  );
-
-  const statusVariant = (
-    status: string
-  ): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (status === 'confirmed') return 'default';
-    if (status === 'pending') return 'secondary';
-    if (status === 'completed') return 'outline';
-    return 'destructive';
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'scheduled':
+        return <Badge className="bg-sky-100 text-sky-700 border-sky-300">Scheduled</Badge>;
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-700 border-green-300">Completed</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-100 text-red-700 border-red-300">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
-  const getCourse = (courseId: string) =>
-    store.courses.find((c) => c.id === courseId);
+  const SessionCard = ({ session }: { session: typeof sessions[0] }) => (
+    <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-sky-300 hover:shadow-sm transition-all">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h3 className="font-bold text-slate-800 text-lg">{session.courseName}</h3>
+          <p className="text-sm text-slate-500 capitalize">{session.sessionType} session</p>
+        </div>
+        {getStatusBadge(session.status)}
+      </div>
+      <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-3">
+        <span className="flex items-center gap-1.5">
+          <Calendar size={14} className="text-sky-500" />
+          {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Clock size={14} className="text-sky-500" />
+          {session.time}
+        </span>
+      </div>
+      {session.meetLink && session.status === 'scheduled' && (
+        <a href={session.meetLink} target="_blank" rel="noopener noreferrer">
+          <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white h-11 font-semibold">
+            <Video size={16} className="mr-2" />
+            Join Google Meet
+          </Button>
+        </a>
+      )}
+    </div>
+  );
 
-  const SessionCard = ({ session }: { session: Session }) => {
-    const course = getCourse(session.courseId);
-    return (
-      <Card className="border-border hover:shadow-sm transition-shadow">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                <Calendar className="w-4 h-4 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-foreground">
-                    {session.courseName || course?.name || 'Unknown Course'}
-                  </p>
-                  <Badge
-                    variant={statusVariant(session.status)}
-                    className="text-xs capitalize"
-                  >
-                    {session.status}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {session.date}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {session.time} ({session.duration}min)
-                  </span>
-                  <span className="capitalize">{session.type}</span>
-                </div>
-                {session.meetLink && session.status === 'confirmed' && (
-                  <a
-                    href={session.meetLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                  >
-                    <Video className="w-3 h-3" />
-                    Join Meet
-                  </a>
-                )}
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-sm font-bold text-primary">
-                ₹{session.price?.toLocaleString('en-IN')}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
+  const EmptyState = ({ type }: { type: 'upcoming' | 'past' }) => (
+    <div className="text-center py-12 bg-sky-50 rounded-2xl border border-sky-100">
+      <Calendar size={48} className="mx-auto text-sky-300 mb-3" />
+      <h3 className="text-lg font-semibold text-slate-700 mb-2">
+        {type === 'upcoming' ? 'No Upcoming Sessions' : 'No Past Sessions'}
+      </h3>
+      <p className="text-slate-500 mb-5 max-w-xs mx-auto">
+        {type === 'upcoming'
+          ? 'Book a session to get started with your learning journey.'
+          : 'Your completed sessions will appear here.'}
+      </p>
+      {type === 'upcoming' && (
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link to="/student/book">
+            <Button className="bg-sky-600 hover:bg-sky-700 text-white h-11 px-5 font-semibold">
+              <BookOpen size={16} className="mr-2" />
+              Book a Session
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            className="border-green-400 text-green-700 hover:bg-green-50 h-11 px-5 font-semibold"
+            onClick={() => window.open('https://wa.me/919424135055?text=Hi! I want to book a session.', '_blank')}
+          >
+            <MessageCircle size={16} className="mr-2" />
+            WhatsApp Us
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">My Sessions</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {sessions.length} session{sessions.length !== 1 ? 's' : ''} total
-          </p>
-        </div>
-        <Link to="/student/book">
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-1" /> Book Session
-          </Button>
-        </Link>
-      </div>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold text-slate-800 mb-2">My Sessions</h1>
+      <p className="text-slate-500 mb-6">View your upcoming and past learning sessions.</p>
 
       <Tabs defaultValue="upcoming">
-        <TabsList>
-          <TabsTrigger value="upcoming">
-            Upcoming ({upcomingSessions.length})
+        <TabsList className="mb-5 bg-sky-50 border border-sky-100">
+          <TabsTrigger value="upcoming" className="data-[state=active]:bg-sky-600 data-[state=active]:text-white font-medium">
+            Upcoming ({upcoming.length})
           </TabsTrigger>
-          <TabsTrigger value="past">
-            Past ({pastSessions.length})
+          <TabsTrigger value="past" className="data-[state=active]:bg-sky-600 data-[state=active]:text-white font-medium">
+            Past ({past.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="upcoming" className="space-y-3 mt-4">
-          {upcomingSessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-muted rounded-full mb-4">
-                <Calendar className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                No Upcoming Sessions
-              </h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                Book a session to get started with your learning.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Link to="/student/book">
-                  <Button size="sm">Book a Session</Button>
-                </Link>
-                <WhatsAppButton
-                  label="Book via WhatsApp"
-                  message="Hi, I want to book a session for mathematics coaching."
-                  className="text-sm py-2 px-4"
-                />
-              </div>
-            </div>
+        <TabsContent value="upcoming">
+          {upcoming.length === 0 ? (
+            <EmptyState type="upcoming" />
           ) : (
-            upcomingSessions
-              .slice()
-              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-              .map((session) => <SessionCard key={session.id} session={session} />)
+            <div className="space-y-4">
+              {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
+            </div>
           )}
         </TabsContent>
 
-        <TabsContent value="past" className="space-y-3 mt-4">
-          {pastSessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="p-4 bg-muted rounded-full mb-4">
-                <Clock className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">No Past Sessions</h3>
-              <p className="text-muted-foreground text-sm">
-                Your completed sessions will appear here.
-              </p>
-            </div>
+        <TabsContent value="past">
+          {past.length === 0 ? (
+            <EmptyState type="past" />
           ) : (
-            pastSessions
-              .slice()
-              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              .map((session) => <SessionCard key={session.id} session={session} />)
+            <div className="space-y-4">
+              {past.map((s) => <SessionCard key={s.id} session={s} />)}
+            </div>
           )}
         </TabsContent>
       </Tabs>

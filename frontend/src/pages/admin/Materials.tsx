@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Trash2, FileText, Link as LinkIcon, Filter } from 'lucide-react';
 
-const FILE_TYPES = ['PDF', 'Video', 'Notes', 'Assignment', 'Solution', 'Other'];
+// Valid file types matching the Material interface
+const FILE_TYPES: Material['fileType'][] = ['pdf', 'video', 'image', 'doc', 'other'];
 
 export default function AdminMaterials() {
   const [materials, setMaterials] = useState<Material[]>(() => getStore().materials);
@@ -23,11 +24,17 @@ export default function AdminMaterials() {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    courseId: string;
+    title: string;
+    description: string;
+    fileType: Material['fileType'];
+    fileUrl: string;
+  }>({
     courseId: '',
     title: '',
     description: '',
-    fileType: 'PDF',
+    fileType: 'pdf',
     fileUrl: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -79,23 +86,20 @@ export default function AdminMaterials() {
         (s) => s.status === 'approved' && s.enrolledCourses.includes(form.courseId)
       );
       for (const student of enrolledStudents) {
-        const user = currentStore.users.find((u) => u.id === student.userId);
-        if (user) {
-          currentStore.notifications.push({
-            id: `notif_${Date.now()}_${student.id}`,
-            userId: user.id,
-            title: 'New Study Material',
-            message: `New material "${form.title}" has been uploaded for ${course?.name}.`,
-            read: false,
-            createdAt: new Date().toISOString(),
-          });
-        }
+        currentStore.notifications.push({
+          id: `notif_${Date.now()}_${student.id}`,
+          title: 'New Study Material',
+          message: `New material "${form.title}" has been uploaded for ${course?.name}.`,
+          targetStudentId: student.id,
+          readBy: [],
+          createdAt: new Date().toISOString(),
+        });
       }
 
       saveStore(currentStore);
       refreshMaterials();
       setModalOpen(false);
-      setForm({ courseId: '', title: '', description: '', fileType: 'PDF', fileUrl: '' });
+      setForm({ courseId: '', title: '', description: '', fileType: 'pdf', fileUrl: '' });
       toast.success('Material uploaded successfully');
     } catch (err) {
       toast.error('Failed to upload material');
@@ -113,12 +117,13 @@ export default function AdminMaterials() {
     toast.success('Material deleted');
   };
 
-  const fileTypeBadgeVariant = (type: string) => {
+  const fileTypeBadgeVariant = (type: string): 'default' | 'secondary' | 'outline' | 'destructive' => {
     const map: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-      PDF: 'default',
-      Video: 'secondary',
-      Notes: 'outline',
-      Assignment: 'destructive',
+      pdf: 'default',
+      video: 'secondary',
+      doc: 'outline',
+      image: 'outline',
+      other: 'outline',
     };
     return map[type] || 'outline';
   };
@@ -132,7 +137,14 @@ export default function AdminMaterials() {
             {materials.length} material{materials.length !== 1 ? 's' : ''} uploaded
           </p>
         </div>
-        <Button onClick={() => { setForm({ courseId: '', title: '', description: '', fileType: 'PDF', fileUrl: '' }); setFormErrors({}); setModalOpen(true); }} size="sm">
+        <Button
+          onClick={() => {
+            setForm({ courseId: '', title: '', description: '', fileType: 'pdf', fileUrl: '' });
+            setFormErrors({});
+            setModalOpen(true);
+          }}
+          size="sm"
+        >
           <Plus className="w-4 h-4 mr-1" /> Upload Material
         </Button>
       </div>
@@ -178,7 +190,7 @@ export default function AdminMaterials() {
                       <p className="text-xs text-muted-foreground truncate">{material.courseName}</p>
                     </div>
                   </div>
-                  <Badge variant={fileTypeBadgeVariant(material.fileType)} className="text-xs shrink-0">
+                  <Badge variant={fileTypeBadgeVariant(material.fileType)} className="text-xs shrink-0 uppercase">
                     {material.fileType}
                   </Badge>
                 </div>
@@ -260,10 +272,12 @@ export default function AdminMaterials() {
               <Label>File Type</Label>
               <select
                 value={form.fileType}
-                onChange={(e) => setForm((p) => ({ ...p, fileType: e.target.value }))}
+                onChange={(e) => setForm((p) => ({ ...p, fileType: e.target.value as Material['fileType'] }))}
                 className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {FILE_TYPES.map((t) => <option key={t}>{t}</option>)}
+                {FILE_TYPES.map((t) => (
+                  <option key={t} value={t} className="uppercase">{t.toUpperCase()}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">

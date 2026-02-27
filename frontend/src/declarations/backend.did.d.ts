@@ -10,6 +10,43 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export type ApprovalStatus = { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
+export interface Attendance {
+  'id' : bigint,
+  'status' : AttendanceStatus,
+  'studentId' : bigint,
+  'markedAt' : bigint,
+  'sessionId' : bigint,
+}
+export type AttendanceStatus = { 'present' : null } |
+  { 'absent' : null };
+export interface AttendanceSummary {
+  'presentCount' : bigint,
+  'totalSessions' : bigint,
+  'absentCount' : bigint,
+}
+export interface Material {
+  'id' : bigint,
+  'title' : string,
+  'studentId' : bigint,
+  'fileData' : [] | [Uint8Array],
+  'description' : [] | [string],
+  'fileLink' : [] | [string],
+  'relatedCourse' : string,
+  'uploadedAt' : bigint,
+}
+export interface Session {
+  'id' : bigint,
+  'topic' : [] | [string],
+  'studentId' : bigint,
+  'meetLink' : string,
+  'date' : string,
+  'createdAt' : bigint,
+  'time' : string,
+  'durationHours' : bigint,
+}
 export interface ShoppingItem {
   'productName' : string,
   'currency' : string,
@@ -34,9 +71,47 @@ export interface TransformationOutput {
   'body' : Uint8Array,
   'headers' : Array<http_header>,
 }
+export interface UpiPayment {
+  'id' : bigint,
+  'status' : UpiPaymentStatus,
+  'hours' : bigint,
+  'sessionType' : string,
+  'upiTransactionId' : string,
+  'accessCode' : [] | [string],
+  'fullName' : string,
+  'pricePerHour' : bigint,
+  'email' : string,
+  'totalAmount' : bigint,
+  'phone' : string,
+  'courseName' : string,
+}
+export type UpiPaymentStatus = { 'pending' : null } |
+  { 'approved' : string } |
+  { 'rejected' : [] | [string] };
+export interface UserApprovalInfo {
+  'status' : ApprovalStatus,
+  'principal' : Principal,
+}
+export interface UserProfile {
+  'name' : string,
+  'accessCode' : [] | [string],
+  'email' : string,
+  'phone' : string,
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface _CaffeineStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface _CaffeineStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface _CaffeineStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface http_header { 'value' : string, 'name' : string }
 export interface http_request_result {
   'status' : bigint,
@@ -44,18 +119,74 @@ export interface http_request_result {
   'headers' : Array<http_header>,
 }
 export interface _SERVICE {
+  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
+  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_caffeineStorageCreateCertificate' : ActorMethod<
+    [string],
+    _CaffeineStorageCreateCertificateResult
+  >,
+  '_caffeineStorageRefillCashier' : ActorMethod<
+    [[] | [_CaffeineStorageRefillInformation]],
+    _CaffeineStorageRefillResult
+  >,
+  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addMaterial' : ActorMethod<
+    [bigint, string, [] | [string], [] | [Uint8Array], [] | [string], string],
+    bigint
+  >,
+  'addProduct' : ActorMethod<[ShoppingItem], undefined>,
+  'addSession' : ActorMethod<
+    [bigint, string, string, bigint, string, [] | [string]],
+    bigint
+  >,
+  'approveUpiPayment' : ActorMethod<
+    [bigint],
+    [] | [{ 'accessCode' : string, 'fullName' : string }]
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string
   >,
+  'deleteMaterial' : ActorMethod<[bigint], undefined>,
+  'deleteProduct' : ActorMethod<[string], undefined>,
+  'deleteSession' : ActorMethod<[bigint], undefined>,
+  'findUpiPaymentByAccessCode' : ActorMethod<[string], [] | [UpiPayment]>,
+  'getAllPayments' : ActorMethod<[], Array<UpiPayment>>,
+  'getAllUpiPaymentsByEmail' : ActorMethod<[string], Array<UpiPayment>>,
+  'getAttendanceForStudent' : ActorMethod<[bigint], Array<Attendance>>,
+  'getAttendanceSummary' : ActorMethod<[bigint], AttendanceSummary>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getMaterialsForStudent' : ActorMethod<[bigint], Array<Material>>,
+  'getPendingPayments' : ActorMethod<[], Array<UpiPayment>>,
+  'getProducts' : ActorMethod<[], Array<ShoppingItem>>,
+  'getSessionsForStudent' : ActorMethod<[bigint], Array<Session>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
+  'getUpiPaymentStatus' : ActorMethod<[bigint], [] | [UpiPaymentStatus]>,
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isCallerApproved' : ActorMethod<[], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
+  'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
+  'markAttendance' : ActorMethod<[bigint, bigint, AttendanceStatus], bigint>,
+  'rejectUpiPayment' : ActorMethod<[bigint, [] | [string]], undefined>,
+  'requestApproval' : ActorMethod<[], undefined>,
+  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
+  'studentFindByEmail' : ActorMethod<[string], [] | [UpiPayment]>,
+  'submitUpiPayment' : ActorMethod<
+    [string, string, bigint, bigint, bigint, string, string, string, string],
+    bigint
+  >,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
+  'updateProduct' : ActorMethod<[ShoppingItem], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

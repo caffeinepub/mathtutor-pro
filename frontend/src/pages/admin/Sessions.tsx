@@ -4,7 +4,7 @@ import { getStore, saveStore, type Session } from '../../lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -13,21 +13,24 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Calendar, Clock, Video, User, BookOpen, Plus } from 'lucide-react';
+import { Calendar, Clock, Video, User, BookOpen } from 'lucide-react';
 
-const STATUS_OPTIONS = ['pending', 'confirmed', 'completed', 'cancelled'] as const;
+// Valid session statuses matching the new Session interface
+const STATUS_OPTIONS: Session['status'][] = ['scheduled', 'completed', 'cancelled'];
 
 export default function AdminSessions() {
   const [sessions, setSessions] = useState<Session[]>(() => getStore().sessions);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [editForm, setEditForm] = useState({ meetLink: '', status: 'pending', notes: '' });
+  const [editForm, setEditForm] = useState<{ meetLink: string; status: Session['status'] }>({
+    meetLink: '',
+    status: 'scheduled',
+  });
   const [editOpen, setEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
 
   const store = getStore();
   const students = store.students;
-  const courses = store.courses;
 
   const refreshSessions = () => {
     setSessions(getStore().sessions);
@@ -43,7 +46,6 @@ export default function AdminSessions() {
     setEditForm({
       meetLink: session.meetLink || '',
       status: session.status,
-      notes: '',
     });
     setEditOpen(true);
   };
@@ -58,26 +60,23 @@ export default function AdminSessions() {
           ? {
               ...s,
               meetLink: editForm.meetLink || undefined,
-              status: editForm.status as Session['status'],
+              status: editForm.status,
             }
           : s
       );
 
-      // Notify student if status changed to confirmed
-      if (editForm.status === 'confirmed' && editingSession.status !== 'confirmed') {
+      // Notify student if status changed to scheduled (confirmed)
+      if (editForm.status === 'scheduled' && editingSession.status !== 'scheduled') {
         const student = currentStore.students.find((s) => s.id === editingSession.studentId);
         if (student) {
-          const user = currentStore.users.find((u) => u.id === student.userId);
-          if (user) {
-            currentStore.notifications.push({
-              id: `notif_${Date.now()}`,
-              userId: user.id,
-              title: 'Session Confirmed!',
-              message: `Your session for ${editingSession.courseName} on ${editingSession.date} at ${editingSession.time} has been confirmed.${editForm.meetLink ? ` Meet link: ${editForm.meetLink}` : ''}`,
-              read: false,
-              createdAt: new Date().toISOString(),
-            });
-          }
+          currentStore.notifications.push({
+            id: `notif_${Date.now()}`,
+            title: 'Session Confirmed!',
+            message: `Your session for ${editingSession.courseName} on ${editingSession.date} at ${editingSession.time} has been confirmed.${editForm.meetLink ? ` Meet link: ${editForm.meetLink}` : ''}`,
+            targetStudentId: student.id,
+            readBy: [],
+            createdAt: new Date().toISOString(),
+          });
         }
       }
 
@@ -98,8 +97,7 @@ export default function AdminSessions() {
   };
 
   const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (status === 'confirmed') return 'default';
-    if (status === 'pending') return 'secondary';
+    if (status === 'scheduled') return 'default';
     if (status === 'completed') return 'outline';
     return 'destructive';
   };
@@ -173,8 +171,9 @@ export default function AdminSessions() {
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {session.time} ({session.duration}min)
+                            {session.time}
                           </span>
+                          <span className="capitalize">{session.sessionType}</span>
                         </div>
                         {session.meetLink && (
                           <a
@@ -190,10 +189,6 @@ export default function AdminSessions() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">₹{session.price?.toLocaleString('en-IN')}</p>
-                        <p className="capitalize">{session.type}</p>
-                      </div>
                       <Button variant="outline" size="sm" onClick={() => openEdit(session)}>
                         Edit
                       </Button>
@@ -205,43 +200,46 @@ export default function AdminSessions() {
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* Edit Session Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Update Session</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            {editingSession && (
-              <div className="p-3 bg-muted/30 rounded-lg text-sm">
+          {editingSession && (
+            <div className="space-y-4 py-2">
+              <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
                 <p className="font-medium text-foreground">{editingSession.courseName}</p>
-                <p className="text-muted-foreground text-xs mt-0.5">
-                  {editingSession.date} at {editingSession.time} • {editingSession.duration}min
+                <p className="text-muted-foreground">
+                  {editingSession.date} at {editingSession.time} — {editingSession.sessionType}
                 </p>
+                <p className="text-muted-foreground">Student: {getStudentName(editingSession.studentId)}</p>
               </div>
-            )}
-            <div className="space-y-1">
-              <Label htmlFor="meet-link">Google Meet Link</Label>
-              <Input
-                id="meet-link"
-                value={editForm.meetLink}
-                onChange={(e) => setEditForm((p) => ({ ...p, meetLink: e.target.value }))}
-                placeholder="https://meet.google.com/..."
-              />
+
+              <div className="space-y-1">
+                <Label htmlFor="meet-link">Google Meet Link</Label>
+                <Input
+                  id="meet-link"
+                  value={editForm.meetLink}
+                  onChange={(e) => setEditForm((p) => ({ ...p, meetLink: e.target.value }))}
+                  placeholder="https://meet.google.com/..."
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value as Session['status'] }))}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s} className="capitalize">{s}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <select
-                value={editForm.status}
-                onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))}
-                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s} className="capitalize">{s}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={handleEditSubmit} disabled={isSubmitting}>
@@ -250,7 +248,7 @@ export default function AdminSessions() {
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Saving...
                 </span>
-              ) : 'Update Session'}
+              ) : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

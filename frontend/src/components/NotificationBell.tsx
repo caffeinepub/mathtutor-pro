@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Bell } from 'lucide-react';
-import { getStore, saveStore, type Notification } from '../lib/store';
+import { getStore, saveStore, markNotificationRead, type Notification } from '../lib/store';
 import { Badge } from '@/components/ui/badge';
 import {
   Popover,
@@ -11,31 +11,45 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface NotificationBellProps {
-  userId: string;
+  studentId: string;
 }
 
-export default function NotificationBell({ userId }: NotificationBellProps) {
+export default function NotificationBell({ studentId }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>(() =>
-    getStore().notifications.filter((n) => n.userId === userId)
+    getStore().notifications.filter(
+      (n) => !n.targetStudentId || n.targetStudentId === studentId
+    )
   );
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.readBy.includes(studentId)).length;
 
   const markAllRead = () => {
     const store = getStore();
-    store.notifications = store.notifications.map((n) =>
-      n.userId === userId ? { ...n, read: true } : n
-    );
+    notifications.forEach((n) => {
+      if (!n.readBy.includes(studentId)) {
+        const idx = store.notifications.findIndex((sn) => sn.id === n.id);
+        if (idx >= 0 && !store.notifications[idx].readBy.includes(studentId)) {
+          store.notifications[idx].readBy.push(studentId);
+        }
+      }
+    });
     saveStore(store);
-    setNotifications(store.notifications.filter((n) => n.userId === userId));
+    setNotifications(
+      store.notifications.filter(
+        (n) => !n.targetStudentId || n.targetStudentId === studentId
+      )
+    );
   };
 
   const handleOpen = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
-      // Refresh notifications when opening
-      setNotifications(getStore().notifications.filter((n) => n.userId === userId));
+      setNotifications(
+        getStore().notifications.filter(
+          (n) => !n.targetStudentId || n.targetStudentId === studentId
+        )
+      );
     }
   };
 
@@ -76,25 +90,28 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
               {notifications
                 .slice()
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((n) => (
-                  <div
-                    key={n.id}
-                    className={`px-4 py-3 ${!n.read ? 'bg-primary/5' : ''}`}
-                  >
-                    <div className="flex items-start gap-2">
-                      {!n.read && (
-                        <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                      )}
-                      <div className={!n.read ? '' : 'pl-4'}>
-                        <p className="text-sm font-medium text-foreground">{n.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(n.createdAt).toLocaleDateString()}
-                        </p>
+                .map((n) => {
+                  const isUnread = !n.readBy.includes(studentId);
+                  return (
+                    <div
+                      key={n.id}
+                      className={`px-4 py-3 ${isUnread ? 'bg-primary/5' : ''}`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {isUnread && (
+                          <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                        )}
+                        <div className={isUnread ? '' : 'pl-4'}>
+                          <p className="text-sm font-medium text-foreground">{n.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(n.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           )}
         </ScrollArea>

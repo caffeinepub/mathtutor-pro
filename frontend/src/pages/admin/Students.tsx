@@ -1,305 +1,322 @@
 import React, { useState } from 'react';
-import { toast } from 'sonner';
-import { getStore, saveStore } from '../../lib/store';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
-import { Users, CheckCircle, XCircle, Eye, BookOpen, Phone, Mail } from 'lucide-react';
+import {
+  getStudents,
+  updateStudent,
+  generateNextAccessCode,
+  Student,
+} from '../../lib/store';
+import {
+  CheckCircle,
+  XCircle,
+  Search,
+  User,
+  Mail,
+  Phone,
+  BookOpen,
+  Copy,
+  Check,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function AdminStudents() {
-  const [students, setStudents] = useState(() => getStore().students);
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [students, setStudents] = useState<Student[]>(() => getStudents());
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [approvedCode, setApprovedCode] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
-  const store = getStore();
-  const courses = store.courses;
+  const refresh = () => setStudents(getStudents());
 
-  const refreshStudents = () => {
-    setStudents(getStore().students);
-  };
-
-  const filteredStudents = students.filter((s) => {
-    const matchesStatus = statusFilter === 'all' || s.status === statusFilter;
-    const matchesSearch =
-      !search ||
+  const filtered = students.filter((s) => {
+    const matchSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.email.toLowerCase().includes(search.toLowerCase());
-    return matchesStatus && matchesSearch;
+    const matchStatus = statusFilter === 'all' || s.status === statusFilter;
+    return matchSearch && matchStatus;
   });
 
-  const handleApprove = (studentId: string) => {
-    const currentStore = getStore();
-    const student = currentStore.students.find((s) => s.id === studentId);
-    if (!student) return;
-
-    // Generate access code
-    const accessCode = `RE-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    currentStore.students = currentStore.students.map((s) =>
-      s.id === studentId ? { ...s, status: 'approved' as const, accessCode } : s
-    );
-
-    // Notify student
-    const user = currentStore.users.find((u) => u.id === student.userId);
-    if (user) {
-      currentStore.notifications.push({
-        id: `notif_${Date.now()}`,
-        userId: user.id,
-        title: 'Account Approved!',
-        message: `Your account has been approved. Your access code is: ${accessCode}. You can now log in and access all features.`,
-        read: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    saveStore(currentStore);
-    refreshStudents();
-    toast.success(`${student.name}'s account approved`);
+  const handleApprove = (student: Student) => {
+    const code = generateNextAccessCode();
+    updateStudent(student.id, { status: 'approved', accessCode: code });
+    setApprovedCode(code);
+    setSelectedStudent({ ...student, status: 'approved', accessCode: code });
+    refresh();
+    toast.success(`${student.name} approved! Access code: ${code}`);
   };
 
-  const handleReject = (studentId: string) => {
-    const currentStore = getStore();
-    const student = currentStore.students.find((s) => s.id === studentId);
-    if (!student) return;
-
-    currentStore.students = currentStore.students.map((s) =>
-      s.id === studentId ? { ...s, status: 'rejected' as const } : s
-    );
-
-    // Notify student
-    const user = currentStore.users.find((u) => u.id === student.userId);
-    if (user) {
-      currentStore.notifications.push({
-        id: `notif_${Date.now()}`,
-        userId: user.id,
-        title: 'Account Status Update',
-        message: 'Your account application has been reviewed. Please contact admin for more information.',
-        read: false,
-        createdAt: new Date().toISOString(),
-      });
+  const handleReject = (student: Student) => {
+    updateStudent(student.id, { status: 'rejected' });
+    refresh();
+    toast.error(`${student.name}'s registration rejected.`);
+    if (selectedStudent?.id === student.id) {
+      setSelectedStudent({ ...student, status: 'rejected' });
     }
-
-    saveStore(currentStore);
-    refreshStudents();
-    toast.success(`${student.name}'s account rejected`);
   };
 
-  const handleEnrollCourse = (studentId: string, courseId: string) => {
-    const currentStore = getStore();
-    const student = currentStore.students.find((s) => s.id === studentId);
-    if (!student) return;
-
-    if (student.enrolledCourses.includes(courseId)) {
-      // Unenroll
-      currentStore.students = currentStore.students.map((s) =>
-        s.id === studentId
-          ? { ...s, enrolledCourses: s.enrolledCourses.filter((c) => c !== courseId) }
-          : s
-      );
-    } else {
-      // Enroll
-      currentStore.students = currentStore.students.map((s) =>
-        s.id === studentId
-          ? { ...s, enrolledCourses: [...s.enrolledCourses, courseId] }
-          : s
-      );
-    }
-
-    saveStore(currentStore);
-    refreshStudents();
-    // Update selected student view
-    const updated = getStore().students.find((s) => s.id === studentId);
-    if (updated) setSelectedStudent(updated);
-    toast.success('Course enrollment updated');
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+      toast.success('Access code copied!');
+    });
   };
 
-  const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (status === 'approved') return 'default';
-    if (status === 'pending') return 'secondary';
-    return 'destructive';
+  const statusCounts = {
+    all: students.length,
+    pending: students.filter((s) => s.status === 'pending').length,
+    approved: students.filter((s) => s.status === 'approved').length,
+    rejected: students.filter((s) => s.status === 'rejected').length,
+  };
+
+  const getStatusBadge = (status: Student['status']) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
+      case 'approved':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">Rejected</Badge>;
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Students</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {students.length} student{students.length !== 1 ? 's' : ''} registered
-        </p>
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">Student Management</h1>
+        <p className="text-slate-500 mt-1">Approve or reject student registrations and manage access codes.</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {(['all', 'pending', 'approved', 'rejected'] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`p-4 rounded-xl border text-left transition-all ${
+              statusFilter === s
+                ? 'bg-sky-600 text-white border-sky-600'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-sky-300'
+            }`}
+          >
+            <div className="text-2xl font-bold">{statusCounts[s]}</div>
+            <div className="text-sm capitalize mt-1 opacity-80">{s === 'all' ? 'Total Students' : `${s}`}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
         <Input
-          placeholder="Search by name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="sm:max-w-xs"
+          placeholder="Search by name or email..."
+          className="pl-10 h-11 border-slate-200"
         />
-        <div className="flex gap-2">
-          {['all', 'pending', 'approved', 'rejected'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors capitalize ${
-                statusFilter === status
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {filteredStudents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <Users className="w-8 h-8 text-muted-foreground" />
+      {/* Student List */}
+      <div className="space-y-3">
+        {filtered.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <User size={48} className="mx-auto mb-3 opacity-30" />
+            <p className="text-lg">No students found</p>
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Students Found</h3>
-          <p className="text-muted-foreground text-sm">
-            {search || statusFilter !== 'all' ? 'Try adjusting your filters.' : 'No students have registered yet.'}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredStudents
-            .slice()
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .map((student) => (
-              <Card key={student.id} className="border-border hover:shadow-sm transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                        {student.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{student.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{student.email}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant={statusVariant(student.status)} className="text-xs capitalize">
-                            {student.status}
-                          </Badge>
-                          {student.enrolledCourses.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {student.enrolledCourses.length} course{student.enrolledCourses.length > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {student.status === 'pending' && (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(student.id)}
-                            className="text-xs"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5 mr-1" /> Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleReject(student.id)}
-                            className="text-xs text-destructive hover:bg-destructive/10"
-                          >
-                            <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
-                          </Button>
-                        </>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => { setSelectedStudent(student); setDetailOpen(true); }}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-        </div>
-      )}
-
-      {/* Student Detail Modal */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Student Details</DialogTitle>
-          </DialogHeader>
-          {selectedStudent && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                  {selectedStudent.name.charAt(0).toUpperCase()}
+        ) : (
+          filtered.map((student) => (
+            <div
+              key={student.id}
+              className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center gap-4 hover:border-sky-300 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-semibold text-slate-800">{student.name}</span>
+                  {getStatusBadge(student.status)}
                 </div>
-                <div>
-                  <p className="font-semibold text-foreground">{selectedStudent.name}</p>
-                  <Badge variant={statusVariant(selectedStudent.status)} className="text-xs capitalize mt-1">
-                    {selectedStudent.status}
-                  </Badge>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                  <span className="flex items-center gap-1"><Mail size={13} />{student.email}</span>
+                  <span className="flex items-center gap-1"><Phone size={13} />{student.phone}</span>
+                  <span className="flex items-center gap-1"><BookOpen size={13} />{student.course}</span>
+                  <span className="capitalize">{student.sessionType}</span>
                 </div>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="w-4 h-4" />
-                  <span>{selectedStudent.email}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Phone className="w-4 h-4" />
-                  <span>{selectedStudent.phone}</span>
-                </div>
-                {selectedStudent.accessCode && (
-                  <div className="p-2 bg-muted rounded text-xs font-mono">
-                    Access Code: {selectedStudent.accessCode}
+                {student.status === 'approved' && student.accessCode && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Access Code:</span>
+                    <span className="font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded text-sm">
+                      {student.accessCode}
+                    </span>
+                    <button
+                      onClick={() => copyCode(student.accessCode)}
+                      className="text-slate-400 hover:text-sky-600 transition-colors"
+                      title="Copy access code"
+                    >
+                      <Copy size={14} />
+                    </button>
                   </div>
                 )}
               </div>
 
-              <div>
-                <p className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-primary" />
-                  Course Enrollment
-                </p>
-                <div className="space-y-2">
-                  {courses.map((course) => {
-                    const enrolled = selectedStudent.enrolledCourses.includes(course.id);
-                    return (
-                      <div key={course.id} className="flex items-center justify-between gap-2 p-2 bg-muted/30 rounded">
-                        <span className="text-sm text-foreground truncate">{course.name}</span>
-                        <Button
-                          size="sm"
-                          variant={enrolled ? 'default' : 'outline'}
-                          onClick={() => handleEnrollCourse(selectedStudent.id, course.id)}
-                          className="text-xs shrink-0"
-                        >
-                          {enrolled ? 'Enrolled ✓' : 'Enroll'}
-                        </Button>
-                      </div>
-                    );
-                  })}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setSelectedStudent(student); setApprovedCode(null); setCopiedCode(false); }}
+                  className="border-slate-200 text-slate-600"
+                >
+                  View Details
+                </Button>
+                {student.status === 'pending' && (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApprove(student)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle size={15} className="mr-1" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleReject(student)}
+                    >
+                      <XCircle size={15} className="mr-1" />
+                      Reject
+                    </Button>
+                  </>
+                )}
+                {student.status === 'approved' && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleReject(student)}
+                  >
+                    Revoke
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Student Detail Dialog */}
+      <Dialog open={!!selectedStudent} onOpenChange={(open) => { if (!open) { setSelectedStudent(null); setApprovedCode(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Student Details</DialogTitle>
+            <DialogDescription>View and manage student registration</DialogDescription>
+          </DialogHeader>
+          {selectedStudent && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Name</p>
+                  <p className="font-semibold text-slate-800">{selectedStudent.name}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Status</p>
+                  {getStatusBadge(selectedStudent.status)}
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Email</p>
+                  <p className="text-slate-700">{selectedStudent.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Phone</p>
+                  <p className="text-slate-700">{selectedStudent.phone}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Course</p>
+                  <p className="text-slate-700">{selectedStudent.course}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Session Type</p>
+                  <p className="text-slate-700 capitalize">{selectedStudent.sessionType}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wide">Registered</p>
+                  <p className="text-slate-700">{new Date(selectedStudent.registeredAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+
+              {/* Access Code Display */}
+              {selectedStudent.status === 'approved' && selectedStudent.accessCode && (
+                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 text-center">
+                  <p className="text-sm text-green-700 font-medium mb-2">✅ Student Access Code</p>
+                  <p className="text-3xl font-bold font-mono text-green-800 tracking-widest mb-3">
+                    {selectedStudent.accessCode}
+                  </p>
+                  <Button
+                    onClick={() => copyCode(selectedStudent.accessCode)}
+                    variant="outline"
+                    className="border-green-400 text-green-700 hover:bg-green-100"
+                  >
+                    {copiedCode ? (
+                      <><Check size={15} className="mr-1" /> Copied!</>
+                    ) : (
+                      <><Copy size={15} className="mr-1" /> Copy Code</>
+                    )}
+                  </Button>
+                  <p className="text-xs text-green-600 mt-2">
+                    Share this code with the student. They use it to log in.
+                  </p>
+                </div>
+              )}
+
+              {/* Newly approved code highlight */}
+              {approvedCode && selectedStudent.status === 'approved' && (
+                <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-center">
+                  <p className="text-sm text-sky-700">
+                    🎉 Access code generated and student approved!
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2">
+                {selectedStudent.status === 'pending' && (
+                  <>
+                    <Button
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => handleApprove(selectedStudent)}
+                    >
+                      <CheckCircle size={16} className="mr-1" />
+                      Approve & Generate Code
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => handleReject(selectedStudent)}
+                    >
+                      <XCircle size={16} className="mr-1" />
+                      Reject
+                    </Button>
+                  </>
+                )}
+                {selectedStudent.status === 'approved' && (
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => handleReject(selectedStudent)}
+                  >
+                    Revoke Approval
+                  </Button>
+                )}
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailOpen(false)}>Close</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

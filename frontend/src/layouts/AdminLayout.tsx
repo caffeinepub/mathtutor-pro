@@ -1,160 +1,164 @@
 import React, { useState } from 'react';
-import { Link, Outlet, useNavigate, useLocation } from '@tanstack/react-router';
+import { Link, Outlet, useRouter } from '@tanstack/react-router';
+import { getAuthState } from '../lib/auth';
+import { clearAuthState } from '../lib/store';
 import {
   LayoutDashboard,
   Users,
   BookOpen,
   Calendar,
-  FileText,
+  CreditCard,
   Bell,
   LogOut,
   Menu,
   X,
   ChevronRight,
-  CreditCard,
+  Video,
+  FileText,
+  ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { getStore } from '@/lib/store';
+import { useQuery } from '@tanstack/react-query';
+import { useActor } from '../hooks/useActor';
+
+function usePendingCount() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ['pendingPayments'],
+    queryFn: async () => {
+      if (!actor) return 0;
+      const pending = await actor.getPendingPayments();
+      return pending.length;
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30000,
+  });
+}
 
 const navItems = [
-  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { path: '/admin/students', label: 'Students', icon: Users },
-  { path: '/admin/courses', label: 'Courses', icon: BookOpen },
-  { path: '/admin/sessions', label: 'Sessions', icon: Calendar },
-  { path: '/admin/materials', label: 'Materials', icon: FileText },
-  { path: '/admin/payments', label: 'Payments', icon: CreditCard },
-  { path: '/admin/notifications', label: 'Notifications', icon: Bell },
+  { label: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+  { label: 'Students', path: '/admin/students', icon: Users },
+  { label: 'Courses', path: '/admin/courses', icon: BookOpen },
+  { label: 'Sessions', path: '/admin/sessions', icon: Calendar },
+  { label: 'Manage Student Sessions', path: '/admin/manage-sessions', icon: Video },
+  { label: 'Manage Student Materials', path: '/admin/manage-materials', icon: FileText },
+  { label: 'Attendance Management', path: '/admin/attendance', icon: ClipboardList },
+  { label: 'Payments', path: '/admin/payments', icon: CreditCard, badge: true },
+  { label: 'Notifications', path: '/admin/notifications', icon: Bell },
 ];
 
 export default function AdminLayout() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const store = getStore();
-  const pendingCount = store.students.filter((s) => s.status === 'pending').length;
+  const router = useRouter();
+  const { data: pendingCount = 0 } = usePendingCount();
 
   const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('currentStudent');
-    toast.success('Logged out successfully');
-    navigate({ to: '/login' });
+    clearAuthState();
+    router.navigate({ to: '/login' });
   };
 
-  const isActive = (path: string, exact?: boolean) => {
-    if (exact) return location.pathname === path;
-    return location.pathname.startsWith(path);
-  };
+  const currentPath = router.state.location.pathname;
+  const auth = getAuthState();
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-card border-r border-border z-50 flex flex-col transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:z-auto`}
+        className={`fixed top-0 left-0 h-full w-64 bg-card border-r border-border z-30 transition-transform duration-200 lg:translate-x-0 lg:static lg:z-auto ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
-        {/* Sidebar Header with Logo */}
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img
-              src="/assets/generated/rajats-equation-logo.dim_400x300.png"
-              alt="The Rajat's Equation"
-              className="h-10 w-auto object-contain"
-            />
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <Link to="/admin" className="flex items-center gap-2">
+              <img src="/assets/generated/logo-mark.dim_128x128.png" alt="Logo" className="h-8 w-8" />
+              <div>
+                <div className="font-bold text-sm text-foreground">Rajat's Equation</div>
+                <div className="text-xs text-muted-foreground">Admin Panel</div>
+              </div>
+            </Link>
+            <button
+              className="lg:hidden text-muted-foreground hover:text-foreground"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button
-            className="lg:hidden p-1 rounded text-muted-foreground hover:text-foreground"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Admin badge */}
-        <div className="px-4 py-2 border-b border-border">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Admin Portal
-          </span>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path, item.exact);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group
-                  ${active
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          {/* Navigation */}
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+            {navItems.map(item => {
+              const Icon = item.icon;
+              const isActive =
+                item.path === '/admin'
+                  ? currentPath === '/admin' || currentPath === '/admin/'
+                  : currentPath.startsWith(item.path);
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.label === 'Students' && pendingCount > 0 && (
-                  <Badge variant={active ? 'secondary' : 'default'} className="text-xs px-1.5 py-0">
-                    {pendingCount}
-                  </Badge>
-                )}
-                {active && <ChevronRight className="w-3 h-3 opacity-60" />}
-              </Link>
-            );
-          })}
-        </nav>
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge && pendingCount > 0 && (
+                    <Badge variant="destructive" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center">
+                      {pendingCount}
+                    </Badge>
+                  )}
+                  {isActive && <ChevronRight className="h-3 w-3 opacity-60" />}
+                </Link>
+              );
+            })}
+          </nav>
 
-        {/* Logout */}
-        <div className="p-3 border-t border-border">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
+          {/* Logout */}
+          <div className="p-3 border-t border-border">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
         </div>
       </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
+        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4 sticky top-0 z-10">
           <button
-            className="lg:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+            className="lg:hidden text-muted-foreground hover:text-foreground"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="h-5 w-5" />
           </button>
-          <div className="flex-1">
-            <h1 className="text-sm font-semibold text-foreground">
-              {navItems.find((n) => isActive(n.path, n.exact))?.label ?? 'Admin'}
-            </h1>
+          <div className="flex-1" />
+          <div className="text-sm text-muted-foreground">
+            Admin: {auth?.name ?? 'Admin'}
           </div>
-          {pendingCount > 0 && (
-            <Link to="/admin/students">
-              <Badge variant="destructive" className="text-xs cursor-pointer">
-                {pendingCount} pending
-              </Badge>
-            </Link>
-          )}
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
+        <main className="flex-1 p-6 overflow-auto">
           <Outlet />
         </main>
       </div>

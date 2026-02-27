@@ -40,33 +40,26 @@ export default function AdminNotifications() {
       const newNotifications: Notification[] = [];
 
       if (form.target === 'all') {
-        for (const student of students) {
-          const user = currentStore.users.find((u) => u.id === student.userId);
-          if (user) {
-            newNotifications.push({
-              id: `notif_${Date.now()}_${student.id}`,
-              userId: user.id,
-              title: form.title.trim(),
-              message: form.message.trim(),
-              read: false,
-              createdAt: new Date().toISOString(),
-            });
-          }
-        }
+        // Broadcast to all — no targetStudentId
+        newNotifications.push({
+          id: `notif_${Date.now()}_all`,
+          title: form.title.trim(),
+          message: form.message.trim(),
+          readBy: [],
+          createdAt: new Date().toISOString(),
+        });
       } else {
+        // Specific student
         const student = currentStore.students.find((s) => s.id === form.studentId);
         if (student) {
-          const user = currentStore.users.find((u) => u.id === student.userId);
-          if (user) {
-            newNotifications.push({
-              id: `notif_${Date.now()}`,
-              userId: user.id,
-              title: form.title.trim(),
-              message: form.message.trim(),
-              read: false,
-              createdAt: new Date().toISOString(),
-            });
-          }
+          newNotifications.push({
+            id: `notif_${Date.now()}`,
+            title: form.title.trim(),
+            message: form.message.trim(),
+            targetStudentId: student.id,
+            readBy: [],
+            createdAt: new Date().toISOString(),
+          });
         }
       }
 
@@ -74,7 +67,7 @@ export default function AdminNotifications() {
       saveStore(currentStore);
       setSentNotifications(currentStore.notifications);
       setForm({ target: 'all', studentId: '', title: '', message: '' });
-      toast.success(`Notification sent to ${newNotifications.length} recipient(s)`);
+      toast.success(`Notification sent to ${form.target === 'all' ? 'all students' : '1 student'}`);
     } catch (err) {
       toast.error('Failed to send notification');
     } finally {
@@ -206,15 +199,15 @@ export default function AdminNotifications() {
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium text-foreground">{n.title}</p>
                         <Badge
-                          variant={n.read ? 'outline' : 'default'}
+                          variant={n.targetStudentId ? 'outline' : 'default'}
                           className="text-xs shrink-0"
                         >
-                          {n.read ? 'Read' : 'Unread'}
+                          {n.targetStudentId ? 'Specific' : 'All'}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{n.message}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(n.createdAt).toLocaleDateString()}
+                        {new Date(n.createdAt).toLocaleDateString()} · {n.readBy.length} read
                       </p>
                     </div>
                   ))}

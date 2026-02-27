@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
-import { getStore, type Payment } from '../../lib/store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getStore, saveStore, type Payment } from '../../lib/store';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { IndianRupee, Receipt, TrendingUp } from 'lucide-react';
+import { IndianRupee, Receipt, TrendingUp, Check, X } from 'lucide-react';
 import ReceiptModal from '../../components/ReceiptModal';
+import { toast } from 'sonner';
 
 export default function AdminPayments() {
-  const store = getStore();
+  const [store, setStore] = useState(() => getStore());
   const payments = store.payments;
   const students = store.students;
-  const sessions = store.sessions;
-  const courses = store.courses;
 
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
+
+  const refresh = () => setStore(getStore());
 
   const totalRevenue = payments
     .filter((p) => p.status === 'completed')
@@ -25,10 +26,38 @@ export default function AdminPayments() {
     return student?.name || 'Unknown';
   };
 
-  const getSessionInfo = (sessionId: string) => {
-    const session = sessions.find((s) => s.id === sessionId);
-    if (!session) return 'N/A';
-    return `${session.courseName} - ${session.date}`;
+  const handleApprove = (payment: Payment) => {
+    const currentStore = getStore();
+    const idx = currentStore.payments.findIndex((p) => p.id === payment.id);
+    if (idx >= 0) {
+      currentStore.payments[idx].status = 'completed';
+      // Notify student
+      const student = currentStore.students.find((s) => s.id === payment.studentId);
+      if (student) {
+        currentStore.notifications.push({
+          id: `notif_${Date.now()}`,
+          title: 'Payment Confirmed',
+          message: `Your payment of ₹${payment.amount.toLocaleString('en-IN')} for ${payment.courseName} has been confirmed.`,
+          targetStudentId: student.id,
+          readBy: [],
+          createdAt: new Date().toISOString(),
+        });
+      }
+      saveStore(currentStore);
+      refresh();
+      toast.success('Payment approved');
+    }
+  };
+
+  const handleReject = (payment: Payment) => {
+    const currentStore = getStore();
+    const idx = currentStore.payments.findIndex((p) => p.id === payment.id);
+    if (idx >= 0) {
+      currentStore.payments[idx].status = 'failed';
+      saveStore(currentStore);
+      refresh();
+      toast.error('Payment rejected');
+    }
   };
 
   const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
@@ -113,13 +142,14 @@ export default function AdminPayments() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
-                          {getStudentName(payment.studentId)}
+                          {payment.studentName || getStudentName(payment.studentId)}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {getSessionInfo(payment.sessionId)}
+                          {payment.courseName} — {payment.sessionType} · {payment.hours}hr
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(payment.createdAt).toLocaleDateString()} • {payment.method}
+                          {new Date(payment.createdAt).toLocaleDateString()}
+                          {payment.upiTransactionId && ` · UPI: ${payment.upiTransactionId}`}
                         </p>
                       </div>
                     </div>
@@ -133,6 +163,24 @@ export default function AdminPayments() {
                           {payment.status}
                         </Badge>
                       </div>
+                      {payment.status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => handleApprove(payment)}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleReject(payment)}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { getStore, type Payment } from '../../lib/store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getStore, getAuthState, type Payment } from '../../lib/store';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { IndianRupee, Receipt, TrendingUp } from 'lucide-react';
+import { IndianRupee, Receipt, TrendingUp, CreditCard } from 'lucide-react';
 import ReceiptModal from '../../components/ReceiptModal';
 
 export default function StudentPayments() {
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const auth = getAuthState();
   const store = getStore();
 
-  const student = store.students.find((s) => s.userId === currentUser?.id);
-  const payments = store.payments.filter((p) => p.studentId === student?.id);
+  const student = store.students.find((s) => s.userId === auth.userId);
+  const payments = student
+    ? store.payments.filter((p) => p.studentId === student.id)
+    : [];
 
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -26,72 +28,62 @@ export default function StudentPayments() {
     return 'destructive';
   };
 
-  const getSessionInfo = (sessionId: string) => {
-    const session = store.sessions.find((s) => s.id === sessionId);
-    if (!session) return 'N/A';
-    return `${session.courseName} - ${session.date}`;
-  };
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Payment History</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {payments.length} payment{payments.length !== 1 ? 's' : ''} total
-        </p>
-      </div>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold text-slate-800 mb-2">Payment History</h1>
+      <p className="text-slate-500 mb-6">Track all your session payments.</p>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-border">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Paid</p>
-              <p className="text-xl font-bold text-foreground flex items-center gap-0.5">
-                <IndianRupee className="w-4 h-4" />
-                {totalPaid.toLocaleString('en-IN')}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Receipt className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Completed</p>
-              <p className="text-xl font-bold text-foreground">
-                {payments.filter((p) => p.status === 'completed').length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <IndianRupee className="w-5 h-5 text-orange-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Pending</p>
-              <p className="text-xl font-bold text-foreground">
-                {payments.filter((p) => p.status === 'pending').length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {payments.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card className="border-border">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Paid</p>
+                <p className="text-xl font-bold text-foreground flex items-center gap-0.5">
+                  <IndianRupee className="w-4 h-4" />
+                  {totalPaid.toLocaleString('en-IN')}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Receipt className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Completed</p>
+                <p className="text-xl font-bold text-foreground">
+                  {payments.filter((p) => p.status === 'completed').length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <IndianRupee className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Pending</p>
+                <p className="text-xl font-bold text-foreground">
+                  {payments.filter((p) => p.status === 'pending').length}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {payments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <IndianRupee className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Payments Yet</h3>
-          <p className="text-muted-foreground text-sm">Your payment history will appear here.</p>
+        <div className="text-center py-16 bg-sky-50 rounded-2xl border border-sky-100">
+          <CreditCard size={56} className="mx-auto text-sky-300 mb-4" />
+          <h2 className="text-xl font-semibold text-slate-700 mb-2">No Payments Yet</h2>
+          <p className="text-slate-500">Your payment history will appear here after booking sessions.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -102,16 +94,19 @@ export default function StudentPayments() {
               <Card key={payment.id} className="border-border hover:shadow-sm transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="p-2 bg-primary/10 rounded-lg shrink-0">
                         <IndianRupee className="w-4 h-4 text-primary" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
-                          {getSessionInfo(payment.sessionId)}
+                          {payment.courseName}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate capitalize">
+                          {payment.sessionType} · {payment.hours} hour{payment.hours !== 1 ? 's' : ''} · ₹{payment.pricePerHour}/hr
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(payment.createdAt).toLocaleDateString()} • {payment.method}
+                          {new Date(payment.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
@@ -129,6 +124,7 @@ export default function StudentPayments() {
                         variant="ghost"
                         size="icon"
                         onClick={() => { setSelectedPayment(payment); setReceiptOpen(true); }}
+                        className="shrink-0"
                       >
                         <Receipt className="w-4 h-4" />
                       </Button>

@@ -1,16 +1,395 @@
-import Text "mo:core/Text";
 import Map "mo:core/Map";
+import Iter "mo:core/Iter";
+import Text "mo:core/Text";
+import Nat "mo:core/Nat";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import Blob "mo:core/Blob";
 import OutCall "http-outcalls/outcall";
 import Stripe "stripe/stripe";
 import AccessControl "authorization/access-control";
+import MixinStorage "blob-storage/Mixin";
 import MixinAuthorization "authorization/MixinAuthorization";
 import Runtime "mo:core/Runtime";
+import Principal "mo:core/Principal";
+import UserApproval "user-approval/approval";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
+  include MixinStorage();
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
+  let approvalState = UserApproval.initState(accessControlState);
+
+  public query ({ caller }) func isCallerApproved() : async Bool {
+    AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
+  };
+
+  public shared ({ caller }) func requestApproval() : async () {
+    UserApproval.requestApproval(approvalState, caller);
+  };
+
+  public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    UserApproval.setApproval(approvalState, user, status);
+  };
+
+  public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    UserApproval.listApprovals(approvalState);
+  };
+
+  // Sessions
+  public type Session = {
+    id : Nat;
+    studentId : Nat;
+    date : Text;
+    time : Text;
+    durationHours : Nat;
+    meetLink : Text;
+    topic : ?Text;
+    createdAt : Nat;
+  };
+
+  var nextSessionId = 1;
+  let sessions = Map.empty<Nat, Session>();
+
+  public shared ({ caller }) func addSession(
+    studentId : Nat,
+    date : Text,
+    time : Text,
+    durationHours : Nat,
+    meetLink : Text,
+    topic : ?Text
+  ) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can add sessions");
+    };
+    let sessionId = nextSessionId;
+    nextSessionId += 1;
+
+    let session : Session = {
+      id = sessionId;
+      studentId;
+      date;
+      time;
+      durationHours;
+      meetLink;
+      topic;
+      createdAt = Int.abs(Time.now());
+    };
+
+    sessions.add(sessionId, session);
+    sessionId;
+  };
+
+  // Helper: resolve the studentId (payment id) associated with a caller's access code
+  func getStudentIdForCaller(callerPrincipal : Principal) : ?Nat {
+    let profile = userProfiles.get(callerPrincipal);
+    switch (profile) {
+      case (null) { null };
+      case (?p) {
+        switch (p.accessCode) {
+          case (null) { null };
+          case (?code) {
+            let payments = upiPayments.values().toArray();
+            let found = payments.find(
+              func(pay : UpiPayment) : Bool {
+                switch (pay.accessCode) {
+                  case (null) { false };
+                  case (?c) { Text.equal(c, code) };
+                };
+              }
+            );
+            switch (found) {
+              case (null) { null };
+              case (?pay) { ?pay.id };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public query ({ caller }) func getSessionsForStudent(studentId : Nat) : async [Session] {
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      // Admin can query any student's sessions
+      return sessions.values().toArray().filter(
+        func(s : Session) : Bool { s.studentId == studentId }
+      );
+    };
+    // Authenticated users can only query their own sessions
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Must be logged in to view sessions");
+    };
+    let callerStudentId = getStudentIdForCaller(caller);
+    switch (callerStudentId) {
+      case (null) {
+        Runtime.trap("Unauthorized: No student record linked to your account");
+      };
+      case (?sid) {
+        if (sid != studentId) {
+          Runtime.trap("Unauthorized: You can only view your own sessions");
+        };
+        sessions.values().toArray().filter(
+          func(s : Session) : Bool { s.studentId == studentId }
+        );
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteSession(sessionId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete sessions");
+    };
+    sessions.remove(sessionId);
+  };
+
+  // Materials
+  public type Material = {
+    id : Nat;
+    studentId : Nat;
+    title : Text;
+    description : ?Text;
+    fileData : ?Blob;
+    fileLink : ?Text;
+    relatedCourse : Text;
+    uploadedAt : Nat;
+  };
+
+  var nextMaterialId = 1;
+  let materials = Map.empty<Nat, Material>();
+
+  public shared ({ caller }) func addMaterial(
+    studentId : Nat,
+    title : Text,
+    description : ?Text,
+    fileData : ?Blob,
+    fileLink : ?Text,
+    relatedCourse : Text
+  ) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can add materials");
+    };
+    let materialId = nextMaterialId;
+    nextMaterialId += 1;
+
+    let material : Material = {
+      id = materialId;
+      studentId;
+      title;
+      description;
+      fileData;
+      fileLink;
+      relatedCourse;
+      uploadedAt = Int.abs(Time.now());
+    };
+
+    materials.add(materialId, material);
+    materialId;
+  };
+
+  public query ({ caller }) func getMaterialsForStudent(studentId : Nat) : async [Material] {
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      // Admin can query any student's materials
+      return materials.values().toArray().filter(
+        func(m : Material) : Bool { m.studentId == studentId }
+      );
+    };
+    // Authenticated users can only query their own materials
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Must be logged in to view materials");
+    };
+    let callerStudentId = getStudentIdForCaller(caller);
+    switch (callerStudentId) {
+      case (null) {
+        Runtime.trap("Unauthorized: No student record linked to your account");
+      };
+      case (?sid) {
+        if (sid != studentId) {
+          Runtime.trap("Unauthorized: You can only view your own materials");
+        };
+        materials.values().toArray().filter(
+          func(m : Material) : Bool { m.studentId == studentId }
+        );
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteMaterial(materialId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete materials");
+    };
+    materials.remove(materialId);
+  };
+
+  // Attendance
+  public type AttendanceStatus = {
+    #present;
+    #absent;
+  };
+
+  public type Attendance = {
+    id : Nat;
+    studentId : Nat;
+    sessionId : Nat;
+    status : AttendanceStatus;
+    markedAt : Nat;
+  };
+
+  var nextAttendanceId = 1;
+  let attendanceRecords = Map.empty<Nat, Attendance>();
+
+  public shared ({ caller }) func markAttendance(
+    studentId : Nat,
+    sessionId : Nat,
+    status : AttendanceStatus
+  ) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can mark attendance");
+    };
+    let attendanceId = nextAttendanceId;
+    nextAttendanceId += 1;
+
+    let attendance : Attendance = {
+      id = attendanceId;
+      studentId;
+      sessionId;
+      status;
+      markedAt = Int.abs(Time.now());
+    };
+
+    attendanceRecords.add(attendanceId, attendance);
+    attendanceId;
+  };
+
+  public query ({ caller }) func getAttendanceForStudent(studentId : Nat) : async [Attendance] {
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      // Admin can query any student's attendance
+      return attendanceRecords.values().toArray().filter(
+        func(a : Attendance) : Bool { a.studentId == studentId }
+      );
+    };
+    // Authenticated users can only query their own attendance
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Must be logged in to view attendance");
+    };
+    let callerStudentId = getStudentIdForCaller(caller);
+    switch (callerStudentId) {
+      case (null) {
+        Runtime.trap("Unauthorized: No student record linked to your account");
+      };
+      case (?sid) {
+        if (sid != studentId) {
+          Runtime.trap("Unauthorized: You can only view your own attendance");
+        };
+        attendanceRecords.values().toArray().filter(
+          func(a : Attendance) : Bool { a.studentId == studentId }
+        );
+      };
+    };
+  };
+
+  public type AttendanceSummary = {
+    totalSessions : Nat;
+    presentCount : Nat;
+    absentCount : Nat;
+  };
+
+  public query ({ caller }) func getAttendanceSummary(studentId : Nat) : async AttendanceSummary {
+    if (AccessControl.isAdmin(accessControlState, caller)) {
+      // Admin can query any student's attendance summary
+      var presentCount = 0;
+      var absentCount = 0;
+
+      attendanceRecords.values().toArray().forEach(
+        func(attendRec : Attendance) {
+          if (attendRec.studentId == studentId) {
+            switch (attendRec.status) {
+              case (#present) { presentCount += 1 };
+              case (#absent) { absentCount += 1 };
+            };
+          };
+        }
+      );
+
+      let totalSessions = presentCount + absentCount;
+      return {
+        totalSessions;
+        presentCount;
+        absentCount;
+      };
+    };
+    // Authenticated users can only query their own attendance summary
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Must be logged in to view attendance summary");
+    };
+    let callerStudentId = getStudentIdForCaller(caller);
+    switch (callerStudentId) {
+      case (null) {
+        Runtime.trap("Unauthorized: No student record linked to your account");
+      };
+      case (?sid) {
+        if (sid != studentId) {
+          Runtime.trap("Unauthorized: You can only view your own attendance summary");
+        };
+        var presentCount = 0;
+        var absentCount = 0;
+
+        attendanceRecords.values().toArray().forEach(
+          func(attendRec : Attendance) {
+            if (attendRec.studentId == studentId) {
+              switch (attendRec.status) {
+                case (#present) { presentCount += 1 };
+                case (#absent) { absentCount += 1 };
+              };
+            };
+          }
+        );
+
+        let totalSessions = presentCount + absentCount;
+        {
+          totalSessions;
+          presentCount;
+          absentCount;
+        };
+      };
+    };
+  };
+
+  // Product Management
   let products = Map.empty<Text, Stripe.ShoppingItem>();
+
+  public shared ({ caller }) func addProduct(product : Stripe.ShoppingItem) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can add products");
+    };
+    products.add(product.productName, product);
+  };
+
+  public shared ({ caller }) func updateProduct(product : Stripe.ShoppingItem) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update products");
+    };
+    products.add(product.productName, product);
+  };
+
+  public shared ({ caller }) func deleteProduct(productName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can delete products");
+    };
+    products.remove(productName);
+  };
+
+  public query func getProducts() : async [Stripe.ShoppingItem] {
+    products.values().toArray();
+  };
 
   // Stripe integration
   var configuration : ?Stripe.StripeConfiguration = null;
@@ -46,5 +425,233 @@ actor {
 
   public query func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
     OutCall.transform(input);
+  };
+
+  public type UpiPaymentStatus = {
+    #pending;
+    #approved : Text;
+    #rejected : ?Text;
+  };
+
+  public type UpiPayment = {
+    id : Nat;
+    courseName : Text;
+    sessionType : Text;
+    pricePerHour : Nat;
+    hours : Nat;
+    totalAmount : Nat;
+    upiTransactionId : Text;
+    fullName : Text;
+    email : Text;
+    phone : Text;
+    status : UpiPaymentStatus;
+    accessCode : ?Text;
+  };
+
+  let upiPayments = Map.empty<Nat, UpiPayment>();
+  var nextPaymentId = 1;
+
+  func padNat(n : Nat) : Text {
+    let s = n.toText();
+    if (s.size() >= 3) {
+      s
+    } else if (s.size() == 2) {
+      "0" # s;
+    } else {
+      "00" # s;
+    };
+  };
+
+  func generateAccessCode(number : Nat) : Text {
+    "RJMATH-" # padNat(number);
+  };
+
+  public shared ({ caller }) func submitUpiPayment(
+    courseName : Text,
+    sessionType : Text,
+    pricePerHour : Nat,
+    hours : Nat,
+    totalAmount : Nat,
+    upiTransactionId : Text,
+    fullName : Text,
+    email : Text,
+    phone : Text
+  ) : async Nat {
+    let paymentId = nextPaymentId;
+    nextPaymentId += 1;
+
+    let payment : UpiPayment = {
+      id = paymentId;
+      courseName;
+      sessionType;
+      pricePerHour;
+      hours;
+      totalAmount;
+      upiTransactionId;
+      fullName;
+      email;
+      phone;
+      status = #pending;
+      accessCode = null;
+    };
+
+    upiPayments.add(paymentId, payment);
+    paymentId;
+  };
+
+  public shared ({ caller }) func approveUpiPayment(paymentId : Nat) : async ?{
+    fullName : Text;
+    accessCode : Text;
+  } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can approve payments");
+    };
+
+    let existingPayment = upiPayments.get(paymentId);
+
+    switch (existingPayment) {
+      case (null) { null };
+      case (?payment) {
+        let accessCode = generateAccessCode(paymentId);
+        let updatedPayment : UpiPayment = {
+          payment with
+          status = #approved(accessCode);
+          accessCode = ?accessCode;
+        };
+        upiPayments.add(paymentId, updatedPayment);
+        ?{
+          fullName = payment.fullName;
+          accessCode;
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func rejectUpiPayment(paymentId : Nat, rejectionNote : ?Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can reject payments");
+    };
+
+    let payment = switch (upiPayments.get(paymentId)) {
+      case (?p) { p };
+      case (null) { Runtime.trap("Payment not found") };
+    };
+
+    switch (payment.status) {
+      case (#pending) {
+        let updatedPayment : UpiPayment = {
+          payment with
+          status = #rejected(rejectionNote);
+        };
+        upiPayments.add(paymentId, updatedPayment);
+      };
+      case (_) {
+        Runtime.trap("Payment is not in pending state");
+      };
+    };
+  };
+
+  public query ({ caller }) func getPendingPayments() : async [UpiPayment] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get pending payments");
+    };
+
+    upiPayments.values().toArray().filter(
+      func(p : UpiPayment) : Bool {
+        switch (p.status) {
+          case (#pending) { true };
+          case (_) { false };
+        };
+      }
+    );
+  };
+
+  public query ({ caller }) func getAllPayments() : async [UpiPayment] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get all payments");
+    };
+
+    upiPayments.values().toArray();
+  };
+
+  public query ({ caller }) func getUpiPaymentStatus(paymentId : Nat) : async ?UpiPaymentStatus {
+    if (
+      not AccessControl.hasPermission(accessControlState, caller, #user) and
+      not AccessControl.isAdmin(accessControlState, caller)
+    ) {
+      Runtime.trap("Unauthorized: Must be logged in to check payment status");
+    };
+    switch (upiPayments.get(paymentId)) {
+      case (null) { null };
+      case (?p) { ?p.status };
+    };
+  };
+
+  public query ({ caller }) func getAllUpiPaymentsByEmail(email : Text) : async [UpiPayment] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can query payments by email");
+    };
+    upiPayments.values().toArray().filter(
+      func(p : UpiPayment) : Bool { Text.equal(p.email, email) }
+    );
+  };
+
+  public query ({ caller }) func findUpiPaymentByAccessCode(code : Text) : async ?UpiPayment {
+    if (
+      not AccessControl.hasPermission(accessControlState, caller, #user) and
+      not AccessControl.isAdmin(accessControlState, caller)
+    ) {
+      Runtime.trap("Unauthorized: Must be logged in to look up by access code");
+    };
+    let payments = upiPayments.values().toArray();
+    payments.find(
+      func(p : UpiPayment) : Bool {
+        switch (p.accessCode) {
+          case (null) { false };
+          case (?c) { Text.equal(c, code) };
+        };
+      }
+    );
+  };
+
+  public query ({ caller }) func studentFindByEmail(email : Text) : async ?UpiPayment {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can search students by email");
+    };
+    let payments = upiPayments.values().toArray();
+    payments.find(
+      func(p : UpiPayment) : Bool { Text.equal(p.email, email) }
+    );
+  };
+
+  // User Profile
+  public type UserProfile = {
+    name : Text;
+    email : Text;
+    phone : Text;
+    accessCode : ?Text;
+  };
+
+  let userProfiles = Map.empty<Principal, UserProfile>();
+
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get their profile");
+    };
+    userProfiles.get(caller);
+  };
+
+  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
+    userProfiles.get(user);
+  };
+
+  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
+    };
+    userProfiles.add(caller, profile);
   };
 };

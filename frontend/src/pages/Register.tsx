@@ -5,8 +5,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { UserPlus, Eye, EyeOff } from 'lucide-react';
-import { getStore } from '@/lib/store';
+import { getStore, saveStore, getCourses } from '@/lib/store';
+
+const COURSE_NAMES = [
+  'JEE Mains',
+  'JEE Advanced',
+  'Board Exams (Class 10 & 12)',
+  'Foundation Course (Class 6–8 Math Thinking)',
+  'Math Olympiad',
+];
 
 export default function Register() {
   const navigate = useNavigate();
@@ -14,6 +29,8 @@ export default function Register() {
     name: '',
     email: '',
     phone: '',
+    course: '',
+    sessionType: 'group' as 'group' | 'one-on-one',
     password: '',
     confirmPassword: '',
   });
@@ -31,6 +48,7 @@ export default function Register() {
     if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
     else if (!/^\d{10}$/.test(formData.phone.replace(/\D/g, '')))
       newErrors.phone = 'Enter a valid 10-digit phone number';
+    if (!formData.course) newErrors.course = 'Please select a course';
     if (!formData.password) newErrors.password = 'Password is required';
     else if (formData.password.length < 6)
       newErrors.password = 'Password must be at least 6 characters';
@@ -77,12 +95,12 @@ export default function Register() {
         name: formData.name.trim(),
         email: formData.email.toLowerCase().trim(),
         phone: formData.phone.trim(),
-        password: formData.password, // In production, this should be hashed
+        password: formData.password,
         role: 'student' as const,
         createdAt: new Date().toISOString(),
       };
 
-      // Create pending student record
+      // Create pending student record matching the new Student interface
       const newStudentId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const newStudent = {
         id: newStudentId,
@@ -90,9 +108,12 @@ export default function Register() {
         name: formData.name.trim(),
         email: formData.email.toLowerCase().trim(),
         phone: formData.phone.trim(),
+        course: formData.course,
+        sessionType: formData.sessionType,
         status: 'pending' as const,
-        enrolledCourses: [],
-        createdAt: new Date().toISOString(),
+        accessCode: '',
+        enrolledCourses: [] as string[],
+        registeredAt: new Date().toISOString(),
       };
 
       // Persist both records
@@ -111,7 +132,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-sky-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-6">
@@ -122,21 +143,21 @@ export default function Register() {
           />
         </div>
 
-        <Card className="shadow-lg border-border">
+        <Card className="shadow-lg border-0">
           <CardHeader className="text-center pb-4">
             <div className="flex justify-center mb-2">
-              <div className="p-2 bg-primary/10 rounded-full">
-                <UserPlus className="w-6 h-6 text-primary" />
+              <div className="p-2 bg-sky-100 rounded-full">
+                <UserPlus className="w-6 h-6 text-sky-600" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-            <CardDescription>Register as a new student</CardDescription>
+            <CardTitle className="text-2xl font-bold text-sky-900">Create Account</CardTitle>
+            <CardDescription className="text-base text-slate-500">Register as a new student</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name */}
-              <div className="space-y-1">
-                <Label htmlFor="name">Full Name</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-base font-medium text-slate-700">Full Name</Label>
                 <Input
                   id="name"
                   name="name"
@@ -144,14 +165,14 @@ export default function Register() {
                   placeholder="Enter your full name"
                   value={formData.name}
                   onChange={handleChange}
-                  className={errors.name ? 'border-destructive' : ''}
+                  className={`h-12 text-base border-sky-200 focus:border-sky-500 ${errors.name ? 'border-destructive' : ''}`}
                 />
                 {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
               </div>
 
               {/* Email */}
-              <div className="space-y-1">
-                <Label htmlFor="email">Email Address</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-base font-medium text-slate-700">Email Address</Label>
                 <Input
                   id="email"
                   name="email"
@@ -159,14 +180,14 @@ export default function Register() {
                   placeholder="Enter your email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={errors.email ? 'border-destructive' : ''}
+                  className={`h-12 text-base border-sky-200 focus:border-sky-500 ${errors.email ? 'border-destructive' : ''}`}
                 />
                 {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
               </div>
 
               {/* Phone */}
-              <div className="space-y-1">
-                <Label htmlFor="phone">Phone Number</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="phone" className="text-base font-medium text-slate-700">Phone Number</Label>
                 <Input
                   id="phone"
                   name="phone"
@@ -174,14 +195,62 @@ export default function Register() {
                   placeholder="Enter your 10-digit phone number"
                   value={formData.phone}
                   onChange={handleChange}
-                  className={errors.phone ? 'border-destructive' : ''}
+                  className={`h-12 text-base border-sky-200 focus:border-sky-500 ${errors.phone ? 'border-destructive' : ''}`}
                 />
                 {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
               </div>
 
+              {/* Course */}
+              <div className="space-y-1.5">
+                <Label className="text-base font-medium text-slate-700">Course Interested In</Label>
+                <Select
+                  value={formData.course}
+                  onValueChange={(v) => { setFormData((p) => ({ ...p, course: v })); if (errors.course) setErrors((p) => ({ ...p, course: '' })); }}
+                >
+                  <SelectTrigger className={`h-12 text-base border-sky-200 focus:border-sky-500 ${errors.course ? 'border-destructive' : ''}`}>
+                    <SelectValue placeholder="Select a course..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COURSE_NAMES.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.course && <p className="text-xs text-destructive">{errors.course}</p>}
+              </div>
+
+              {/* Session Type */}
+              <div className="space-y-1.5">
+                <Label className="text-base font-medium text-slate-700">Preferred Session Type</Label>
+                <div className="flex rounded-xl overflow-hidden border border-sky-200">
+                  <button
+                    type="button"
+                    onClick={() => setFormData((p) => ({ ...p, sessionType: 'group' }))}
+                    className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                      formData.sessionType === 'group'
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-white text-sky-700 hover:bg-sky-50'
+                    }`}
+                  >
+                    Group Class
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((p) => ({ ...p, sessionType: 'one-on-one' }))}
+                    className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                      formData.sessionType === 'one-on-one'
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-white text-sky-700 hover:bg-sky-50'
+                    }`}
+                  >
+                    One-on-One
+                  </button>
+                </div>
+              </div>
+
               {/* Password */}
-              <div className="space-y-1">
-                <Label htmlFor="password">Password</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-base font-medium text-slate-700">Password</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -190,7 +259,7 @@ export default function Register() {
                     placeholder="Create a password (min 6 characters)"
                     value={formData.password}
                     onChange={handleChange}
-                    className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
+                    className={`h-12 text-base border-sky-200 focus:border-sky-500 pr-10 ${errors.password ? 'border-destructive' : ''}`}
                   />
                   <button
                     type="button"
@@ -204,8 +273,8 @@ export default function Register() {
               </div>
 
               {/* Confirm Password */}
-              <div className="space-y-1">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword" className="text-base font-medium text-slate-700">Confirm Password</Label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
@@ -214,18 +283,14 @@ export default function Register() {
                     placeholder="Confirm your password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className={errors.confirmPassword ? 'border-destructive pr-10' : 'pr-10'}
+                    className={`h-12 text-base border-sky-200 focus:border-sky-500 pr-10 ${errors.confirmPassword ? 'border-destructive' : ''}`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
-                    {showConfirmPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 {errors.confirmPassword && (
@@ -233,7 +298,11 @@ export default function Register() {
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full h-12 text-base font-semibold bg-sky-600 hover:bg-sky-700 text-white"
+                disabled={isLoading}
+              >
                 {isLoading ? (
                   <span className="flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -247,26 +316,17 @@ export default function Register() {
 
             <div className="mt-4 text-center text-sm text-muted-foreground">
               Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline font-medium">
+              <Link to="/login" className="text-sky-600 hover:underline font-medium">
                 Sign in
               </Link>
             </div>
 
-            <div className="mt-3 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground text-center">
-              After registration, your account will be reviewed by an admin before you can log in.
+            <div className="mt-3 p-3 bg-sky-50 rounded-lg text-xs text-sky-700 text-center border border-sky-100">
+              After registration, your account will be reviewed by the admin. You'll receive an access code once approved.
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
-}
-
-// Helper to save store back to localStorage
-function saveStore(store: ReturnType<typeof getStore>) {
-  try {
-    localStorage.setItem('mathtutor_store', JSON.stringify(store));
-  } catch (e) {
-    console.error('Failed to save store:', e);
-  }
 }

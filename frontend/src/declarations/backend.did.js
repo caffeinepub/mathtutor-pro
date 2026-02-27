@@ -8,10 +8,16 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const UserRole = IDL.Variant({
-  'admin' : IDL.Null,
-  'user' : IDL.Null,
-  'guest' : IDL.Null,
+export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  'method' : IDL.Text,
+  'blob_hash' : IDL.Text,
+});
+export const _CaffeineStorageRefillInformation = IDL.Record({
+  'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+});
+export const _CaffeineStorageRefillResult = IDL.Record({
+  'success' : IDL.Opt(IDL.Bool),
+  'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
 export const ShoppingItem = IDL.Record({
   'productName' : IDL.Text,
@@ -20,12 +26,87 @@ export const ShoppingItem = IDL.Record({
   'priceInCents' : IDL.Nat,
   'productDescription' : IDL.Text,
 });
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'user' : IDL.Null,
+  'guest' : IDL.Null,
+});
+export const UpiPaymentStatus = IDL.Variant({
+  'pending' : IDL.Null,
+  'approved' : IDL.Text,
+  'rejected' : IDL.Opt(IDL.Text),
+});
+export const UpiPayment = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : UpiPaymentStatus,
+  'hours' : IDL.Nat,
+  'sessionType' : IDL.Text,
+  'upiTransactionId' : IDL.Text,
+  'accessCode' : IDL.Opt(IDL.Text),
+  'fullName' : IDL.Text,
+  'pricePerHour' : IDL.Nat,
+  'email' : IDL.Text,
+  'totalAmount' : IDL.Nat,
+  'phone' : IDL.Text,
+  'courseName' : IDL.Text,
+});
+export const AttendanceStatus = IDL.Variant({
+  'present' : IDL.Null,
+  'absent' : IDL.Null,
+});
+export const Attendance = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : AttendanceStatus,
+  'studentId' : IDL.Nat,
+  'markedAt' : IDL.Nat,
+  'sessionId' : IDL.Nat,
+});
+export const AttendanceSummary = IDL.Record({
+  'presentCount' : IDL.Nat,
+  'totalSessions' : IDL.Nat,
+  'absentCount' : IDL.Nat,
+});
+export const UserProfile = IDL.Record({
+  'name' : IDL.Text,
+  'accessCode' : IDL.Opt(IDL.Text),
+  'email' : IDL.Text,
+  'phone' : IDL.Text,
+});
+export const Material = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'studentId' : IDL.Nat,
+  'fileData' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  'description' : IDL.Opt(IDL.Text),
+  'fileLink' : IDL.Opt(IDL.Text),
+  'relatedCourse' : IDL.Text,
+  'uploadedAt' : IDL.Nat,
+});
+export const Session = IDL.Record({
+  'id' : IDL.Nat,
+  'topic' : IDL.Opt(IDL.Text),
+  'studentId' : IDL.Nat,
+  'meetLink' : IDL.Text,
+  'date' : IDL.Text,
+  'createdAt' : IDL.Nat,
+  'time' : IDL.Text,
+  'durationHours' : IDL.Nat,
+});
 export const StripeSessionStatus = IDL.Variant({
   'completed' : IDL.Record({
     'userPrincipal' : IDL.Opt(IDL.Text),
     'response' : IDL.Text,
   }),
   'failed' : IDL.Record({ 'error' : IDL.Text }),
+});
+export const ApprovalStatus = IDL.Variant({
+  'pending' : IDL.Null,
+  'approved' : IDL.Null,
+  'rejected' : IDL.Null,
+});
+export const UserApprovalInfo = IDL.Record({
+  'status' : ApprovalStatus,
+  'principal' : IDL.Principal,
 });
 export const StripeConfiguration = IDL.Record({
   'allowedCountries' : IDL.Vec(IDL.Text),
@@ -51,32 +132,154 @@ export const TransformationOutput = IDL.Record({
 });
 
 export const idlService = IDL.Service({
+  '_caffeineStorageBlobIsLive' : IDL.Func(
+      [IDL.Vec(IDL.Nat8)],
+      [IDL.Bool],
+      ['query'],
+    ),
+  '_caffeineStorageBlobsToDelete' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      ['query'],
+    ),
+  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [],
+      [],
+    ),
+  '_caffeineStorageCreateCertificate' : IDL.Func(
+      [IDL.Text],
+      [_CaffeineStorageCreateCertificateResult],
+      [],
+    ),
+  '_caffeineStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_CaffeineStorageRefillInformation)],
+      [_CaffeineStorageRefillResult],
+      [],
+    ),
+  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addMaterial' : IDL.Func(
+      [
+        IDL.Nat,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+        IDL.Opt(IDL.Vec(IDL.Nat8)),
+        IDL.Opt(IDL.Text),
+        IDL.Text,
+      ],
+      [IDL.Nat],
+      [],
+    ),
+  'addProduct' : IDL.Func([ShoppingItem], [], []),
+  'addSession' : IDL.Func(
+      [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
+      [IDL.Nat],
+      [],
+    ),
+  'approveUpiPayment' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Opt(IDL.Record({ 'accessCode' : IDL.Text, 'fullName' : IDL.Text }))],
+      [],
+    ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
       [IDL.Text],
       [],
     ),
+  'deleteMaterial' : IDL.Func([IDL.Nat], [], []),
+  'deleteProduct' : IDL.Func([IDL.Text], [], []),
+  'deleteSession' : IDL.Func([IDL.Nat], [], []),
+  'findUpiPaymentByAccessCode' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(UpiPayment)],
+      ['query'],
+    ),
+  'getAllPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
+  'getAllUpiPaymentsByEmail' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(UpiPayment)],
+      ['query'],
+    ),
+  'getAttendanceForStudent' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(Attendance)],
+      ['query'],
+    ),
+  'getAttendanceSummary' : IDL.Func([IDL.Nat], [AttendanceSummary], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getMaterialsForStudent' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(Material)],
+      ['query'],
+    ),
+  'getPendingPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
+  'getProducts' : IDL.Func([], [IDL.Vec(ShoppingItem)], ['query']),
+  'getSessionsForStudent' : IDL.Func([IDL.Nat], [IDL.Vec(Session)], ['query']),
   'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
+  'getUpiPaymentStatus' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Opt(UpiPaymentStatus)],
+      ['query'],
+    ),
+  'getUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
+  'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
+  'markAttendance' : IDL.Func(
+      [IDL.Nat, IDL.Nat, AttendanceStatus],
+      [IDL.Nat],
+      [],
+    ),
+  'rejectUpiPayment' : IDL.Func([IDL.Nat, IDL.Opt(IDL.Text)], [], []),
+  'requestApproval' : IDL.Func([], [], []),
+  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+  'studentFindByEmail' : IDL.Func([IDL.Text], [IDL.Opt(UpiPayment)], ['query']),
+  'submitUpiPayment' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+      ],
+      [IDL.Nat],
+      [],
+    ),
   'transform' : IDL.Func(
       [TransformationInput],
       [TransformationOutput],
       ['query'],
     ),
+  'updateProduct' : IDL.Func([ShoppingItem], [], []),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  const UserRole = IDL.Variant({
-    'admin' : IDL.Null,
-    'user' : IDL.Null,
-    'guest' : IDL.Null,
+  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const _CaffeineStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const _CaffeineStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
   const ShoppingItem = IDL.Record({
     'productName' : IDL.Text,
@@ -85,12 +288,87 @@ export const idlFactory = ({ IDL }) => {
     'priceInCents' : IDL.Nat,
     'productDescription' : IDL.Text,
   });
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'user' : IDL.Null,
+    'guest' : IDL.Null,
+  });
+  const UpiPaymentStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'approved' : IDL.Text,
+    'rejected' : IDL.Opt(IDL.Text),
+  });
+  const UpiPayment = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : UpiPaymentStatus,
+    'hours' : IDL.Nat,
+    'sessionType' : IDL.Text,
+    'upiTransactionId' : IDL.Text,
+    'accessCode' : IDL.Opt(IDL.Text),
+    'fullName' : IDL.Text,
+    'pricePerHour' : IDL.Nat,
+    'email' : IDL.Text,
+    'totalAmount' : IDL.Nat,
+    'phone' : IDL.Text,
+    'courseName' : IDL.Text,
+  });
+  const AttendanceStatus = IDL.Variant({
+    'present' : IDL.Null,
+    'absent' : IDL.Null,
+  });
+  const Attendance = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : AttendanceStatus,
+    'studentId' : IDL.Nat,
+    'markedAt' : IDL.Nat,
+    'sessionId' : IDL.Nat,
+  });
+  const AttendanceSummary = IDL.Record({
+    'presentCount' : IDL.Nat,
+    'totalSessions' : IDL.Nat,
+    'absentCount' : IDL.Nat,
+  });
+  const UserProfile = IDL.Record({
+    'name' : IDL.Text,
+    'accessCode' : IDL.Opt(IDL.Text),
+    'email' : IDL.Text,
+    'phone' : IDL.Text,
+  });
+  const Material = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'studentId' : IDL.Nat,
+    'fileData' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'description' : IDL.Opt(IDL.Text),
+    'fileLink' : IDL.Opt(IDL.Text),
+    'relatedCourse' : IDL.Text,
+    'uploadedAt' : IDL.Nat,
+  });
+  const Session = IDL.Record({
+    'id' : IDL.Nat,
+    'topic' : IDL.Opt(IDL.Text),
+    'studentId' : IDL.Nat,
+    'meetLink' : IDL.Text,
+    'date' : IDL.Text,
+    'createdAt' : IDL.Nat,
+    'time' : IDL.Text,
+    'durationHours' : IDL.Nat,
+  });
   const StripeSessionStatus = IDL.Variant({
     'completed' : IDL.Record({
       'userPrincipal' : IDL.Opt(IDL.Text),
       'response' : IDL.Text,
     }),
     'failed' : IDL.Record({ 'error' : IDL.Text }),
+  });
+  const ApprovalStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'approved' : IDL.Null,
+    'rejected' : IDL.Null,
+  });
+  const UserApprovalInfo = IDL.Record({
+    'status' : ApprovalStatus,
+    'principal' : IDL.Principal,
   });
   const StripeConfiguration = IDL.Record({
     'allowedCountries' : IDL.Vec(IDL.Text),
@@ -113,23 +391,155 @@ export const idlFactory = ({ IDL }) => {
   });
   
   return IDL.Service({
+    '_caffeineStorageBlobIsLive' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [IDL.Bool],
+        ['query'],
+      ),
+    '_caffeineStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_caffeineStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [_CaffeineStorageCreateCertificateResult],
+        [],
+      ),
+    '_caffeineStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_CaffeineStorageRefillInformation)],
+        [_CaffeineStorageRefillResult],
+        [],
+      ),
+    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addMaterial' : IDL.Func(
+        [
+          IDL.Nat,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Vec(IDL.Nat8)),
+          IDL.Opt(IDL.Text),
+          IDL.Text,
+        ],
+        [IDL.Nat],
+        [],
+      ),
+    'addProduct' : IDL.Func([ShoppingItem], [], []),
+    'addSession' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Nat],
+        [],
+      ),
+    'approveUpiPayment' : IDL.Func(
+        [IDL.Nat],
+        [
+          IDL.Opt(
+            IDL.Record({ 'accessCode' : IDL.Text, 'fullName' : IDL.Text })
+          ),
+        ],
+        [],
+      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'createCheckoutSession' : IDL.Func(
         [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
         [IDL.Text],
         [],
       ),
+    'deleteMaterial' : IDL.Func([IDL.Nat], [], []),
+    'deleteProduct' : IDL.Func([IDL.Text], [], []),
+    'deleteSession' : IDL.Func([IDL.Nat], [], []),
+    'findUpiPaymentByAccessCode' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(UpiPayment)],
+        ['query'],
+      ),
+    'getAllPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
+    'getAllUpiPaymentsByEmail' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(UpiPayment)],
+        ['query'],
+      ),
+    'getAttendanceForStudent' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(Attendance)],
+        ['query'],
+      ),
+    'getAttendanceSummary' : IDL.Func(
+        [IDL.Nat],
+        [AttendanceSummary],
+        ['query'],
+      ),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getMaterialsForStudent' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(Material)],
+        ['query'],
+      ),
+    'getPendingPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
+    'getProducts' : IDL.Func([], [IDL.Vec(ShoppingItem)], ['query']),
+    'getSessionsForStudent' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(Session)],
+        ['query'],
+      ),
     'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
+    'getUpiPaymentStatus' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(UpiPaymentStatus)],
+        ['query'],
+      ),
+    'getUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
+    'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
+    'markAttendance' : IDL.Func(
+        [IDL.Nat, IDL.Nat, AttendanceStatus],
+        [IDL.Nat],
+        [],
+      ),
+    'rejectUpiPayment' : IDL.Func([IDL.Nat, IDL.Opt(IDL.Text)], [], []),
+    'requestApproval' : IDL.Func([], [], []),
+    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+    'studentFindByEmail' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(UpiPayment)],
+        ['query'],
+      ),
+    'submitUpiPayment' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+        ],
+        [IDL.Nat],
+        [],
+      ),
     'transform' : IDL.Func(
         [TransformationInput],
         [TransformationOutput],
         ['query'],
       ),
+    'updateProduct' : IDL.Func([ShoppingItem], [], []),
   });
 };
 

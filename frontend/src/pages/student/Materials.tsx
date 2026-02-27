@@ -1,133 +1,118 @@
 import React, { useState } from 'react';
-import { getStore, type Material, type Course } from '../../lib/store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Link as LinkIcon, Filter, BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getStore, getAuthState } from '../../lib/store';
+import { FileText, Video, Image, File, Download, BookOpen } from 'lucide-react';
 
 export default function StudentMaterials() {
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+  const auth = getAuthState();
   const store = getStore();
+  const student = store.students.find((s) => s.userId === auth.userId);
+  const enrolledCourseIds = student?.enrolledCourses || [];
 
-  const student = store.students.find((s) => s.userId === currentUser?.id);
-  const enrolledCourseIds: string[] = student?.enrolledCourses || [];
+  const enrolledCourses = store.courses.filter((c) => enrolledCourseIds.includes(c.id));
+  const allMaterials = store.materials.filter((m) => enrolledCourseIds.includes(m.courseId));
 
-  const enrolledCourses = store.courses.filter((c: Course) =>
-    enrolledCourseIds.includes(c.id)
-  );
+  const [courseFilter, setCourseFilter] = useState<string>('all');
 
-  const allMaterials = store.materials.filter((m: Material) =>
-    enrolledCourseIds.includes(m.courseId)
-  );
+  const filtered = courseFilter === 'all'
+    ? allMaterials
+    : allMaterials.filter((m) => m.courseId === courseFilter);
 
-  const [courseFilter, setCourseFilter] = useState('all');
+  const getFileIcon = (type: string) => {
+    switch (type) {
+      case 'pdf': return <FileText size={20} className="text-red-500" />;
+      case 'video': return <Video size={20} className="text-blue-500" />;
+      case 'image': return <Image size={20} className="text-green-500" />;
+      default: return <File size={20} className="text-slate-500" />;
+    }
+  };
 
-  const filteredMaterials: Material[] =
-    courseFilter === 'all'
-      ? allMaterials
-      : allMaterials.filter((m) => m.courseId === courseFilter);
-
-  const fileTypeBadgeVariant = (type: string): 'default' | 'secondary' | 'outline' | 'destructive' => {
-    const map: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-      PDF: 'default',
-      Video: 'secondary',
-      Notes: 'outline',
-      Assignment: 'destructive',
+  const getFileTypeBadge = (type: string) => {
+    const colors: Record<string, string> = {
+      pdf: 'bg-red-50 text-red-700 border-red-200',
+      video: 'bg-blue-50 text-blue-700 border-blue-200',
+      image: 'bg-green-50 text-green-700 border-green-200',
+      doc: 'bg-purple-50 text-purple-700 border-purple-200',
+      other: 'bg-slate-50 text-slate-700 border-slate-200',
     };
-    return map[type] || 'outline';
+    return (
+      <Badge variant="outline" className={`text-xs ${colors[type] || colors.other}`}>
+        {type.toUpperCase()}
+      </Badge>
+    );
   };
 
   if (enrolledCourseIds.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Study Materials</h1>
-          <p className="text-muted-foreground text-sm mt-1">Access your course materials</p>
-        </div>
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <FileText className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Materials Available</h3>
-          <p className="text-muted-foreground text-sm">
-            You need to be enrolled in a course to access study materials.
-          </p>
+      <div className="p-6 max-w-3xl mx-auto">
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">Study Materials</h1>
+        <div className="text-center py-16 bg-sky-50 rounded-2xl border border-sky-100">
+          <BookOpen size={56} className="mx-auto text-sky-300 mb-4" />
+          <h2 className="text-xl font-semibold text-slate-700 mb-2">No Materials Yet</h2>
+          <p className="text-slate-500">Enroll in a course to access study materials.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Study Materials</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {filteredMaterials.length} material{filteredMaterials.length !== 1 ? 's' : ''} available
-        </p>
-      </div>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold text-slate-800 mb-2">Study Materials</h1>
+      <p className="text-slate-500 mb-5">Download and view your course materials.</p>
 
       {/* Filter */}
-      <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-muted-foreground" />
-        <select
-          value={courseFilter}
-          onChange={(e) => setCourseFilter(e.target.value)}
-          className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="all">All Courses</option>
-          {enrolledCourses.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+      <div className="mb-5">
+        <Select value={courseFilter} onValueChange={setCourseFilter}>
+          <SelectTrigger className="w-full md:w-64 h-11 border-sky-200">
+            <SelectValue placeholder="Filter by course" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Courses</SelectItem>
+            {enrolledCourses.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {filteredMaterials.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <BookOpen className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Materials Yet</h3>
-          <p className="text-muted-foreground text-sm">
-            Materials will appear here once your instructor uploads them.
-          </p>
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 bg-sky-50 rounded-2xl border border-sky-100">
+          <FileText size={48} className="mx-auto text-sky-300 mb-3" />
+          <p className="text-slate-500">No materials available for this course yet.</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {filteredMaterials.map((material: Material) => (
-            <Card key={material.id} className="border-border hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                      <FileText className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="text-sm truncate">{material.title}</CardTitle>
-                      <p className="text-xs text-muted-foreground truncate">{material.courseName}</p>
-                    </div>
-                  </div>
-                  <Badge variant={fileTypeBadgeVariant(material.fileType)} className="text-xs shrink-0">
-                    {material.fileType}
-                  </Badge>
+        <div className="space-y-3">
+          {filtered.map((material) => (
+            <div
+              key={material.id}
+              className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4 hover:border-sky-300 hover:shadow-sm transition-all"
+            >
+              <div className="flex-shrink-0">
+                {getFileIcon(material.fileType)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className="font-semibold text-slate-800 truncate">{material.title}</h3>
+                  {getFileTypeBadge(material.fileType)}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {material.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">{material.description}</p>
-                )}
-                <a
-                  href={material.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-primary hover:underline"
-                >
-                  <LinkIcon className="w-3 h-3" />
-                  Open Material
-                </a>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(material.uploadedAt).toLocaleDateString()}
-                </p>
-              </CardContent>
-            </Card>
+                <p className="text-sm text-slate-500 truncate">{material.description}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{material.courseName}</p>
+              </div>
+              <a href={material.fileUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+                <Button variant="outline" size="sm" className="border-sky-200 text-sky-700 hover:bg-sky-50 h-9">
+                  <Download size={14} className="mr-1" />
+                  Open
+                </Button>
+              </a>
+            </div>
           ))}
         </div>
       )}

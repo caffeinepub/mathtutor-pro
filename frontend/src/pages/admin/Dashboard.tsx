@@ -28,10 +28,12 @@ export default function AdminDashboard() {
   const totalRevenue = payments
     .filter((p) => p.status === 'completed')
     .reduce((sum, p) => sum + p.amount, 0);
+
+  // Use 'scheduled' as the active/upcoming status
   const upcomingSessions = sessions.filter(
-    (s) => s.status === 'confirmed' && new Date(s.date) >= new Date()
+    (s) => s.status === 'scheduled' && new Date(s.date) >= new Date()
   );
-  const pendingSessions = sessions.filter((s) => s.status === 'pending');
+  const pendingPayments = payments.filter((p) => p.status === 'pending');
 
   const stats = [
     {
@@ -112,18 +114,18 @@ export default function AdminDashboard() {
           </Card>
         )}
 
-        {pendingSessions.length > 0 && (
+        {pendingPayments.length > 0 && (
           <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <Clock className="w-5 h-5 text-blue-500 shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-foreground">
-                    {pendingSessions.length} Pending Session{pendingSessions.length > 1 ? 's' : ''}
+                    {pendingPayments.length} Pending Payment{pendingPayments.length > 1 ? 's' : ''}
                   </p>
-                  <p className="text-xs text-muted-foreground">Sessions awaiting confirmation</p>
+                  <p className="text-xs text-muted-foreground">Payments awaiting confirmation</p>
                 </div>
-                <Link to="/admin/sessions">
+                <Link to="/admin/payments">
                   <Button size="sm" variant="outline" className="shrink-0">View</Button>
                 </Link>
               </div>
@@ -150,7 +152,7 @@ export default function AdminDashboard() {
             ) : (
               students
                 .slice()
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
                 .slice(0, 5)
                 .map((student) => (
                   <div key={student.id} className="flex items-center justify-between gap-2">
@@ -195,26 +197,23 @@ export default function AdminDashboard() {
             {upcomingSessions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No upcoming sessions</p>
             ) : (
-              upcomingSessions.slice(0, 5).map((session) => {
-                const student = students.find((s) => s.id === session.studentId);
-                return (
-                  <div key={session.id} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="p-1.5 bg-primary/10 rounded">
-                        <Calendar className="w-3.5 h-3.5 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{session.courseName}</p>
-                        <p className="text-xs text-muted-foreground">{session.date} • {session.time}</p>
-                      </div>
+              upcomingSessions.slice(0, 5).map((session) => (
+                <div key={session.id} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 bg-primary/10 rounded">
+                      <Calendar className="w-3.5 h-3.5 text-primary" />
                     </div>
-                    <Badge variant="default" className="text-xs shrink-0">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      confirmed
-                    </Badge>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{session.courseName}</p>
+                      <p className="text-xs text-muted-foreground">{session.date} • {session.time}</p>
+                    </div>
                   </div>
-                );
-              })
+                  <Badge variant="default" className="text-xs shrink-0">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    scheduled
+                  </Badge>
+                </div>
+              ))
             )}
           </CardContent>
         </Card>

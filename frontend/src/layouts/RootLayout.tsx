@@ -4,7 +4,8 @@ import { getStore } from '../lib/store';
 
 export default function RootLayout() {
   useEffect(() => {
-    // Initialize store on first load (seeds default data if not present)
+    // Initialize store on first load — this also migrates any stale admin
+    // credentials to the current canonical values (admin@mathtutor.com / Admin@123)
     getStore();
   }, []);
 

@@ -2,10 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-fix-the-student-registration-flow-so-that-every-new-student-who-submits-the-register-form-is-correctly-persisted-the-registerstudent-function-must-create-both-a-user-record-and-a-pending-student-record-in-the-local-store-handle-all-validation-errors-gracefully-and-redirect-to-login-with-a-success-toast-on-completion-debug-and-resolve-any-existing-bugs-e-g-missing-store-writes-incorrect-field-mapping-or-silent-failures-that-prevent-registration-from-saving-the-student",
-      "featureTitle": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
+      "featureId": "feature-add-a-manage-student-sessions-section-to-the-admin-panel-the-page-must-list-all-approved-enrolled-students-in-a-dropdown-for-selection-show-a-form-to-add-a-new-session-for-the-selected-student-fields-date-time-duration-in-hours-google-meet-link-session-topic-optional-display-a-table-of-existing-sessions-for-the-selected-student-with-delete-capability-use-large-clearly-labelled-buttons-keep-the-layout-clean-and-simple",
+      "featureTitle": "Add a 'Manage Student Sessions' section to the Admin Panel. The page must: list all approved/enrolled students in a dropdown for selection; show a form to add a new session for the selected student (fields: Date, Time, Duration in hours, Google Meet link, Session topic [optional]); display a table of existing sessions for the selected student with delete capability. Use large, clearly-labelled buttons. Keep the layout clean and simple.",
       "files": [
-        "frontend/src/pages/Register.tsx"
+        "frontend/src/hooks/useSessions.ts",
+        "frontend/src/pages/admin/ManageStudentSessions.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -15,22 +16,21 @@
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
         "github-export-icp-cli@1.0.0",
-        "http-outcalls@3.0.0"
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0"
       ],
       "testIds": [
-        "REQ-28"
+        "REQ-4"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-add-a-whatsapp-cta-button-with-the-number-9424135055-inside-every-course-subsection-across-the-app-course-cards-on-the-landing-page-course-detail-sections-on-admin-courses-student-courses-and-the-course-selection-step-of-student-book-the-button-must-open-https-wa-me-919424135055-in-a-new-tab-with-a-pre-filled-message-like-hi-i-want-to-book-a-demo-session-the-button-should-be-visually-distinct-using-the-whatsapp-green-color-25d366-and-include-the-whatsapp-icon",
-      "featureTitle": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
+      "featureId": "feature-add-a-manage-student-materials-section-to-the-admin-panel-the-page-must-let-admin-select-an-approved-student-provide-a-form-with-fields-title-description-optional-file-upload-stored-in-canister-or-file-link-url-related-course-display-a-list-of-existing-materials-for-the-selected-student-with-delete-capability-support-both-file-upload-and-url-based-materials-in-the-same-form-radio-or-toggle-to-switch-mode-use-large-buttons-and-a-clean-layout",
+      "featureTitle": "Add a 'Manage Student Materials' section to the Admin Panel. The page must: let admin select an approved student; provide a form with fields: Title, Description (optional), File Upload (stored in-canister) or File Link (URL), Related Course; display a list of existing materials for the selected student with delete capability. Support both file upload and URL-based materials in the same form (radio or toggle to switch mode). Use large buttons and a clean layout.",
       "files": [
-        "frontend/src/components/WhatsAppButton.tsx",
-        "frontend/src/pages/Landing.tsx",
-        "frontend/src/pages/admin/Courses.tsx",
-        "frontend/src/pages/student/Book.tsx",
-        "frontend/src/pages/student/Courses.tsx"
+        "frontend/src/hooks/useMaterials.ts",
+        "frontend/src/pages/admin/ManageStudentMaterials.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -40,23 +40,70 @@
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
         "github-export-icp-cli@1.0.0",
-        "http-outcalls@3.0.0"
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0"
       ],
       "testIds": [
-        "REQ-29"
+        "REQ-5"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-apply-the-uploaded-the-rajat-s-equation-logo-rajats-equation-logo-png-as-the-brand-identity-across-the-entire-app-replace-any-existing-mathtutor-pro-text-or-placeholder-logo-with-this-logo-image-in-the-admin-sidebar-header-the-student-sidebar-header-the-public-landing-page-navbar-and-the-login-and-register-page-headers-also-use-the-logo-as-the-browser-favicon-favicon-ico-favicon-png-maintain-the-logo-s-original-dark-teal-color-palette-1d3d4f-when-rendering-it-inline-update-the-app-name-in-index-html-title-to-the-rajat-s-equation",
-      "featureTitle": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
+      "featureId": "feature-add-an-attendance-management-section-to-the-admin-panel-the-page-must-let-admin-select-a-student-load-that-student-s-sessions-in-a-second-dropdown-let-admin-mark-attendance-as-present-or-absent-for-the-selected-session-display-a-table-showing-all-attendance-records-for-the-selected-student-session-date-topic-status-use-large-buttons-and-a-clean-layout",
+      "featureTitle": "Add an 'Attendance Management' section to the Admin Panel. The page must: let admin select a student; load that student's sessions in a second dropdown; let admin mark attendance as Present or Absent for the selected session; display a table showing all attendance records for the selected student (session date, topic, status). Use large buttons and a clean layout.",
       "files": [
-        "frontend/index.html",
+        "frontend/src/hooks/useAttendance.ts",
+        "frontend/src/pages/admin/AttendanceManagement.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0"
+      ],
+      "testIds": [
+        "REQ-6"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-the-student-dashboard-to-include-three-sections-1-my-sessions-shows-each-session-s-date-time-google-meet-link-as-a-join-button-duration-topic-and-attendance-status-present-absent-not-marked-2-my-materials-shows-only-materials-assigned-to-this-student-with-title-related-course-and-a-view-download-button-for-each-3-my-attendance-summary-shows-total-sessions-present-count-and-absent-count-as-stat-cards-all-data-must-be-fetched-for-the-logged-in-student-s-id-only-use-clean-layout-and-large-buttons",
+      "featureTitle": "Update the Student Dashboard to include three sections: (1) My Sessions – shows each session's date, time, Google Meet link (as a Join button), duration, topic, and attendance status (Present/Absent/Not Marked); (2) My Materials – shows only materials assigned to this student with title, related course, and a view/download button for each; (3) My Attendance Summary – shows Total Sessions, Present Count, and Absent Count as stat cards. All data must be fetched for the logged-in student's ID only. Use clean layout and large buttons.",
+      "files": [
+        "frontend/src/pages/student/Dashboard.tsx",
+        "frontend/src/pages/student/MyMaterials.tsx",
+        "frontend/src/pages/student/MySessions.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0"
+      ],
+      "testIds": [
+        "REQ-7"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-navigation-links-for-the-three-new-admin-sections-manage-student-sessions-manage-student-materials-attendance-management-to-the-adminlayout-sidebar-each-link-must-be-clearly-labelled-and-route-to-the-corresponding-admin-page-update-the-route-tree-to-include-these-new-admin-routes-with-the-same-admin-auth-guard-as-existing-admin-routes",
+      "featureTitle": "Add navigation links for the three new admin sections (Manage Student Sessions, Manage Student Materials, Attendance Management) to the AdminLayout sidebar. Each link must be clearly labelled and route to the corresponding admin page. Update the route tree to include these new admin routes with the same admin auth guard as existing admin routes.",
+      "files": [
         "frontend/src/layouts/AdminLayout.tsx",
-        "frontend/src/layouts/StudentLayout.tsx",
-        "frontend/src/pages/Landing.tsx",
-        "frontend/src/pages/Login.tsx",
-        "frontend/src/pages/Register.tsx"
+        "frontend/src/routeTree.ts"
       ],
       "components": [
         "authorization@4.0.0",
@@ -66,10 +113,12 @@
         "build-template-react@1.0.0",
         "initial-app@1.0.0",
         "github-export-icp-cli@1.0.0",
-        "http-outcalls@3.0.0"
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0"
       ],
       "testIds": [
-        "REQ-30"
+        "REQ-8"
       ],
       "confidence": "high"
     }

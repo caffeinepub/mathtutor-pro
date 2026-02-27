@@ -1,105 +1,124 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix student registration, add WhatsApp CTA on course sections, and apply Rajat's Equation logo as brand language",
+  "title": "Add per-student sessions, materials, and attendance management (admin + student dashboard)",
   "requirements": [
     {
-      "id": "REQ-28",
-      "summary": "Fix the student registration flow to correctly persist every new student submission",
+      "id": "REQ-4",
+      "summary": "Add 'Manage Student Sessions' section to Admin Panel for creating and managing student-specific sessions",
       "acceptanceCriteria": [
-        "Submitting the /register form with valid name, email, phone, and password creates a new user and a pending student record in the store",
-        "After successful registration, user is redirected to /login with a success toast message",
-        "Submitting with invalid or duplicate data shows an appropriate inline or toast error",
-        "Registration works for multiple successive students without data being overwritten or lost"
+        "Admin can select any approved student from a dropdown.",
+        "Submitting the form creates a session record for that student and clears the form.",
+        "The session list below the form updates immediately after saving.",
+        "All required fields (date, time, duration, meet link) are validated before submission.",
+        "Topic field is optional and saves correctly when provided or left blank."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/Register.tsx",
-          "operation": "modify",
-          "description": "Debug and fix the registerStudent form submission handler to ensure both user and pending student records are correctly created in the localStorage store. Verify that store.createUser() and store.createStudent() are called with proper field mapping (name, email, phone, password hash). Add error handling for duplicate emails and validation failures. Ensure successful registration redirects to /login with a success toast using toast.success() from sonner. Test that multiple successive registrations persist correctly without overwriting previous data."
-        }
-      ]
-    },
-    {
-      "id": "REQ-29",
-      "summary": "Add a WhatsApp CTA button with number 9424135055 inside every course subsection across the app",
-      "acceptanceCriteria": [
-        "Every course card and course subsection on the Landing page shows a WhatsApp CTA button",
-        "Every course row/card on /student/courses shows a WhatsApp CTA button",
-        "The course selection step on /student/book includes a WhatsApp CTA per course",
-        "Clicking any WhatsApp CTA opens https://wa.me/919424135055 with a pre-filled demo booking message in a new tab",
-        "Button is styled in WhatsApp green (#25D366) with a WhatsApp icon"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/WhatsAppButton.tsx",
+          "path": "frontend/src/hooks/useSessions.ts",
           "operation": "create",
-          "description": "Create a reusable WhatsAppButton component that renders a button styled in WhatsApp green (#25D366) with a WhatsApp icon. The button opens https://wa.me/919424135055 with a pre-filled message 'Hi, I want to book a demo session.' in a new tab using target='_blank' and rel='noopener noreferrer'. Accept optional className prop for layout flexibility. Use MessageCircle icon from lucide-react or a WhatsApp-specific icon if available."
+          "description": "Create React Query hooks for session management: useAddSession (mutation for addSession backend call with studentId, date, time, durationHours, meetLink, topic), useGetSessionsForStudent (query for getSessionsForStudent backend call), useDeleteSession (mutation for deleteSession backend call). Include proper error handling and query invalidation on mutations."
         },
         {
-          "path": "frontend/src/pages/Landing.tsx",
-          "operation": "modify",
-          "description": "Import and add the WhatsAppButton component inside every course card rendered in the courses section. Position the button prominently below the course description or alongside the 'Learn More' CTA. Ensure the button is visible for each course displayed on the landing page."
-        },
-        {
-          "path": "frontend/src/pages/student/Courses.tsx",
-          "operation": "modify",
-          "description": "Import and add the WhatsAppButton component to each enrolled course card displayed on the student courses page. Position it below the course pricing info or near the 'View Materials' link. Ensure it appears for every enrolled course."
-        },
-        {
-          "path": "frontend/src/pages/student/Book.tsx",
-          "operation": "modify",
-          "description": "Import and add the WhatsAppButton component to each course option rendered in the course selection step (step 1) of the booking flow. Position it inside or adjacent to each course card/option so users can contact via WhatsApp before booking."
-        },
-        {
-          "path": "frontend/src/pages/admin/Courses.tsx",
-          "operation": "modify",
-          "description": "Import and add the WhatsAppButton component to each course row or card in the admin courses management table. Position it in the actions column or below the course name so admins can also quickly contact via WhatsApp for demo coordination."
+          "path": "frontend/src/pages/admin/ManageStudentSessions.tsx",
+          "operation": "create",
+          "description": "Create admin page component with: (1) Student dropdown using listApprovals backend data filtered to approved students; (2) Form with fields for Date (date input), Time (time input), Duration (number input in hours), Google Meet Link (URL input), Session Topic (optional text input); (3) Large 'Add Session' submit button; (4) Table displaying sessions for selected student with columns for date, time, duration, meet link, topic, and a delete button per row. Use useAddSession, useGetSessionsForStudent, and useDeleteSession hooks. Show loading states and validation errors. Clear form after successful submission."
         }
       ]
     },
     {
-      "id": "REQ-30",
-      "summary": "Apply the uploaded 'The Rajat's Equation' logo as the brand identity across the entire app",
+      "id": "REQ-5",
+      "summary": "Add 'Manage Student Materials' section to Admin Panel for uploading and linking materials to specific students",
       "acceptanceCriteria": [
-        "Admin sidebar header displays the Rajat's Equation logo instead of text or old logo",
-        "Student sidebar header displays the Rajat's Equation logo instead of text or old logo",
-        "Landing page navbar displays the Rajat's Equation logo",
-        "Login and Register page headers display the Rajat's Equation logo",
-        "Browser tab favicon uses the Rajat's Equation logo",
-        "The <title> in index.html reads 'The Rajat's Equation'",
-        "No 'MathTutor Pro' branding text remains visible in the UI"
+        "Admin can switch between file upload mode and URL link mode.",
+        "Submitting the form stores the material linked to the selected student.",
+        "The materials list updates immediately after saving.",
+        "Title and Related Course are required; Description is optional.",
+        "File upload stores binary data in-canister; URL link stores the provided URL string."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useMaterials.ts",
+          "operation": "create",
+          "description": "Create React Query hooks for material management: useAddMaterial (mutation for addMaterial backend call with studentId, title, description, fileData, fileLink, relatedCourse), useGetMaterialsForStudent (query for getMaterialsForStudent backend call), useDeleteMaterial (mutation for deleteMaterial backend call). Handle file upload by converting File to Uint8Array. Include proper error handling and query invalidation on mutations."
+        },
+        {
+          "path": "frontend/src/pages/admin/ManageStudentMaterials.tsx",
+          "operation": "create",
+          "description": "Create admin page component with: (1) Student dropdown using listApprovals backend data filtered to approved students; (2) Radio buttons or toggle to switch between 'File Upload' and 'URL Link' modes; (3) Form with fields for Title (text input, required), Description (textarea, optional), File Upload (file input, shown in upload mode), File Link (URL input, shown in link mode), Related Course (text input, required); (4) Large 'Add Material' submit button; (5) Table displaying materials for selected student with columns for title, description, related course, type (file/link), and a delete button per row. Use useAddMaterial, useGetMaterialsForStudent, and useDeleteMaterial hooks. Show loading states and validation errors. Clear form after successful submission."
+        }
+      ]
+    },
+    {
+      "id": "REQ-6",
+      "summary": "Add 'Attendance Management' section to Admin Panel for marking and viewing student attendance",
+      "acceptanceCriteria": [
+        "Selecting a student populates the session dropdown with that student's sessions.",
+        "Admin can mark Present or Absent and save; the attendance table updates immediately.",
+        "Existing attendance status for a session is shown correctly in the table.",
+        "Saving attendance calls the backend markAttendance function."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useAttendance.ts",
+          "operation": "create",
+          "description": "Create React Query hooks for attendance management: useMarkAttendance (mutation for markAttendance backend call with studentId, sessionId, status), useGetAttendanceForStudent (query for getAttendanceForStudent backend call), useGetAttendanceSummary (query for getAttendanceSummary backend call). Include proper error handling and query invalidation on mutations."
+        },
+        {
+          "path": "frontend/src/pages/admin/AttendanceManagement.tsx",
+          "operation": "create",
+          "description": "Create admin page component with: (1) Student dropdown using listApprovals backend data filtered to approved students; (2) Session dropdown populated with sessions for the selected student using useGetSessionsForStudent; (3) Radio buttons or dropdown for selecting Present or Absent status; (4) Large 'Mark Attendance' submit button; (5) Table displaying all attendance records for selected student with columns for session date, session topic, and attendance status. Use useMarkAttendance and useGetAttendanceForStudent hooks. Show loading states. Automatically update table after marking attendance."
+        }
+      ]
+    },
+    {
+      "id": "REQ-7",
+      "summary": "Update Student Dashboard to show student-specific sessions, materials, and attendance summary",
+      "acceptanceCriteria": [
+        "My Sessions lists only sessions assigned to the logged-in student.",
+        "Google Meet link renders as a clickable 'Join' button opening in a new tab.",
+        "Attendance status (Present/Absent/Not Marked) is shown per session.",
+        "My Materials lists only materials assigned to the logged-in student with working view/download links.",
+        "My Attendance Summary stat cards show correct totals derived from backend getAttendanceSummary.",
+        "No other student's sessions, materials, or attendance data is visible."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/student/Dashboard.tsx",
+          "operation": "modify",
+          "description": "Add three new sections to the student dashboard (after approval check): (1) 'My Sessions' section displaying sessions using useGetSessionsForStudent with the logged-in student's ID from their profile, showing date, time, duration, topic, Google Meet link as a 'Join' button (target=_blank), and attendance status badge (Present/Absent/Not Marked) derived from useGetAttendanceForStudent; (2) 'My Materials' section displaying materials using useGetMaterialsForStudent, showing title, related course, and a 'View/Download' button that opens the file or link; (3) 'My Attendance Summary' section displaying stat cards for Total Sessions, Present Count, and Absent Count using useGetAttendanceSummary. Use StatCard component for summary stats. Ensure all data is filtered to the logged-in student's ID only."
+        },
+        {
+          "path": "frontend/src/pages/student/MySessions.tsx",
+          "operation": "create",
+          "description": "Create dedicated student page component for viewing sessions in detail. Display a list of sessions for the logged-in student using useGetSessionsForStudent and useGetAttendanceForStudent hooks. Show each session's date, time, duration, topic, Google Meet link as a large 'Join Session' button (opening in new tab), and attendance status badge. Use card or table layout with clear typography and large buttons. Show empty state when no sessions exist."
+        },
+        {
+          "path": "frontend/src/pages/student/MyMaterials.tsx",
+          "operation": "create",
+          "description": "Create dedicated student page component for viewing materials in detail. Display a list of materials for the logged-in student using useGetMaterialsForStudent hook. Show each material's title, description, related course, and a large 'View/Download' button. For file uploads, trigger download of the Uint8Array data; for URL links, open the link in a new tab. Use card layout with file type icons. Show empty state when no materials exist."
+        }
+      ]
+    },
+    {
+      "id": "REQ-8",
+      "summary": "Add navigation links for new admin sections to AdminLayout sidebar and register admin routes",
+      "acceptanceCriteria": [
+        "Sidebar shows links for Manage Student Sessions, Manage Student Materials, and Attendance Management.",
+        "Clicking each link navigates to the correct page.",
+        "All three routes are protected by the admin auth guard.",
+        "Active route is visually highlighted in the sidebar."
       ],
       "file_operations": [
         {
           "path": "frontend/src/layouts/AdminLayout.tsx",
           "operation": "modify",
-          "description": "Replace the sidebar header text 'MathTutor Pro Admin' with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate width/height styling (e.g., h-12 or h-16) to maintain the logo's dark teal color (#1d3d4f) and aspect ratio. Remove any hardcoded 'MathTutor Pro' text from the sidebar."
+          "description": "Add three new navigation links to the sidebar navigation array: 'Manage Student Sessions' linking to /admin/manage-sessions, 'Manage Student Materials' linking to /admin/manage-materials, and 'Attendance Management' linking to /admin/attendance. Use the same icon and styling pattern as existing links. Ensure active route highlighting works for all three new routes."
         },
         {
-          "path": "frontend/src/layouts/StudentLayout.tsx",
+          "path": "frontend/src/routeTree.ts",
           "operation": "modify",
-          "description": "Replace the sidebar header text 'MathTutor Pro' with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate width/height styling (e.g., h-12 or h-16) to maintain the logo's dark teal color (#1d3d4f) and aspect ratio. Remove any hardcoded 'MathTutor Pro' text from the sidebar."
-        },
-        {
-          "path": "frontend/src/pages/Landing.tsx",
-          "operation": "modify",
-          "description": "Replace the navbar brand text 'MathTutor Pro' with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate navbar-sized styling (e.g., h-10 or h-12). Ensure the logo is clearly visible on the landing page header. Remove any 'MathTutor Pro' text from the navbar."
-        },
-        {
-          "path": "frontend/src/pages/Login.tsx",
-          "operation": "modify",
-          "description": "Replace the login page header text 'MathTutor Pro' or any logo placeholder with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate sizing (e.g., h-16 or h-20) centered above the login form. Remove any 'MathTutor Pro' branding text."
-        },
-        {
-          "path": "frontend/src/pages/Register.tsx",
-          "operation": "modify",
-          "description": "Replace the register page header text 'MathTutor Pro' or any logo placeholder with an <img> tag pointing to the generated logo at frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png. Set alt='The Rajat's Equation' and apply appropriate sizing (e.g., h-16 or h-20) centered above the registration form. Remove any 'MathTutor Pro' branding text."
-        },
-        {
-          "path": "frontend/index.html",
-          "operation": "modify",
-          "description": "Update the <title> tag to read 'The Rajat's Equation' instead of 'MathTutor Pro'. Replace the existing favicon <link> tags with a reference to the generated favicon at /assets/generated/rajats-equation-favicon.dim_64x64.png. Use both <link rel='icon' type='image/png'> and <link rel='apple-touch-icon'> for broader compatibility. Ensure the favicon displays the square-root-R monogram in dark teal (#1d3d4f)."
+          "description": "Register three new admin routes in the route tree: /admin/manage-sessions importing ManageStudentSessions component, /admin/manage-materials importing ManageStudentMaterials component, and /admin/attendance importing AttendanceManagement component. Apply the same admin auth guard (beforeLoad check for isAdmin) as existing admin routes. Ensure these routes are children of the admin layout route."
         }
       ]
     }

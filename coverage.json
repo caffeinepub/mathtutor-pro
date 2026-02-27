@@ -1,102 +1,138 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-27T13:08:25.291Z",
+  "generatedAt": "2026-02-27T17:48:23.130Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 3,
-    "implemented": 3,
+    "total": 9,
+    "implemented": 5,
     "items": [
       {
-        "id": "REQ-28",
-        "summary": "Fix the student registration flow so that every new student who submits the /register form is correctly persisted. The registerStudent function must create both a user record and a pending student record in the local store, handle all validation errors gracefully, and redirect to /login with a success toast on completion. Debug and resolve any existing bugs (e.g., missing store writes, incorrect field mapping, or silent failures) that prevent registration from saving the student.",
+        "id": "REQ-1",
+        "summary": "Extend the backend data model to support student-specific sessions. Add a Session type with fields: id, studentId, date, time, durationHours, meetLink, topic (optional), and createdAt. Store sessions in a stable var map keyed by session ID. Expose functions: addSession(studentId, date, time, durationHours, meetLink, topic), getSessionsForStudent(studentId), deleteSession(sessionId). Only the admin may call addSession and deleteSession; any authenticated user may call getSessionsForStudent but results must be filtered to the caller's own studentId (or unrestricted for admin).",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-2",
+        "summary": "Extend the backend data model to support student-specific materials. Add a Material type with fields: id, studentId, title, description (optional), fileData (Blob or Base64 for uploads), fileLink (URL, optional), relatedCourse, uploadedAt. Store materials in a stable var map keyed by material ID. Expose functions: addMaterial(studentId, title, description, fileData?, fileLink?, relatedCourse), getMaterialsForStudent(studentId), deleteMaterial(materialId). Admin-only mutations; student access is filtered to own studentId.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-3",
+        "summary": "Extend the backend to support attendance tracking. Add an Attendance type with fields: id, studentId, sessionId, status (Present | Absent), markedAt. Store attendance records in a stable var map. Expose functions: markAttendance(studentId, sessionId, status), getAttendanceForStudent(studentId), getAttendanceSummary(studentId) returning {totalSessions, presentCount, absentCount}. Admin-only mutation; student may call getAttendanceForStudent and getAttendanceSummary for their own ID only.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-4",
+        "summary": "Add a 'Manage Student Sessions' section to the Admin Panel. The page must: list all approved/enrolled students in a dropdown for selection; show a form to add a new session for the selected student (fields: Date, Time, Duration in hours, Google Meet link, Session topic [optional]); display a table of existing sessions for the selected student with delete capability. Use large, clearly-labelled buttons. Keep the layout clean and simple.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/Register.tsx"
+          "frontend/src/hooks/useSessions.ts",
+          "frontend/src/pages/admin/ManageStudentSessions.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/Register.tsx"
+          "frontend/src/hooks/useSessions.ts",
+          "frontend/src/pages/admin/ManageStudentSessions.tsx"
         ]
       },
       {
-        "id": "REQ-29",
-        "summary": "Add a WhatsApp CTA button with the number 9424135055 inside every course subsection across the app (course cards on the Landing page, course detail sections on /admin/courses, /student/courses, and the course selection step of /student/book). The button must open `https://wa.me/919424135055` in a new tab with a pre-filled message like 'Hi, I want to book a demo session.' The button should be visually distinct using the WhatsApp green color (#25D366) and include the WhatsApp icon.",
+        "id": "REQ-5",
+        "summary": "Add a 'Manage Student Materials' section to the Admin Panel. The page must: let admin select an approved student; provide a form with fields: Title, Description (optional), File Upload (stored in-canister) or File Link (URL), Related Course; display a list of existing materials for the selected student with delete capability. Support both file upload and URL-based materials in the same form (radio or toggle to switch mode). Use large buttons and a clean layout.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/WhatsAppButton.tsx",
-          "frontend/src/pages/Landing.tsx",
-          "frontend/src/pages/student/Courses.tsx",
-          "frontend/src/pages/student/Book.tsx",
-          "frontend/src/pages/admin/Courses.tsx"
+          "frontend/src/hooks/useMaterials.ts",
+          "frontend/src/pages/admin/ManageStudentMaterials.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/components/WhatsAppButton.tsx",
-          "frontend/src/pages/Landing.tsx",
-          "frontend/src/pages/student/Courses.tsx",
-          "frontend/src/pages/student/Book.tsx",
-          "frontend/src/pages/admin/Courses.tsx"
+          "frontend/src/hooks/useMaterials.ts",
+          "frontend/src/pages/admin/ManageStudentMaterials.tsx"
         ]
       },
       {
-        "id": "REQ-30",
-        "summary": "Apply the uploaded 'The Rajat's Equation' logo (rajats-equation-logo.png) as the brand identity across the entire app. Replace any existing 'MathTutor Pro' text or placeholder logo with this logo image in: the admin sidebar header, the student sidebar header, the public landing page navbar, and the login and register page headers. Also use the logo as the browser favicon (favicon.ico / favicon.png). Maintain the logo's original dark teal color palette (#1d3d4f) when rendering it inline. Update the app name in index.html title to 'The Rajat's Equation'.",
+        "id": "REQ-6",
+        "summary": "Add an 'Attendance Management' section to the Admin Panel. The page must: let admin select a student; load that student's sessions in a second dropdown; let admin mark attendance as Present or Absent for the selected session; display a table showing all attendance records for the selected student (session date, topic, status). Use large buttons and a clean layout.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/hooks/useAttendance.ts",
+          "frontend/src/pages/admin/AttendanceManagement.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/hooks/useAttendance.ts",
+          "frontend/src/pages/admin/AttendanceManagement.tsx"
+        ]
+      },
+      {
+        "id": "REQ-7",
+        "summary": "Update the Student Dashboard to include three sections: (1) My Sessions – shows each session's date, time, Google Meet link (as a Join button), duration, topic, and attendance status (Present/Absent/Not Marked); (2) My Materials – shows only materials assigned to this student with title, related course, and a view/download button for each; (3) My Attendance Summary – shows Total Sessions, Present Count, and Absent Count as stat cards. All data must be fetched for the logged-in student's ID only. Use clean layout and large buttons.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/student/Dashboard.tsx",
+          "frontend/src/pages/student/MySessions.tsx",
+          "frontend/src/pages/student/MyMaterials.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/student/Dashboard.tsx",
+          "frontend/src/pages/student/MySessions.tsx",
+          "frontend/src/pages/student/MyMaterials.tsx"
+        ]
+      },
+      {
+        "id": "REQ-8",
+        "summary": "Add navigation links for the three new admin sections (Manage Student Sessions, Manage Student Materials, Attendance Management) to the AdminLayout sidebar. Each link must be clearly labelled and route to the corresponding admin page. Update the route tree to include these new admin routes with the same admin auth guard as existing admin routes.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/layouts/AdminLayout.tsx",
-          "frontend/src/layouts/StudentLayout.tsx",
-          "frontend/src/pages/Landing.tsx",
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/pages/Register.tsx",
-          "frontend/index.html"
+          "frontend/src/routeTree.ts"
         ],
         "matchedFiles": [
           "frontend/src/layouts/AdminLayout.tsx",
-          "frontend/src/layouts/StudentLayout.tsx",
-          "frontend/src/pages/Landing.tsx",
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/pages/Register.tsx",
-          "frontend/index.html"
+          "frontend/src/routeTree.ts"
         ]
+      },
+      {
+        "id": "REQ-9",
+        "summary": "Generate a migration file (backend/migration.mo) that preserves all existing stable state (users, students, courses, payments, notifications) and initialises the new stable vars for sessions, materials, and attendance as empty maps during canister upgrade.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
       }
     ]
   },
   "changedFiles": [
+    "backend/blob-storage/Mixin.mo",
+    "backend/blob-storage/Storage.mo",
+    "backend/main.mo",
+    "backend/migration.mo",
     "build-request.json",
-    "build-template/README.md",
+    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/index.html",
-    "frontend/public/assets/generated/rajats-equation-favicon.dim_64x64.png",
-    "frontend/public/assets/generated/rajats-equation-logo.dim_400x300.png",
-    "frontend/src/components/NotificationBell.tsx",
-    "frontend/src/components/ReceiptModal.tsx",
-    "frontend/src/components/WhatsAppButton.tsx",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useAttendance.ts",
+    "frontend/src/hooks/useMaterials.ts",
+    "frontend/src/hooks/useSessions.ts",
     "frontend/src/layouts/AdminLayout.tsx",
-    "frontend/src/layouts/RootLayout.tsx",
     "frontend/src/layouts/StudentLayout.tsx",
-    "frontend/src/lib/store.ts",
-    "frontend/src/pages/Landing.tsx",
-    "frontend/src/pages/Login.tsx",
-    "frontend/src/pages/PaymentSuccess.tsx",
-    "frontend/src/pages/Register.tsx",
-    "frontend/src/pages/admin/Courses.tsx",
-    "frontend/src/pages/admin/Dashboard.tsx",
-    "frontend/src/pages/admin/Materials.tsx",
-    "frontend/src/pages/admin/Notifications.tsx",
-    "frontend/src/pages/admin/Payments.tsx",
-    "frontend/src/pages/admin/Sessions.tsx",
-    "frontend/src/pages/admin/Students.tsx",
-    "frontend/src/pages/student/Book.tsx",
-    "frontend/src/pages/student/Courses.tsx",
+    "frontend/src/pages/admin/AttendanceManagement.tsx",
+    "frontend/src/pages/admin/ManageStudentMaterials.tsx",
+    "frontend/src/pages/admin/ManageStudentSessions.tsx",
     "frontend/src/pages/student/Dashboard.tsx",
-    "frontend/src/pages/student/Materials.tsx",
-    "frontend/src/pages/student/Payments.tsx",
-    "frontend/src/pages/student/Profile.tsx",
-    "frontend/src/pages/student/Sessions.tsx",
+    "frontend/src/pages/student/MyMaterials.tsx",
+    "frontend/src/pages/student/MySessions.tsx",
+    "frontend/src/routeTree.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

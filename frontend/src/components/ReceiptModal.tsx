@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { IndianRupee, Calendar, Clock, BookOpen, User } from 'lucide-react';
+import { IndianRupee, Calendar, Clock, BookOpen, User, Users } from 'lucide-react';
 
 interface ReceiptModalProps {
   payment: Payment | null;
@@ -21,9 +21,6 @@ export default function ReceiptModal({ payment, open, onClose }: ReceiptModalPro
 
   const store = getStore();
   const student = store.students.find((s: Student) => s.id === payment.studentId);
-  const session = store.sessions.find((s: Session) => s.id === payment.sessionId);
-  const course = session ? store.courses.find((c: Course) => c.id === session.courseId) : null;
-  const user = student ? store.users.find((u) => u.id === student.userId) : null;
 
   const statusColor = {
     completed: 'default',
@@ -50,49 +47,69 @@ export default function ReceiptModal({ payment, open, onClose }: ReceiptModalPro
               className="h-10 w-auto object-contain mx-auto mb-2"
             />
             <p className="text-xs text-muted-foreground">Receipt #{payment.id.slice(-8).toUpperCase()}</p>
-            <p className="text-xs text-muted-foreground">{new Date(payment.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p className="text-xs text-muted-foreground">
+              {new Date(payment.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </p>
           </div>
 
           <Separator />
 
           {/* Student info */}
-          {(student || user) && (
-            <div className="flex items-center gap-2 text-sm">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Student:</span>
-              <span className="font-medium text-foreground">{user?.name || student?.name}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-sm">
+            <User className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Student:</span>
+            <span className="font-medium text-foreground">
+              {payment.studentName || student?.name || 'Unknown'}
+            </span>
+          </div>
 
-          {/* Session info */}
-          {session && (
-            <>
-              <div className="flex items-center gap-2 text-sm">
-                <BookOpen className="w-4 h-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Course:</span>
-                <span className="font-medium text-foreground">{course?.name || session.courseName}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Date:</span>
-                <span className="font-medium text-foreground">{session.date}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Time:</span>
-                <span className="font-medium text-foreground">{session.time} ({session.duration} min)</span>
-              </div>
-            </>
+          {/* Course info */}
+          <div className="flex items-center gap-2 text-sm">
+            <BookOpen className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Course:</span>
+            <span className="font-medium text-foreground">{payment.courseName}</span>
+          </div>
+
+          {/* Session type */}
+          <div className="flex items-center gap-2 text-sm">
+            {payment.sessionType === 'group' ? (
+              <Users className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <User className="w-4 h-4 text-muted-foreground" />
+            )}
+            <span className="text-muted-foreground">Session Type:</span>
+            <span className="font-medium text-foreground capitalize">{payment.sessionType}</span>
+          </div>
+
+          {/* Hours */}
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Hours:</span>
+            <span className="font-medium text-foreground">{payment.hours} hour{payment.hours !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* Rate */}
+          <div className="flex items-center gap-2 text-sm">
+            <IndianRupee className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Rate:</span>
+            <span className="font-medium text-foreground">₹{payment.pricePerHour}/hr</span>
+          </div>
+
+          {payment.upiTransactionId && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">UPI Txn ID:</span>
+              <span className="font-medium text-foreground font-mono text-xs">{payment.upiTransactionId}</span>
+            </div>
           )}
 
           <Separator />
 
           {/* Payment details */}
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Payment Method</span>
-              <span className="font-medium text-foreground capitalize">{payment.method}</span>
-            </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Status</span>
               <Badge variant={statusColor[payment.status] || 'secondary'} className="text-xs">

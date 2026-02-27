@@ -1,102 +1,104 @@
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BookOpen, FileText, IndianRupee } from 'lucide-react';
-import { getStore } from '@/lib/store';
-import WhatsAppButton from '@/components/WhatsAppButton';
+import { getCourses, getStudentByUserId, getMaterials, getAuthState } from '../../lib/store';
+import { BookOpen, FileText, MessageCircle, Users, User } from 'lucide-react';
 
 export default function StudentCourses() {
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-  const store = getStore();
+  const auth = getAuthState();
+  const student = auth.userId ? getStudentByUserId(auth.userId) : null;
+  const allCourses = getCourses();
+  const materials = getMaterials();
 
-  const student = store.students.find((s: any) => s.userId === currentUser?.id);
-  const enrolledCourseIds: string[] = student?.enrolledCourses || [];
-
-  const enrolledCourses = store.courses.filter((c: any) =>
-    enrolledCourseIds.includes(c.id)
+  const enrolledCourses = allCourses.filter(
+    (c) => student?.enrolledCourses?.includes(c.id)
   );
+
+  const getMaterialCount = (courseId: string) =>
+    materials.filter((m) => m.courseId === courseId).length;
 
   if (enrolledCourses.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">My Courses</h1>
-          <p className="text-muted-foreground text-sm mt-1">Your enrolled courses</p>
-        </div>
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <BookOpen className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Courses Yet</h3>
-          <p className="text-muted-foreground text-sm max-w-sm mb-6">
-            You haven't been enrolled in any courses yet. Contact admin or book a session to get started.
+      <div className="p-6 max-w-4xl mx-auto">
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">My Courses</h1>
+        <p className="text-slate-500 mb-8">Courses you are enrolled in will appear here.</p>
+        <div className="text-center py-16 bg-sky-50 rounded-2xl border border-sky-100">
+          <BookOpen size={56} className="mx-auto text-sky-300 mb-4" />
+          <h2 className="text-xl font-semibold text-slate-700 mb-2">No Courses Yet</h2>
+          <p className="text-slate-500 mb-6 max-w-sm mx-auto">
+            You haven't been enrolled in any courses yet. Contact us on WhatsApp to get started!
           </p>
-          <WhatsAppButton
-            label="Contact to Enroll"
-            message="Hi, I want to enroll in a mathematics course. Please guide me."
-          />
+          <Button
+            className="bg-green-600 hover:bg-green-700 text-white h-12 px-6 text-base font-semibold"
+            onClick={() => window.open('https://wa.me/919424135055?text=Hi! I want to enroll in a course.', '_blank')}
+          >
+            <MessageCircle size={18} className="mr-2" />
+            Contact on WhatsApp
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">My Courses</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} enrolled
-        </p>
-      </div>
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-slate-800 mb-2">My Courses</h1>
+      <p className="text-slate-500 mb-6">Your enrolled courses and study materials.</p>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        {enrolledCourses.map((course: any) => (
-          <Card key={course.id} className="border-border hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <BookOpen className="w-4 h-4 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">{course.name}</CardTitle>
-                    <Badge variant="secondary" className="text-xs mt-1">
-                      {course.level || 'All Levels'}
-                    </Badge>
-                  </div>
+      <div className="grid md:grid-cols-2 gap-5">
+        {enrolledCourses.map((course) => {
+          const matCount = getMaterialCount(course.id);
+          return (
+            <div
+              key={course.id}
+              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-sky-300 transition-all p-5 flex flex-col"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-bold text-slate-800 text-lg leading-tight">{course.name}</h3>
+                <Badge variant="outline" className="text-sky-600 border-sky-200 bg-sky-50 text-xs ml-2 flex-shrink-0">
+                  {course.level}
+                </Badge>
+              </div>
+              <p className="text-slate-500 text-sm mb-4 flex-1">{course.description}</p>
+
+              {/* Pricing */}
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center justify-between bg-sky-50 rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-1.5 text-sm text-slate-600">
+                    <Users size={14} className="text-sky-500" />
+                    Group Class
+                  </span>
+                  <span className="font-bold text-sky-700">₹{course.groupPricePerHour}/hr</span>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="flex items-center gap-0.5 text-primary font-bold">
-                    <IndianRupee className="w-3.5 h-3.5" />
-                    <span>{course.price?.toLocaleString('en-IN') || '0'}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">per month</span>
+                <div className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
+                  <span className="flex items-center gap-1.5 text-sm text-slate-600">
+                    <User size={14} className="text-purple-500" />
+                    One-on-One
+                  </span>
+                  <span className="font-bold text-purple-700">₹{course.oneOnOnePricePerHour}/hr</span>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {course.description && (
-                <p className="text-sm text-muted-foreground leading-relaxed">{course.description}</p>
-              )}
 
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                <Link
-                  to="/student/materials"
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm font-medium text-foreground transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  View Materials
+              <div className="flex gap-2">
+                <Link to="/student/materials" className="flex-1">
+                  <Button variant="outline" className="w-full border-sky-200 text-sky-700 hover:bg-sky-50 font-semibold h-11">
+                    <FileText size={16} className="mr-2" />
+                    View Materials ({matCount})
+                  </Button>
                 </Link>
-                <WhatsAppButton
-                  label="Book Demo"
-                  message={`Hi, I'm enrolled in ${course.name} and want to book a demo session.`}
-                  className="flex-1 justify-center text-sm py-2 px-3"
-                />
+                <Button
+                  variant="outline"
+                  className="border-green-300 text-green-700 hover:bg-green-50 h-11 px-3"
+                  onClick={() => window.open(`https://wa.me/919424135055?text=${encodeURIComponent(`Hi! I want to book a session for ${course.name}.`)}`, '_blank')}
+                  title="Book Session on WhatsApp"
+                >
+                  <MessageCircle size={16} />
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

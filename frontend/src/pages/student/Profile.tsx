@@ -1,210 +1,175 @@
 import React, { useState } from 'react';
-import { getStore, saveStore } from '../../lib/store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { User, Mail, Phone, Copy, CheckCircle, BookOpen } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { getStudentByUserId, updateStudent, getAuthState } from '../../lib/store';
+import { User, Mail, Phone, BookOpen, Copy, Check, Edit, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function StudentProfile() {
-  const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-  const store = getStore();
-
-  const student = store.students.find((s) => s.userId === currentUser?.id);
-  const user = store.users.find((u) => u.id === currentUser?.id);
-
-  const [copied, setCopied] = useState(false);
+  const auth = getAuthState();
+  const student = auth.userId ? getStudentByUserId(auth.userId) : null;
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: user?.name || '',
-    phone: user?.phone || '',
-  });
+  const [name, setName] = useState(student?.name || '');
+  const [phone, setPhone] = useState(student?.phone || '');
+  const [copied, setCopied] = useState(false);
 
-  const copyAccessCode = () => {
-    if (student?.accessCode) {
-      navigator.clipboard.writeText(student.accessCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast.success('Access code copied!');
-    }
-  };
+  if (!student) {
+    return (
+      <div className="p-6 text-center text-slate-500">
+        Profile not found. Please contact admin.
+      </div>
+    );
+  }
 
   const handleSave = () => {
-    if (!editForm.name.trim()) {
-      toast.error('Name cannot be empty');
-      return;
-    }
-    const currentStore = getStore();
-    currentStore.users = currentStore.users.map((u) =>
-      u.id === currentUser?.id
-        ? { ...u, name: editForm.name.trim(), phone: editForm.phone.trim() }
-        : u
-    );
-    currentStore.students = currentStore.students.map((s) =>
-      s.userId === currentUser?.id
-        ? { ...s, name: editForm.name.trim(), phone: editForm.phone.trim() }
-        : s
-    );
-    saveStore(currentStore);
-    localStorage.setItem('currentUser', JSON.stringify({ ...currentUser, name: editForm.name.trim(), phone: editForm.phone.trim() }));
+    updateStudent(student.id, { name: name.trim(), phone: phone.trim() });
     setIsEditing(false);
-    toast.success('Profile updated successfully');
+    toast.success('Profile updated successfully!');
   };
 
-  const enrolledCourses = store.courses.filter((c) =>
-    student?.enrolledCourses.includes(c.id)
-  );
+  const copyAccessCode = () => {
+    if (student.accessCode) {
+      navigator.clipboard.writeText(student.accessCode).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        toast.success('Access code copied!');
+      });
+    }
+  };
+
+  const getStatusBadge = () => {
+    switch (student.status) {
+      case 'approved':
+        return <Badge className="bg-green-100 text-green-700 border-green-300 text-sm px-3 py-1">✅ Approved</Badge>;
+      case 'pending':
+        return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300 text-sm px-3 py-1">⏳ Pending Approval</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-100 text-red-700 border-red-300 text-sm px-3 py-1">❌ Rejected</Badge>;
+    }
+  };
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
-        <p className="text-muted-foreground text-sm mt-1">Manage your account information</p>
-      </div>
+    <div className="p-6 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold text-slate-800 mb-6">My Profile</h1>
 
-      {/* Profile Card */}
-      <Card className="border-border">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User className="w-4 h-4 text-primary" />
-              Personal Information
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (isEditing) {
-                  handleSave();
-                } else {
-                  setIsEditing(true);
-                }
-              }}
-            >
-              {isEditing ? 'Save' : 'Edit'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
-            <>
-              <div className="space-y-1">
-                <Label htmlFor="profile-name">Full Name</Label>
-                <Input
-                  id="profile-name"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="profile-phone">Phone Number</Label>
-                <Input
-                  id="profile-phone"
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
-                />
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 text-sm">
-                <User className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">Name:</span>
-                <span className="font-medium text-foreground">{user?.name || currentUser?.name}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">Email:</span>
-                <span className="font-medium text-foreground">{user?.email || currentUser?.email}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">Phone:</span>
-                <span className="font-medium text-foreground">{user?.phone || currentUser?.phone || 'Not set'}</span>
-              </div>
-            </>
-          )}
-
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-sm text-muted-foreground">Status:</span>
-            <Badge
-              variant={
-                student?.status === 'approved'
-                  ? 'default'
-                  : student?.status === 'pending'
-                  ? 'secondary'
-                  : 'destructive'
-              }
-              className="text-xs capitalize"
-            >
-              {student?.status || 'Unknown'}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Access Code */}
-      {student?.accessCode && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-primary" />
-              Access Code
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3">
-              <code className="flex-1 p-3 bg-background border border-border rounded-lg font-mono text-lg font-bold text-primary tracking-widest text-center">
-                {student.accessCode}
-              </code>
-              <Button variant="outline" size="icon" onClick={copyAccessCode}>
-                {copied ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Use this code to access exclusive resources and materials.
-            </p>
-          </CardContent>
-        </Card>
+      {/* Access Code Card */}
+      {student.status === 'approved' && student.accessCode && (
+        <div className="bg-gradient-to-r from-sky-600 to-sky-500 rounded-2xl p-6 mb-6 text-white text-center">
+          <p className="text-sky-100 text-sm font-medium mb-2">Your Login Access Code</p>
+          <p className="text-4xl font-bold font-mono tracking-widest mb-4">{student.accessCode}</p>
+          <Button
+            onClick={copyAccessCode}
+            variant="outline"
+            className="border-white text-white hover:bg-white/20 font-semibold h-11 px-6"
+          >
+            {copied ? (
+              <><Check size={16} className="mr-2" /> Copied!</>
+            ) : (
+              <><Copy size={16} className="mr-2" /> Copy Access Code</>
+            )}
+          </Button>
+          <p className="text-sky-200 text-xs mt-3">Keep this code safe. You need it to log in.</p>
+        </div>
       )}
 
-      {/* Enrolled Courses */}
-      <Card className="border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary" />
-            Enrolled Courses
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {enrolledCourses.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Not enrolled in any courses yet.
-            </p>
+      {/* Profile Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-sky-100 flex items-center justify-center">
+              <User size={28} className="text-sky-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">{student.name}</h2>
+              {getStatusBadge()}
+            </div>
+          </div>
+          {!isEditing ? (
+            <Button
+              variant="outline"
+              onClick={() => setIsEditing(true)}
+              className="border-sky-200 text-sky-700 hover:bg-sky-50 h-10 px-4"
+            >
+              <Edit size={16} className="mr-2" />
+              Edit Profile
+            </Button>
           ) : (
-            <div className="space-y-2">
-              {enrolledCourses.map((course) => (
-                <div key={course.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg">
-                  <div className="p-1.5 bg-primary/10 rounded">
-                    <BookOpen className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                  <span className="text-sm font-medium text-foreground flex-1 truncate">{course.name}</span>
-                  <Badge variant="secondary" className="text-xs">{course.level}</Badge>
-                </div>
-              ))}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSave}
+                className="bg-sky-600 hover:bg-sky-700 text-white h-10 px-4"
+              >
+                <Save size={16} className="mr-2" />
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setIsEditing(false); setName(student.name); setPhone(student.phone); }}
+                className="h-10 px-4"
+              >
+                <X size={16} />
+              </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+              <User size={14} /> Full Name
+            </Label>
+            {isEditing ? (
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-11 text-base border-sky-200 focus:border-sky-500"
+              />
+            ) : (
+              <p className="text-base font-medium text-slate-800 py-2">{student.name}</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+              <Mail size={14} /> Email Address
+            </Label>
+            <p className="text-base font-medium text-slate-800 py-2">{student.email}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+              <Phone size={14} /> Phone Number
+            </Label>
+            {isEditing ? (
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="h-11 text-base border-sky-200 focus:border-sky-500"
+              />
+            ) : (
+              <p className="text-base font-medium text-slate-800 py-2">{student.phone}</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
+              <BookOpen size={14} /> Enrolled Course
+            </Label>
+            <p className="text-base font-medium text-slate-800 py-2">{student.course}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-slate-500">Registered On</Label>
+            <p className="text-base text-slate-700 py-2">
+              {new Date(student.registeredAt).toLocaleDateString('en-IN', {
+                day: 'numeric', month: 'long', year: 'numeric'
+              })}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

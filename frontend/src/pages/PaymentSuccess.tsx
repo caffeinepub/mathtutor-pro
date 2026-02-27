@@ -16,43 +16,28 @@ export default function PaymentSuccess() {
         const paymentData = JSON.parse(pendingPayment);
         const store = getStore();
 
-        // Update payment status to completed
+        // Update payment status to completed if it exists
         const paymentIndex = store.payments.findIndex((p) => p.id === paymentData.id);
         if (paymentIndex >= 0) {
           store.payments[paymentIndex].status = 'completed';
-        } else {
-          // Add new payment record
-          store.payments.push({
-            id: paymentData.id || `pay_${Date.now()}`,
-            studentId: paymentData.studentId || '',
-            sessionId: paymentData.sessionId || '',
-            amount: paymentData.amount || 0,
-            status: 'completed',
-            method: paymentData.method || 'online',
-            createdAt: new Date().toISOString(),
-          });
         }
 
-        // Update session status to confirmed
+        // Update session status to scheduled (confirmed)
         if (paymentData.sessionId) {
           const sessionIndex = store.sessions.findIndex((s) => s.id === paymentData.sessionId);
           if (sessionIndex >= 0) {
-            store.sessions[sessionIndex].status = 'confirmed';
+            store.sessions[sessionIndex].status = 'scheduled';
           }
         }
 
-        // Notify admin
-        const adminUser = store.users.find((u) => u.role === 'admin');
-        if (adminUser) {
-          store.notifications.push({
-            id: `notif_${Date.now()}`,
-            userId: adminUser.id,
-            title: 'New Payment Received',
-            message: `Payment of ₹${paymentData.amount?.toLocaleString('en-IN') || 0} received successfully.`,
-            read: false,
-            createdAt: new Date().toISOString(),
-          });
-        }
+        // Notify admin via a broadcast notification (no targetStudentId = admin sees it)
+        store.notifications.push({
+          id: `notif_${Date.now()}`,
+          title: 'New Payment Received',
+          message: `Payment of ₹${paymentData.amount?.toLocaleString('en-IN') || 0} received successfully.`,
+          readBy: [],
+          createdAt: new Date().toISOString(),
+        });
 
         saveStore(store);
         sessionStorage.removeItem('pendingPayment');
