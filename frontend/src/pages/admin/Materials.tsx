@@ -1,328 +1,364 @@
 import React, { useState } from 'react';
-import { toast } from 'sonner';
-import { getStore, saveStore, type Material } from '../../lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Plus, Trash2, FileText, Link as LinkIcon, Filter } from 'lucide-react';
+import { useActor } from '../../hooks/useActor';
+import { useQuery } from '@tanstack/react-query';
+import { Plus, Trash2, FileText, Link as LinkIcon, User, RefreshCw } from 'lucide-react';
 
-// Valid file types matching the Material interface
-const FILE_TYPES: Material['fileType'][] = ['pdf', 'video', 'image', 'doc', 'other'];
+interface LocalMaterial {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  title: string;
+  description?: string;
+  fileLink: string;
+  relatedCourse?: string;
+  createdAt: string;
+}
+
+function getLocalMaterials(): LocalMaterial[] {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return [];
+    const store = JSON.parse(raw);
+    return store.adminMaterials || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalMaterial(material: LocalMaterial) {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    const store = raw ? JSON.parse(raw) : {};
+    const materials: LocalMaterial[] = store.adminMaterials || [];
+    materials.push(material);
+    store.adminMaterials = materials;
+    localStorage.setItem('rajats_equation_store', JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
+
+function deleteLocalMaterial(id: string) {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return;
+    const store = JSON.parse(raw);
+    store.adminMaterials = (store.adminMaterials || []).filter((m: LocalMaterial) => m.id !== id);
+    localStorage.setItem('rajats_equation_store', JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
 
 export default function AdminMaterials() {
-  const [materials, setMaterials] = useState<Material[]>(() => getStore().materials);
-  const [courseFilter, setCourseFilter] = useState('all');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState<{
-    courseId: string;
-    title: string;
-    description: string;
-    fileType: Material['fileType'];
-    fileUrl: string;
-  }>({
-    courseId: '',
-    title: '',
-    description: '',
-    fileType: 'pdf',
-    fileUrl: '',
+  const { actor } = useActor();
+
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [fileLink, setFileLink] = useState('');
+  const [relatedCourse, setRelatedCourse] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [localMaterials, setLocalMaterials] = useState<LocalMaterial[]>(getLocalMaterials);
+  const [filterStudentId, setFilterStudentId] = useState('');
+
+  // Fetch all payments to get approved students
+  const { data: payments = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: ['allPayments'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllPayments();
+    },
+    enabled: !!actor,
   });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const store = getStore();
-  const courses = store.courses;
+  const approvedStudents = React.useMemo(() => {
+    const fromBackend = payments
+      .filter(p => p.status.__kind__ === 'approved')
+      .map(p => ({
+        paymentId: Number(p.id),
+        name: p.fullName,
+        email: p.email,
+      }));
 
-  const refreshMaterials = () => {
-    setMaterials(getStore().materials);
-  };
+    try {
+      const raw = localStorage.getItem('rajats_equation_store');
+      if (raw) {
+        const store = JSON.parse(raw);
+        const localActive = (store.students || [])
+          .filter((s: any) => s.status === 'active')
+          .map((s: any) => ({
+            paymentId: parseInt(s.id) || 0,
+            name: s.name,
+            email: s.email,
+          }));
+        for (const ls of localActive) {
+          if (!fromBackend.find(s => s.email === ls.email)) {
+            fromBackend.push(ls);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
 
-  const filteredMaterials =
-    courseFilter === 'all'
-      ? materials
-      : materials.filter((m) => m.courseId === courseFilter);
+    return fromBackend;
+  }, [payments]);
 
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    if (!form.courseId) errors.courseId = 'Please select a course';
-    if (!form.title.trim()) errors.title = 'Title is required';
-    if (!form.fileUrl.trim()) errors.fileUrl = 'File URL is required';
-    return errors;
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
 
-  const handleSubmit = async () => {
-    const errors = validateForm();
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
+    if (!selectedStudentId) {
+      setErrorMsg('Please select a student.');
       return;
     }
-    setIsSubmitting(true);
-    try {
-      const currentStore = getStore();
-      const course = currentStore.courses.find((c) => c.id === form.courseId);
-      const newMaterial: Material = {
-        id: `material_${Date.now()}`,
-        courseId: form.courseId,
-        courseName: course?.name || '',
-        title: form.title.trim(),
-        description: form.description.trim(),
-        fileType: form.fileType,
-        fileUrl: form.fileUrl.trim(),
-        uploadedAt: new Date().toISOString(),
-      };
-      currentStore.materials = [...currentStore.materials, newMaterial];
+    if (!title.trim() || !fileLink.trim()) {
+      setErrorMsg('Please fill in title and file link.');
+      return;
+    }
 
-      // Notify enrolled students
-      const enrolledStudents = currentStore.students.filter(
-        (s) => s.status === 'approved' && s.enrolledCourses.includes(form.courseId)
+    setSaving(true);
+    try {
+      const student = approvedStudents.find(
+        s => String(s.paymentId) === selectedStudentId || s.email === selectedStudentId
       );
-      for (const student of enrolledStudents) {
-        currentStore.notifications.push({
-          id: `notif_${Date.now()}_${student.id}`,
-          title: 'New Study Material',
-          message: `New material "${form.title}" has been uploaded for ${course?.name}.`,
-          targetStudentId: student.id,
-          readBy: [],
-          createdAt: new Date().toISOString(),
-        });
+      if (!student) {
+        setErrorMsg('Student not found.');
+        setSaving(false);
+        return;
       }
 
-      saveStore(currentStore);
-      refreshMaterials();
-      setModalOpen(false);
-      setForm({ courseId: '', title: '', description: '', fileType: 'pdf', fileUrl: '' });
-      toast.success('Material uploaded successfully');
-    } catch (err) {
-      toast.error('Failed to upload material');
+      const newMaterial: LocalMaterial = {
+        id: `material_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        studentId: String(student.paymentId),
+        studentName: student.name,
+        studentEmail: student.email,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        fileLink: fileLink.trim(),
+        relatedCourse: relatedCourse.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      saveLocalMaterial(newMaterial);
+      setLocalMaterials(getLocalMaterials());
+
+      setSuccessMsg(`Material added for ${student.name}!`);
+      setTitle('');
+      setDescription('');
+      setFileLink('');
+      setRelatedCourse('');
+      setSelectedStudentId('');
+    } catch (err: any) {
+      setErrorMsg(String(err?.message || 'Failed to save material. Please try again.'));
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
   const handleDelete = (id: string) => {
-    const currentStore = getStore();
-    currentStore.materials = currentStore.materials.filter((m) => m.id !== id);
-    saveStore(currentStore);
-    refreshMaterials();
-    setDeleteConfirm(null);
-    toast.success('Material deleted');
+    if (!confirm('Delete this material?')) return;
+    deleteLocalMaterial(id);
+    setLocalMaterials(getLocalMaterials());
   };
 
-  const fileTypeBadgeVariant = (type: string): 'default' | 'secondary' | 'outline' | 'destructive' => {
-    const map: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-      pdf: 'default',
-      video: 'secondary',
-      doc: 'outline',
-      image: 'outline',
-      other: 'outline',
-    };
-    return map[type] || 'outline';
-  };
+  const displayedMaterials = filterStudentId
+    ? localMaterials.filter(m => String(m.studentId) === filterStudentId || m.studentEmail === filterStudentId)
+    : localMaterials;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Study Materials</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {materials.length} material{materials.length !== 1 ? 's' : ''} uploaded
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            setForm({ courseId: '', title: '', description: '', fileType: 'pdf', fileUrl: '' });
-            setFormErrors({});
-            setModalOpen(true);
-          }}
-          size="sm"
-        >
-          <Plus className="w-4 h-4 mr-1" /> Upload Material
-        </Button>
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Materials</h1>
+        <p className="text-muted-foreground text-sm mt-1">Add and manage study materials for individual students</p>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-muted-foreground" />
-        <select
-          value={courseFilter}
-          onChange={(e) => setCourseFilter(e.target.value)}
-          className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="all">All Courses</option>
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
+      {/* Add Material Form */}
+      <div className="bg-card border border-border rounded-xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Plus className="w-5 h-5 text-primary" />
+          Add Material for Student
+        </h2>
 
-      {filteredMaterials.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <FileText className="w-8 h-8 text-muted-foreground" />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Student Select */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Select Student <span className="text-destructive">*</span>
+            </label>
+            {paymentsLoading ? (
+              <div className="text-sm text-muted-foreground">Loading students...</div>
+            ) : approvedStudents.length === 0 ? (
+              <div className="text-sm text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                No approved students yet. Approve students from the Students section first.
+              </div>
+            ) : (
+              <select
+                value={selectedStudentId}
+                onChange={e => setSelectedStudentId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              >
+                <option value="">-- Select a student --</option>
+                {approvedStudents.map(s => (
+                  <option key={s.email} value={String(s.paymentId) || s.email}>
+                    {s.name} ({s.email})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Materials Yet</h3>
-          <p className="text-muted-foreground text-sm mb-4">Upload study materials for your students.</p>
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" /> Upload Material
-          </Button>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Title <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="e.g. Chapter 5 Notes"
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                required
+              />
+            </div>
+
+            {/* Related Course */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Related Course <span className="text-muted-foreground text-xs">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={relatedCourse}
+                onChange={e => setRelatedCourse(e.target.value)}
+                placeholder="e.g. JEE Mathematics"
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* File Link */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              File / Document Link <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="url"
+              value={fileLink}
+              onChange={e => setFileLink(e.target.value)}
+              placeholder="https://drive.google.com/... or any document URL"
+              className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Description <span className="text-muted-foreground text-xs">(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Brief description of the material..."
+              rows={2}
+              className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+            />
+          </div>
+
+          {errorMsg && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
+              {errorMsg}
+            </div>
+          )}
+          {successMsg && (
+            <div className="bg-green-50 border border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400 rounded-lg px-3 py-2.5 text-sm">
+              {successMsg}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Add Material'}
+          </button>
+        </form>
+      </div>
+
+      {/* Materials List */}
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            All Materials ({localMaterials.length})
+          </h2>
+          <select
+            value={filterStudentId}
+            onChange={e => setFilterStudentId(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none"
+          >
+            <option value="">All Students</option>
+            {approvedStudents.map(s => (
+              <option key={s.email} value={String(s.paymentId) || s.email}>
+                {s.name}
+              </option>
+            ))}
+          </select>
         </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {filteredMaterials.map((material) => (
-            <Card key={material.id} className="border-border hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                      <FileText className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="text-sm truncate">{material.title}</CardTitle>
-                      <p className="text-xs text-muted-foreground truncate">{material.courseName}</p>
-                    </div>
+
+        {displayedMaterials.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No materials added yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {[...displayedMaterials].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(material => (
+              <div key={material.id} className="flex items-start justify-between gap-4 p-4 rounded-lg border border-border bg-background">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="font-medium text-sm text-foreground">{material.title}</span>
                   </div>
-                  <Badge variant={fileTypeBadgeVariant(material.fileType)} className="text-xs shrink-0 uppercase">
-                    {material.fileType}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {material.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-2">{material.description}</p>
-                )}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <LinkIcon className="w-3 h-3" />
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                    <User className="w-3 h-3" />
+                    <span>{material.studentName} ({material.studentEmail})</span>
+                  </div>
+                  {material.relatedCourse && (
+                    <p className="text-xs text-muted-foreground mb-1">Course: {material.relatedCourse}</p>
+                  )}
+                  {material.description && (
+                    <p className="text-xs text-muted-foreground mb-1">{material.description}</p>
+                  )}
                   <a
-                    href={material.fileUrl}
+                    href={material.fileLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline truncate"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
                   >
-                    {material.fileUrl}
+                    <LinkIcon className="w-3 h-3" /> View Material
                   </a>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Uploaded: {new Date(material.uploadedAt).toLocaleDateString()}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteConfirm(material.id)}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive w-full"
+                <button
+                  onClick={() => handleDelete(material.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                  title="Delete material"
                 >
-                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Upload Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Upload Study Material</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label>Course *</Label>
-              <select
-                value={form.courseId}
-                onChange={(e) => setForm((p) => ({ ...p, courseId: e.target.value }))}
-                className={`w-full h-10 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring ${formErrors.courseId ? 'border-destructive' : 'border-input'}`}
-              >
-                <option value="">Select a course</option>
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {formErrors.courseId && <p className="text-xs text-destructive">{formErrors.courseId}</p>}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="mat-title">Title *</Label>
-              <Input
-                id="mat-title"
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                placeholder="e.g. Chapter 1 Notes"
-                className={formErrors.title ? 'border-destructive' : ''}
-              />
-              {formErrors.title && <p className="text-xs text-destructive">{formErrors.title}</p>}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="mat-desc">Description</Label>
-              <Input
-                id="mat-desc"
-                value={form.description}
-                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                placeholder="Brief description"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>File Type</Label>
-              <select
-                value={form.fileType}
-                onChange={(e) => setForm((p) => ({ ...p, fileType: e.target.value as Material['fileType'] }))}
-                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {FILE_TYPES.map((t) => (
-                  <option key={t} value={t} className="uppercase">{t.toUpperCase()}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="mat-url">File URL *</Label>
-              <Input
-                id="mat-url"
-                value={form.fileUrl}
-                onChange={(e) => setForm((p) => ({ ...p, fileUrl: e.target.value }))}
-                placeholder="https://drive.google.com/..."
-                className={formErrors.fileUrl ? 'border-destructive' : ''}
-              />
-              {formErrors.fileUrl && <p className="text-xs text-destructive">{formErrors.fileUrl}</p>}
-            </div>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Uploading...
-                </span>
-              ) : 'Upload'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Delete Material</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">
-            Are you sure you want to delete this material? This cannot be undone.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
     </div>
   );
 }

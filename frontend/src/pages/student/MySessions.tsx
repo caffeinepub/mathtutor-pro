@@ -1,157 +1,179 @@
 import React from 'react';
-import { useGetSessionsForStudent } from '../../hooks/useSessions';
-import { useGetAttendanceForStudent } from '../../hooks/useAttendance';
+import { Calendar, Clock, Video, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { getAuthState } from '../../lib/auth';
-import { getStore } from '../../lib/store';
-import { AttendanceStatus } from '../../backend';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Loader2,
-  Video,
-  Calendar,
-  Clock,
-  BookOpen,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-} from 'lucide-react';
 
-function getStudentPaymentId(): bigint | null {
-  const auth = getAuthState();
-  if (!auth) return null;
-  const store = getStore();
-  const student = store.students.find(s => s.userId === auth.userId);
-  if (!student?.accessCode) return null;
-  const match = student.accessCode.match(/RJMATH-(\d+)/);
-  if (!match) return null;
-  return BigInt(parseInt(match[1], 10));
+interface LocalSession {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  date: string;
+  time: string;
+  durationHours: number;
+  meetLink: string;
+  topic?: string;
+  createdAt: string;
+}
+
+function getStudentSessions(studentEmail: string, studentId: string): LocalSession[] {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return [];
+    const store = JSON.parse(raw);
+    const sessions: LocalSession[] = store.adminSessions || [];
+    return sessions.filter(
+      s =>
+        s.studentEmail?.toLowerCase() === studentEmail?.toLowerCase() ||
+        s.studentId === studentId
+    );
+  } catch {
+    return [];
+  }
+}
+
+function getAttendanceStatus(sessionId: string): 'present' | 'absent' | null {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return null;
+    const store = JSON.parse(raw);
+    const attendance = store.attendance || [];
+    const record = attendance.find((a: any) => a.sessionId === sessionId);
+    return record ? record.status : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function MySessions() {
-  const studentId = getStudentPaymentId();
-  const { data: sessions = [], isLoading: sessionsLoading } = useGetSessionsForStudent(studentId);
-  const { data: attendanceRecords = [], isLoading: attendanceLoading } =
-    useGetAttendanceForStudent(studentId);
+  const auth = getAuthState();
 
-  const isLoading = sessionsLoading || attendanceLoading;
-
-  const getAttendanceForSession = (sessionId: bigint) => {
-    return attendanceRecords.find(a => a.sessionId === sessionId);
-  };
-
-  const sortedSessions = [...sessions].sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time}`).getTime();
-    const dateB = new Date(`${b.date}T${b.time}`).getTime();
-    return dateB - dateA;
-  });
-
-  if (!studentId) {
+  if (!auth) {
     return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">
-              No access code linked to your account. Please contact your tutor.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="p-6 text-center text-muted-foreground">
+        <AlertCircle className="w-10 h-10 mx-auto mb-2 opacity-40" />
+        <p>Please log in to view your classes.</p>
       </div>
     );
   }
 
+  const sessions = getStudentSessions(auth.email || '', auth.userId || '');
+  const now = new Date();
+
+  const upcoming = sessions
+    .filter(s => new Date(`${s.date}T${s.time}`) >= now)
+    .sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
+
+  const past = sessions
+    .filter(s => new Date(`${s.date}T${s.time}`) < now)
+    .sort((a, b) => new Date(`${b.date}T${b.time}`).getTime() - new Date(`${a.date}T${a.time}`).getTime());
+
+  const renderSession = (session: LocalSession, isPast: boolean) => {
+    const attendance = getAttendanceStatus(session.id);
+    return (
+      <div key={session.id} className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              {isPast ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                  Past
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                  Upcoming
+                </span>
+              )}
+              {attendance === 'present' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="w-3 h-3" /> Present
+                </span>
+              )}
+              {attendance === 'absent' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                  <XCircle className="w-3 h-3" /> Absent
+                </span>
+              )}
+              {isPast && !attendance && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                  Not Marked
+                </span>
+              )}
+            </div>
+
+            {session.topic && (
+              <h3 className="font-semibold text-foreground mb-1">{session.topic}</h3>
+            )}
+
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {session.time}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {session.durationHours} hour{session.durationHours !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          {session.meetLink && (
+            <a
+              href={session.meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Video className="w-3.5 h-3.5" /> Join
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">My Sessions</h1>
-        <p className="text-muted-foreground mt-1">All your scheduled and past sessions</p>
+    <div className="p-6 max-w-3xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">My Classes</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          {sessions.length} class{sessions.length !== 1 ? 'es' : ''} assigned to you
+        </p>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      {sessions.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No classes yet</p>
+          <p className="text-sm mt-1">Your classes will appear here once the admin schedules them.</p>
         </div>
-      ) : sortedSessions.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Video className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Sessions Yet</h3>
-            <p className="text-muted-foreground">
-              Your tutor hasn't scheduled any sessions for you yet.
-            </p>
-          </CardContent>
-        </Card>
       ) : (
-        <div className="grid gap-4">
-          {sortedSessions.map(session => {
-            const attendance = getAttendanceForSession(session.id);
-            const sessionDate = new Date(`${session.date}T${session.time}`);
-            const isPast = sessionDate < new Date();
+        <>
+          {upcoming.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Upcoming ({upcoming.length})
+              </h2>
+              <div className="space-y-3">
+                {upcoming.map(s => renderSession(s, false))}
+              </div>
+            </div>
+          )}
 
-            return (
-              <Card key={session.id.toString()} className="overflow-hidden">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <CardTitle className="text-lg">{session.topic ?? 'Session'}</CardTitle>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {attendance ? (
-                        attendance.status === AttendanceStatus.present ? (
-                          <Badge className="bg-green-100 text-green-800 border-green-200">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Present
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive">
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Absent
-                          </Badge>
-                        )
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          Not Marked
-                        </Badge>
-                      )}
-                      {isPast ? (
-                        <Badge variant="secondary">Past</Badge>
-                      ) : (
-                        <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-                          Upcoming
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{session.date}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{session.time}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <BookOpen className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {session.durationHours.toString()} hour
-                        {session.durationHours > 1n ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-                  <a href={session.meetLink} target="_blank" rel="noopener noreferrer">
-                    <Button size="lg" className="w-full md:w-auto gap-2">
-                      <Video className="h-5 w-5" />
-                      Join Session on Google Meet
-                    </Button>
-                  </a>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+          {past.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Past ({past.length})
+              </h2>
+              <div className="space-y-3">
+                {past.map(s => renderSession(s, true))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

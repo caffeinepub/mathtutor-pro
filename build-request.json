@@ -1,221 +1,58 @@
 {
   "kind": "build_request",
-  "title": "Add per-student sessions, materials, and attendance management (admin + student dashboard)",
-  "projectName": "Rajat Math Academy",
+  "title": "Fix hardcoded admin login credentials",
   "priority": "high",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Extend the backend data model to support student-specific sessions. Add a Session type with fields: id, studentId, date, time, durationHours, meetLink, topic (optional), and createdAt. Store sessions in a stable var map keyed by session ID. Expose functions: addSession(studentId, date, time, durationHours, meetLink, topic), getSessionsForStudent(studentId), deleteSession(sessionId). Only the admin may call addSession and deleteSession; any authenticated user may call getSessionsForStudent but results must be filtered to the caller's own studentId (or unrestricted for admin).",
+      "text": "Update the backend admin authentication logic so that the hardcoded admin account uses the email 'admin@mathtutor.com' and password 'Admin@123'. The login check must match against these exact credentials and return a valid admin session/token on success.",
       "target": "backend",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-admin-credentials"
         ],
         "quotes": [
-          "Add a session only for that student",
-          "That session must appear ONLY in that selected student's dashboard",
-          "Other students must NOT see it"
+          "admin credentials are username - admin@mathtutor.com and password is Admin@123",
+          "this is hardcoded default admin account"
         ]
       },
       "acceptanceCriteria": [
-        "Admin can create a session record associated with a specific studentId.",
-        "getSessionsForStudent returns only sessions belonging to the requested student.",
-        "A student querying another student's sessions receives an empty or unauthorized result.",
-        "All session fields (date, time, durationHours, meetLink, topic) are persisted correctly."
+        "Logging in with email 'admin@mathtutor.com' and password 'Admin@123' succeeds and returns a valid admin session.",
+        "Logging in with any other credentials correctly returns an authentication failure.",
+        "The admin credentials are hardcoded in the backend and do not require dynamic account creation."
       ]
     },
     {
       "id": "REQ-2",
-      "text": "Extend the backend data model to support student-specific materials. Add a Material type with fields: id, studentId, title, description (optional), fileData (Blob or Base64 for uploads), fileLink (URL, optional), relatedCourse, uploadedAt. Store materials in a stable var map keyed by material ID. Expose functions: addMaterial(studentId, title, description, fileData?, fileLink?, relatedCourse), getMaterialsForStudent(studentId), deleteMaterial(materialId). Admin-only mutations; student access is filtered to own studentId.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Upload or add materials only for that student",
-          "Material must appear ONLY in that student's portal",
-          "Other students must NOT see it",
-          "File link or document"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Admin can add a material record tied to a specific studentId with either a file upload or a URL link.",
-        "getMaterialsForStudent returns only that student's materials.",
-        "File upload data is stored in-canister; URL-based materials store the link.",
-        "Students cannot access other students' materials."
-      ]
-    },
-    {
-      "id": "REQ-3",
-      "text": "Extend the backend to support attendance tracking. Add an Attendance type with fields: id, studentId, sessionId, status (Present | Absent), markedAt. Store attendance records in a stable var map. Expose functions: markAttendance(studentId, sessionId, status), getAttendanceForStudent(studentId), getAttendanceSummary(studentId) returning {totalSessions, presentCount, absentCount}. Admin-only mutation; student may call getAttendanceForStudent and getAttendanceSummary for their own ID only.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Mark attendance: Present / Absent",
-          "Attendance must be linked to session + student",
-          "Student → Sessions → Attendance"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Admin can mark a student as Present or Absent for a specific session.",
-        "getAttendanceForStudent returns all attendance records for that student.",
-        "getAttendanceSummary returns correct totalSessions, presentCount, and absentCount.",
-        "Attendance records are linked to both sessionId and studentId."
-      ]
-    },
-    {
-      "id": "REQ-4",
-      "text": "Add a 'Manage Student Sessions' section to the Admin Panel. The page must: list all approved/enrolled students in a dropdown for selection; show a form to add a new session for the selected student (fields: Date, Time, Duration in hours, Google Meet link, Session topic [optional]); display a table of existing sessions for the selected student with delete capability. Use large, clearly-labelled buttons. Keep the layout clean and simple.",
+      "text": "Update the frontend Login page so that when the admin login form is submitted with email 'admin@mathtutor.com' and password 'Admin@123', it correctly authenticates against the backend (and/or localStorage fallback) using these exact credentials, stores the admin session, and redirects to the admin dashboard without showing 'invalid credentials'.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-admin-credentials"
         ],
         "quotes": [
-          "Manage Student Sessions",
-          "Select a specific enrolled student",
-          "Add a session only for that student",
-          "Big buttons",
-          "No complex design"
+          "admin login still showing invalid credentials",
+          "admin credentials are username - admin@mathtutor.com and password is Admin@123"
         ]
       },
       "acceptanceCriteria": [
-        "Admin can select any approved student from a dropdown.",
-        "Submitting the form creates a session record for that student and clears the form.",
-        "The session list below the form updates immediately after saving.",
-        "All required fields (date, time, duration, meet link) are validated before submission.",
-        "Topic field is optional and saves correctly when provided or left blank."
-      ]
-    },
-    {
-      "id": "REQ-5",
-      "text": "Add a 'Manage Student Materials' section to the Admin Panel. The page must: let admin select an approved student; provide a form with fields: Title, Description (optional), File Upload (stored in-canister) or File Link (URL), Related Course; display a list of existing materials for the selected student with delete capability. Support both file upload and URL-based materials in the same form (radio or toggle to switch mode). Use large buttons and a clean layout.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Manage Student Materials",
-          "Upload or add materials only for that student",
-          "File link or document",
-          "Related course",
-          "Big buttons"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Admin can switch between file upload mode and URL link mode.",
-        "Submitting the form stores the material linked to the selected student.",
-        "The materials list updates immediately after saving.",
-        "Title and Related Course are required; Description is optional.",
-        "File upload stores binary data in-canister; URL link stores the provided URL string."
-      ]
-    },
-    {
-      "id": "REQ-6",
-      "text": "Add an 'Attendance Management' section to the Admin Panel. The page must: let admin select a student; load that student's sessions in a second dropdown; let admin mark attendance as Present or Absent for the selected session; display a table showing all attendance records for the selected student (session date, topic, status). Use large buttons and a clean layout.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Attendance Management",
-          "Select student",
-          "Select session",
-          "Mark attendance: Present / Absent",
-          "Attendance should be stored per session per student"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Selecting a student populates the session dropdown with that student's sessions.",
-        "Admin can mark Present or Absent and save; the attendance table updates immediately.",
-        "Existing attendance status for a session is shown correctly in the table.",
-        "Saving attendance calls the backend markAttendance function."
-      ]
-    },
-    {
-      "id": "REQ-7",
-      "text": "Update the Student Dashboard to include three sections: (1) My Sessions – shows each session's date, time, Google Meet link (as a Join button), duration, topic, and attendance status (Present/Absent/Not Marked); (2) My Materials – shows only materials assigned to this student with title, related course, and a view/download button for each; (3) My Attendance Summary – shows Total Sessions, Present Count, and Absent Count as stat cards. All data must be fetched for the logged-in student's ID only. Use clean layout and large buttons.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "My Sessions",
-          "My Materials",
-          "My Attendance Summary",
-          "Total sessions",
-          "Present count",
-          "Absent count",
-          "Download/view option",
-          "Everything must be student-specific"
-        ]
-      },
-      "acceptanceCriteria": [
-        "My Sessions lists only sessions assigned to the logged-in student.",
-        "Google Meet link renders as a clickable 'Join' button opening in a new tab.",
-        "Attendance status (Present/Absent/Not Marked) is shown per session.",
-        "My Materials lists only materials assigned to the logged-in student with working view/download links.",
-        "My Attendance Summary stat cards show correct totals derived from backend getAttendanceSummary.",
-        "No other student's sessions, materials, or attendance data is visible."
-      ]
-    },
-    {
-      "id": "REQ-8",
-      "text": "Add navigation links for the three new admin sections (Manage Student Sessions, Manage Student Materials, Attendance Management) to the AdminLayout sidebar. Each link must be clearly labelled and route to the corresponding admin page. Update the route tree to include these new admin routes with the same admin auth guard as existing admin routes.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "In Admin Panel, create a section called",
-          "Create a section in Admin Panel",
-          "In Admin Panel, create"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Sidebar shows links for Manage Student Sessions, Manage Student Materials, and Attendance Management.",
-        "Clicking each link navigates to the correct page.",
-        "All three routes are protected by the admin auth guard.",
-        "Active route is visually highlighted in the sidebar."
-      ]
-    },
-    {
-      "id": "REQ-9",
-      "text": "Generate a migration file (backend/migration.mo) that preserves all existing stable state (users, students, courses, payments, notifications) and initialises the new stable vars for sessions, materials, and attendance as empty maps during canister upgrade.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Upgrading the canister does not lose existing student, course, or payment records.",
-        "New sessions, materials, and attendance maps initialise as empty on first upgrade.",
-        "No compile errors in migration.mo."
+        "Submitting the admin login form with 'admin@mathtutor.com' / 'Admin@123' does not show an 'invalid credentials' error.",
+        "On successful admin login, the user is redirected to the admin dashboard.",
+        "The localStorage fallback admin check also uses the same credentials ('admin@mathtutor.com' / 'Admin@123').",
+        "The hardcoded admin user record in the local store (store.ts) has email 'admin@mathtutor.com' and password 'Admin@123'."
       ]
     }
   ],
   "constraints": [
-    "Do not change the existing username/password authentication system.",
-    "Do not modify files listed in frontend.immutablePaths.",
-    "All session, material, and attendance data must be strictly isolated per student — no cross-student data leakage.",
-    "Keep UI clean with large buttons and simple layout as specified."
+    "Admin credentials must remain hardcoded — do not implement dynamic admin account creation or management.",
+    "Do not change the admin email: it must be 'admin@mathtutor.com'.",
+    "Do not change the admin password: it must be 'Admin@123'."
   ],
   "nonGoals": [
-    "Internet Identity or OAuth-based login.",
-    "Real-time notifications or WebSocket updates.",
-    "Third-party file storage (all uploads stored in-canister).",
-    "Group sessions visible to multiple students simultaneously.",
-    "Payment or booking flow changes."
+    "Adding environment-variable-based credential configuration.",
+    "Implementing password hashing or salting for the hardcoded admin account.",
+    "Any changes to student login flow.",
+    "Any changes to the registration or approval workflow."
   ],
   "imageRequirements": {
     "required": [],

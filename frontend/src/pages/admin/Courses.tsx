@@ -1,309 +1,299 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { useState } from 'react';
+import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
+  getStore,
+  saveStore,
   getCourses,
   createCourse,
   updateCourse,
   deleteCourse,
-  Course,
+  type Course,
 } from '../../lib/store';
-import { Plus, Edit, Trash2, BookOpen, Users, User } from 'lucide-react';
-import { toast } from 'sonner';
 
-interface CourseFormData {
+const WHATSAPP_NUMBER = '919424135055';
+
+type CourseForm = {
   name: string;
   description: string;
+  price: string;
   groupPricePerHour: string;
   oneOnOnePricePerHour: string;
   duration: string;
   level: string;
   isActive: boolean;
-}
+};
 
-const emptyForm: CourseFormData = {
+const emptyForm: CourseForm = {
   name: '',
   description: '',
+  price: '',
   groupPricePerHour: '',
   oneOnOnePricePerHour: '',
-  duration: 'Flexible',
-  level: '',
+  duration: '',
+  level: 'Intermediate',
   isActive: true,
 };
 
 export default function AdminCourses() {
   const [courses, setCourses] = useState<Course[]>(() => getCourses());
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
-  const [form, setForm] = useState<CourseFormData>(emptyForm);
+  const [form, setForm] = useState<CourseForm>(emptyForm);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const refresh = () => setCourses(getCourses());
 
   const openCreate = () => {
     setEditingCourse(null);
     setForm(emptyForm);
-    setIsFormOpen(true);
+    setShowModal(true);
   };
 
   const openEdit = (course: Course) => {
     setEditingCourse(course);
     setForm({
-      name: course.name,
+      name: course.name || course.title || '',
       description: course.description,
+      price: String(course.price),
       groupPricePerHour: String(course.groupPricePerHour),
       oneOnOnePricePerHour: String(course.oneOnOnePricePerHour),
       duration: course.duration,
       level: course.level,
-      isActive: course.isActive,
+      isActive: course.active,
     });
-    setIsFormOpen(true);
+    setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const data = {
-      name: form.name.trim(),
-      description: form.description.trim(),
-      groupPricePerHour: parseInt(form.groupPricePerHour) || 0,
-      oneOnOnePricePerHour: parseInt(form.oneOnOnePricePerHour) || 0,
-      duration: form.duration.trim(),
-      level: form.level.trim(),
+  const handleSave = () => {
+    const courseData = {
+      name: form.name,
+      title: form.name,
+      description: form.description,
+      price: Number(form.price) || 0,
+      pricePerHour: Number(form.oneOnOnePricePerHour) || 0,
+      groupPricePerHour: Number(form.groupPricePerHour) || 0,
+      oneOnOnePricePerHour: Number(form.oneOnOnePricePerHour) || 0,
+      duration: form.duration,
+      level: form.level,
+      active: form.isActive,
       isActive: form.isActive,
     };
 
     if (editingCourse) {
-      updateCourse(editingCourse.id, data);
-      toast.success('Course updated successfully!');
+      updateCourse(editingCourse.id, courseData);
     } else {
-      createCourse(data);
-      toast.success('Course created successfully!');
+      createCourse(courseData);
     }
-    setIsFormOpen(false);
+    setShowModal(false);
     refresh();
-  };
-
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    deleteCourse(deleteTarget.id);
-    setDeleteTarget(null);
-    refresh();
-    toast.success('Course deleted.');
   };
 
   const handleToggleActive = (course: Course) => {
-    updateCourse(course.id, { isActive: !course.isActive });
+    updateCourse(course.id, { active: !course.active, isActive: !course.active });
+    refresh();
+  };
+
+  const handleDelete = (courseId: string) => {
+    deleteCourse(courseId);
+    setDeleteConfirm(null);
     refresh();
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Courses</h1>
-          <p className="text-slate-500 mt-1">Manage your course offerings and pricing.</p>
+          <h1 className="text-2xl font-bold text-foreground">Courses</h1>
+          <p className="text-muted-foreground text-sm mt-1">Manage your course offerings</p>
         </div>
-        <Button onClick={openCreate} className="bg-sky-600 hover:bg-sky-700 text-white h-11 px-5">
-          <Plus size={18} className="mr-2" />
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          <Plus className="w-4 h-4" />
           Add Course
-        </Button>
+        </button>
       </div>
 
-      <div className="grid gap-4">
-        {courses.length === 0 ? (
-          <div className="text-center py-16 text-slate-400">
-            <BookOpen size={48} className="mx-auto mb-3 opacity-30" />
-            <p className="text-lg">No courses yet. Add your first course!</p>
-          </div>
-        ) : (
-          courses.map((course) => (
-            <div
-              key={course.id}
-              className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col md:flex-row md:items-start gap-4"
-            >
+      <div className="grid md:grid-cols-2 gap-4">
+        {courses.map((course) => (
+          <div key={course.id} className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-start justify-between mb-3">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <h3 className="font-bold text-slate-800 text-lg">{course.name}</h3>
-                  <Badge variant={course.isActive ? 'default' : 'outline'} className={course.isActive ? 'bg-green-100 text-green-700 border-green-300' : 'text-slate-400'}>
-                    {course.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-                <p className="text-slate-500 text-sm mb-3">{course.description}</p>
-                <div className="flex flex-wrap gap-3">
-                  <div className="flex items-center gap-1.5 bg-sky-50 rounded-lg px-3 py-1.5">
-                    <Users size={14} className="text-sky-600" />
-                    <span className="text-sm font-medium text-sky-700">Group: ₹{course.groupPricePerHour}/hr</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-purple-50 rounded-lg px-3 py-1.5">
-                    <User size={14} className="text-purple-600" />
-                    <span className="text-sm font-medium text-purple-700">1-on-1: ₹{course.oneOnOnePricePerHour}/hr</span>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg px-3 py-1.5">
-                    <span className="text-sm text-slate-600">{course.level}</span>
-                  </div>
-                </div>
+                <h3 className="font-bold text-foreground truncate">{course.name || course.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{course.level} · {course.duration}</p>
               </div>
+              <Badge
+                variant={course.active ? 'default' : 'outline'}
+                className={course.active ? 'bg-green-100 text-green-700 border-green-300' : 'text-slate-400'}
+              >
+                {course.active ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="flex items-center gap-2 mr-2">
-                  <span className="text-sm text-slate-500">Active</span>
-                  <Switch
-                    checked={course.isActive}
-                    onCheckedChange={() => handleToggleActive(course)}
+            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{course.description}</p>
+
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 bg-sky-50 rounded-lg p-2 text-center">
+                <span className="text-xs text-sky-600 block">Group</span>
+                <span className="text-sm font-medium text-sky-700">₹{course.groupPricePerHour}/hr</span>
+              </div>
+              <div className="flex-1 bg-purple-50 rounded-lg p-2 text-center">
+                <span className="text-xs text-purple-600 block">1-on-1</span>
+                <span className="text-sm font-medium text-purple-700">₹{course.oneOnOnePricePerHour}/hr</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openEdit(course)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                Edit
+              </button>
+              <button
+                onClick={() => handleToggleActive(course)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors"
+              >
+                {course.active ? <ToggleRight className="w-3.5 h-3.5 text-green-600" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+                {course.active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(course.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-destructive/30 text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
+              <a
+                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hi! I'm interested in the ${course.name || course.title} course.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#25D366] text-white rounded-lg hover:opacity-90 transition-opacity"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                WhatsApp
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">
+                {editingCourse ? 'Edit Course' : 'Add Course'}
+              </h2>
+            </div>
+            <div className="p-6 space-y-4">
+              {(['name', 'description', 'duration'] as const).map((field) => (
+                <div key={field}>
+                  <label className="block text-sm font-medium text-foreground mb-1 capitalize">{field}</label>
+                  <input
+                    value={form[field]}
+                    onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEdit(course)}
-                  className="border-slate-200"
-                >
-                  <Edit size={15} className="mr-1" />
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteTarget(course)}
-                  className="border-red-200 text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 size={15} />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingCourse ? 'Edit Course' : 'Add New Course'}</DialogTitle>
-            <DialogDescription>
-              {editingCourse ? 'Update course details and pricing.' : 'Create a new course with hourly pricing.'}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Course Name</Label>
-              <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. JEE Mains"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Brief course description..."
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Group Price per Hour (₹)</Label>
-                <Input
-                  type="number"
-                  value={form.groupPricePerHour}
-                  onChange={(e) => setForm({ ...form, groupPricePerHour: e.target.value })}
-                  placeholder="e.g. 250"
-                  min="0"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>One-on-One Price per Hour (₹)</Label>
-                <Input
-                  type="number"
-                  value={form.oneOnOnePricePerHour}
-                  onChange={(e) => setForm({ ...form, oneOnOnePricePerHour: e.target.value })}
-                  placeholder="e.g. 350"
-                  min="0"
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Level / Class</Label>
-                <Input
+              ))}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Level</label>
+                <select
                   value={form.level}
-                  onChange={(e) => setForm({ ...form, level: e.target.value })}
-                  placeholder="e.g. Class 11-12"
-                  required
-                />
+                  onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {['Beginner', 'Intermediate', 'Advanced'].map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Duration</Label>
-                <Input
-                  value={form.duration}
-                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                  placeholder="e.g. Flexible"
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Base Price</label>
+                  <input
+                    type="number"
+                    value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Group/hr</label>
+                  <input
+                    type="number"
+                    value={form.groupPricePerHour}
+                    onChange={(e) => setForm((f) => ({ ...f, groupPricePerHour: e.target.value }))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">1-on-1/hr</label>
+                  <input
+                    type="number"
+                    value={form.oneOnOnePricePerHour}
+                    onChange={(e) => setForm((f) => ({ ...f, oneOnOnePricePerHour: e.target.value }))}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={form.isActive}
+                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                  className="w-4 h-4 accent-primary"
                 />
+                <label htmlFor="isActive" className="text-sm font-medium text-foreground">Active</label>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.isActive}
-                onCheckedChange={(v) => setForm({ ...form, isActive: v })}
-              />
-              <Label>Active (visible to students)</Label>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+            <div className="p-6 border-t border-border flex gap-3 justify-end">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              >
                 Cancel
-              </Button>
-              <Button type="submit" className="bg-sky-600 hover:bg-sky-700 text-white">
+              </button>
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
                 {editingCourse ? 'Save Changes' : 'Create Course'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Course</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{deleteTarget?.name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete Confirm */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-foreground mb-2">Delete Course?</h3>
+            <p className="text-sm text-muted-foreground mb-6">This action cannot be undone.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

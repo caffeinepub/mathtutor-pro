@@ -1,138 +1,185 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useActor } from '../../hooks/useActor';
-import { useAddMaterial, useGetMaterialsForStudent, useDeleteMaterial } from '../../hooks/useMaterials';
-import { UpiPayment } from '../../backend';
+import React, { useState, useEffect } from 'react';
+import { Plus, Trash2, FileText, Link2, User, BookOpen, RefreshCw, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2, Plus, Upload, Link, FileText } from 'lucide-react';
-import { toast } from 'sonner';
+import { getStore, saveStore, getApprovedStudents, Student, Material } from '../../lib/store';
 
-function useApprovedStudents() {
-  const { actor, isFetching } = useActor();
-  return useQuery<UpiPayment[]>({
-    queryKey: ['approvedStudents'],
-    queryFn: async () => {
-      if (!actor) return [];
-      const payments = await actor.getAllPayments();
-      return payments.filter(p => p.status.__kind__ === 'approved');
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-type MaterialMode = 'file' | 'link';
+const FILE_TYPES = ['pdf', 'video', 'image', 'doc', 'other'] as const;
 
 export default function ManageStudentMaterials() {
-  const { data: students = [], isLoading: studentsLoading } = useApprovedStudents();
-  const [selectedStudentId, setSelectedStudentId] = useState<bigint | null>(null);
-  const [mode, setMode] = useState<MaterialMode>('link');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [fileLink, setFileLink] = useState('');
-  const [relatedCourse, setRelatedCourse] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [approvedStudents, setApprovedStudents] = useState<Student[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const { data: materials = [], isLoading: materialsLoading } = useGetMaterialsForStudent(selectedStudentId);
-  const addMaterial = useAddMaterial();
-  const deleteMaterial = useDeleteMaterial();
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    fileType: 'pdf' as Material['fileType'],
+    fileUrl: '',
+    relatedCourse: '',
+  });
 
-  const selectedStudent = students.find(s => s.id === selectedStudentId);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setSelectedFile(file);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedStudentId) { toast.error('Please select a student'); return; }
-    if (!title.trim()) { toast.error('Please enter a title'); return; }
-    if (!relatedCourse.trim()) { toast.error('Please enter a related course'); return; }
-    if (mode === 'link' && !fileLink.trim()) { toast.error('Please enter a file link'); return; }
-    if (mode === 'file' && !selectedFile) { toast.error('Please select a file to upload'); return; }
-
-    try {
-      let fileData: Uint8Array | null = null;
-      if (mode === 'file' && selectedFile) {
-        setUploadProgress(0);
-        const buffer = await selectedFile.arrayBuffer();
-        fileData = new Uint8Array(buffer);
-        setUploadProgress(100);
-      }
-
-      await addMaterial.mutateAsync({
-        studentId: selectedStudentId,
-        title: title.trim(),
-        description: description.trim() || null,
-        fileData: mode === 'file' ? fileData : null,
-        fileLink: mode === 'link' ? fileLink.trim() : null,
-        relatedCourse: relatedCourse.trim(),
-      });
-
-      toast.success('Material added successfully!');
-      setTitle('');
-      setDescription('');
-      setFileLink('');
-      setRelatedCourse('');
-      setSelectedFile(null);
-      setUploadProgress(0);
-      const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to add material');
+  const loadData = () => {
+    const students = getApprovedStudents();
+    setApprovedStudents(students);
+    if (selectedStudentId) {
+      loadMaterialsForStudent(selectedStudentId);
     }
   };
 
-  const handleDelete = async (materialId: bigint) => {
-    if (!selectedStudentId) return;
+  const loadMaterialsForStudent = (studentId: string) => {
+    const store = getStore();
+    const studentMaterials = store.materials.filter((m) => m.studentId === studentId);
+    studentMaterials.sort(
+      (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    );
+    setMaterials(studentMaterials);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedStudentId) {
+      loadMaterialsForStudent(selectedStudentId);
+    } else {
+      setMaterials([]);
+    }
+  }, [selectedStudentId]);
+
+  const handleStudentChange = (value: string) => {
+    setSelectedStudentId(value);
+    setShowForm(false);
+    setSuccessMsg('');
+    setErrorMsg('');
+  };
+
+  const handleFormChange = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!selectedStudentId) {
+      setErrorMsg('Please select a student first.');
+      return;
+    }
+    if (!form.title.trim()) {
+      setErrorMsg('Title is required.');
+      return;
+    }
+    if (!form.fileUrl.trim()) {
+      setErrorMsg('File URL/link is required.');
+      return;
+    }
+    if (!form.relatedCourse.trim()) {
+      setErrorMsg('Related course is required.');
+      return;
+    }
+
+    setSaving(true);
     try {
-      await deleteMaterial.mutateAsync({ materialId, studentId: selectedStudentId });
-      toast.success('Material deleted');
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete material');
+      const store = getStore();
+      const selectedStudent = approvedStudents.find((s) => s.id === selectedStudentId);
+
+      const newMaterial: Material = {
+        id: `material-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        studentId: selectedStudentId,
+        studentEmail: selectedStudent?.email,
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        fileType: form.fileType,
+        fileUrl: form.fileUrl.trim(),
+        relatedCourse: form.relatedCourse.trim(),
+        uploadedAt: new Date().toISOString(),
+      };
+
+      store.materials.push(newMaterial);
+      saveStore(store);
+
+      setForm({ title: '', description: '', fileType: 'pdf', fileUrl: '', relatedCourse: '' });
+      setShowForm(false);
+      setSuccessMsg(`Material added successfully for ${selectedStudent?.name}!`);
+      loadMaterialsForStudent(selectedStudentId);
+    } catch (err) {
+      setErrorMsg('Failed to save material. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = (materialId: string) => {
+    const store = getStore();
+    store.materials = store.materials.filter((m) => m.id !== materialId);
+    saveStore(store);
+    loadMaterialsForStudent(selectedStudentId);
+  };
+
+  const selectedStudent = approvedStudents.find((s) => s.id === selectedStudentId);
+
+  const fileTypeIcon = (type: string) => {
+    switch (type) {
+      case 'pdf': return '📄';
+      case 'video': return '🎥';
+      case 'image': return '🖼️';
+      case 'doc': return '📝';
+      default: return '📎';
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Manage Student Materials</h1>
-        <p className="text-muted-foreground mt-1">Upload and assign study materials to individual students</p>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Materials</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Assign study materials to individual students
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadData}>
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
-      {/* Student Selector */}
+      {/* Step 1: Select Student */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Select Student</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <User className="w-4 h-4 text-primary" />
+            Step 1: Select Student
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {studentsLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading students...
+          {approvedStudents.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No approved students yet.</p>
+              <p className="text-xs mt-1">Approve students from the Students section first.</p>
             </div>
-          ) : students.length === 0 ? (
-            <p className="text-muted-foreground">No approved students found.</p>
           ) : (
-            <Select
-              value={selectedStudentId?.toString() ?? ''}
-              onValueChange={(val) => setSelectedStudentId(BigInt(val))}
-            >
+            <Select value={selectedStudentId} onValueChange={handleStudentChange}>
               <SelectTrigger className="w-full max-w-md">
                 <SelectValue placeholder="Choose a student..." />
               </SelectTrigger>
               <SelectContent>
-                {students.map(s => (
-                  <SelectItem key={s.id.toString()} value={s.id.toString()}>
-                    {s.fullName} — {s.email} ({s.accessCode ?? `ID: ${s.id}`})
+                {approvedStudents.map((student) => (
+                  <SelectItem key={student.id} value={student.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{student.name}</span>
+                      <span className="text-xs text-muted-foreground">{student.email} · {student.course}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -141,200 +188,201 @@ export default function ManageStudentMaterials() {
         </CardContent>
       </Card>
 
+      {/* Step 2: Add Material */}
       {selectedStudentId && (
-        <>
-          {/* Add Material Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Add Material for {selectedStudent?.fullName}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Upload className="w-4 h-4 text-primary" />
+                Step 2: Add Material for {selectedStudent?.name}
               </CardTitle>
-            </CardHeader>
+              {!showForm && (
+                <Button size="sm" onClick={() => setShowForm(true)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Material
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          {showForm && (
             <CardContent>
-              {/* Mode Toggle */}
-              <div className="flex gap-3 mb-6">
-                <Button
-                  type="button"
-                  variant={mode === 'link' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setMode('link')}
-                  className="flex-1"
-                >
-                  <Link className="h-4 w-4 mr-2" />
-                  URL Link
-                </Button>
-                <Button
-                  type="button"
-                  variant={mode === 'file' ? 'default' : 'outline'}
-                  size="lg"
-                  onClick={() => setMode('file')}
-                  className="flex-1"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  File Upload
-                </Button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Title *</Label>
-                    <Input
-                      id="title"
-                      type="text"
-                      placeholder="e.g. Chapter 5 Notes"
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="relatedCourse">Related Course *</Label>
-                    <Input
-                      id="relatedCourse"
-                      type="text"
-                      placeholder="e.g. Class 10 Mathematics"
-                      value={relatedCourse}
-                      onChange={e => setRelatedCourse(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="description">Description (optional)</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Brief description of the material..."
-                      value={description}
-                      onChange={e => setDescription(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-
-                  {mode === 'link' ? (
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="fileLink" className="flex items-center gap-1">
-                        <Link className="h-4 w-4" /> File Link *
-                      </Label>
-                      <Input
-                        id="fileLink"
-                        type="url"
-                        placeholder="https://drive.google.com/..."
-                        value={fileLink}
-                        onChange={e => setFileLink(e.target.value)}
-                        required={mode === 'link'}
-                      />
-                    </div>
-                  ) : (
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="fileInput" className="flex items-center gap-1">
-                        <Upload className="h-4 w-4" /> Upload File *
-                      </Label>
-                      <Input
-                        id="fileInput"
-                        type="file"
-                        onChange={handleFileChange}
-                        required={mode === 'file'}
-                      />
-                      {selectedFile && (
-                        <p className="text-sm text-muted-foreground">
-                          Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                        </p>
-                      )}
-                      {uploadProgress > 0 && uploadProgress < 100 && (
-                        <div className="w-full bg-muted rounded-full h-2">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full md:w-auto"
-                  disabled={addMaterial.isPending}
-                >
-                  {addMaterial.isPending ? (
-                    <><Loader2 className="h-4 w-4 animate-spin mr-2" />Adding Material...</>
-                  ) : (
-                    <><Plus className="h-4 w-4 mr-2" />Add Material</>
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Materials List */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">
-                Materials for {selectedStudent?.fullName}
-                <Badge variant="secondary" className="ml-2">{materials.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {materialsLoading ? (
-                <div className="flex items-center gap-2 text-muted-foreground py-4">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading materials...
-                </div>
-              ) : materials.length === 0 ? (
-                <p className="text-muted-foreground py-4 text-center">No materials added yet for this student.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Course</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {materials.map(material => (
-                        <TableRow key={material.id.toString()}>
-                          <TableCell className="font-medium">{material.title}</TableCell>
-                          <TableCell>{material.relatedCourse}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {material.description ?? '—'}
-                          </TableCell>
-                          <TableCell>
-                            {material.fileLink ? (
-                              <Badge variant="outline" className="gap-1">
-                                <Link className="h-3 w-3" />Link
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="gap-1">
-                                <FileText className="h-3 w-3" />File
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDelete(material.id)}
-                              disabled={deleteMaterial.isPending}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {successMsg && (
+                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+                  {successMsg}
                 </div>
               )}
+              {errorMsg && (
+                <div className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded-lg p-3">
+                  {errorMsg}
+                </div>
+              )}
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="mat-title">
+                      Title <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="mat-title"
+                      type="text"
+                      placeholder="e.g. Chapter 3 Notes"
+                      value={form.title}
+                      onChange={(e) => handleFormChange('title', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mat-type">File Type</Label>
+                    <Select
+                      value={form.fileType}
+                      onValueChange={(v) => handleFormChange('fileType', v)}
+                    >
+                      <SelectTrigger id="mat-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FILE_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {fileTypeIcon(t)} {t.toUpperCase()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="mat-url">
+                      <Link2 className="w-3.5 h-3.5 inline mr-1" />
+                      File URL / Link <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="mat-url"
+                      type="url"
+                      placeholder="https://drive.google.com/... or any file link"
+                      value={form.fileUrl}
+                      onChange={(e) => handleFormChange('fileUrl', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mat-course">
+                      <BookOpen className="w-3.5 h-3.5 inline mr-1" />
+                      Related Course <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="mat-course"
+                      type="text"
+                      placeholder="e.g. Mathematics Foundation"
+                      value={form.relatedCourse}
+                      onChange={(e) => handleFormChange('relatedCourse', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="mat-desc">Description (optional)</Label>
+                    <Input
+                      id="mat-desc"
+                      type="text"
+                      placeholder="Brief description..."
+                      value={form.description}
+                      onChange={(e) => handleFormChange('description', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button type="submit" disabled={saving}>
+                    {saving ? 'Saving...' : 'Save Material'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowForm(false);
+                      setErrorMsg('');
+                      setForm({ title: '', description: '', fileType: 'pdf', fileUrl: '', relatedCourse: '' });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
             </CardContent>
-          </Card>
-        </>
+          )}
+        </Card>
+      )}
+
+      {/* Success message outside form */}
+      {!showForm && successMsg && (
+        <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
+          {successMsg}
+        </div>
+      )}
+
+      {/* Materials List */}
+      {selectedStudentId && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              Materials for {selectedStudent?.name}
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({materials.length} total)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {materials.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No materials assigned yet.</p>
+                <p className="text-xs mt-1">Click "Add Material" above to add study materials.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {materials.map((material) => (
+                  <div
+                    key={material.id}
+                    className="flex items-start justify-between p-4 bg-muted/30 rounded-lg border border-border/50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{fileTypeIcon(material.fileType)}</span>
+                        <div>
+                          <p className="font-medium text-sm">{material.title}</p>
+                          {material.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{material.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+                        <span className="bg-muted px-2 py-0.5 rounded">{material.relatedCourse}</span>
+                        <span>{new Date(material.uploadedAt).toLocaleDateString()}</span>
+                      </div>
+                      {material.fileUrl && (
+                        <a
+                          href={material.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline mt-1 flex items-center gap-1"
+                        >
+                          <Link2 className="w-3 h-3" />
+                          View / Download
+                        </a>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(material.id)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

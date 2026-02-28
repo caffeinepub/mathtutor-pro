@@ -99,6 +99,7 @@ export interface UpiPayment {
     fullName: string;
     pricePerHour: bigint;
     email: string;
+    uniqueCode?: string;
     totalAmount: bigint;
     phone: string;
     courseName: string;
@@ -111,7 +112,7 @@ export interface TransformationOutput {
 export interface Attendance {
     id: bigint;
     status: AttendanceStatus;
-    studentId: bigint;
+    studentPrincipal: Principal;
     markedAt: bigint;
     sessionId: bigint;
 }
@@ -149,7 +150,7 @@ export interface http_request_result {
 export interface Material {
     id: bigint;
     title: string;
-    studentId: bigint;
+    studentPrincipal: Principal;
     fileData?: Uint8Array;
     description?: string;
     fileLink?: string;
@@ -163,12 +164,12 @@ export interface UserApprovalInfo {
 export interface Session {
     id: bigint;
     topic?: string;
-    studentId: bigint;
     meetLink: string;
     date: string;
     createdAt: bigint;
     time: string;
     durationHours: bigint;
+    studentPrincipal: Principal;
 }
 export interface ShoppingItem {
     productName: string;
@@ -205,6 +206,7 @@ export interface UserProfile {
     name: string;
     accessCode?: string;
     email: string;
+    uniqueCode?: string;
     phone: string;
 }
 export enum ApprovalStatus {
@@ -229,29 +231,33 @@ export interface backendInterface {
     _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
-    addMaterial(studentId: bigint, title: string, description: string | null, fileData: Uint8Array | null, fileLink: string | null, relatedCourse: string): Promise<bigint>;
+    addMaterial(studentPrincipal: Principal, title: string, description: string | null, fileData: Uint8Array | null, fileLink: string | null, relatedCourse: string): Promise<bigint>;
     addProduct(product: ShoppingItem): Promise<void>;
-    addSession(studentId: bigint, date: string, time: string, durationHours: bigint, meetLink: string, topic: string | null): Promise<bigint>;
-    approveUpiPayment(paymentId: bigint): Promise<{
+    addSession(studentPrincipal: Principal, date: string, time: string, durationHours: bigint, meetLink: string, topic: string | null): Promise<bigint>;
+    adminLogin(email: string, password: string): Promise<boolean>;
+    approveUpiPayment(paymentId: bigint, uniqueCode: string): Promise<{
         accessCode: string;
         fullName: string;
+        uniqueCode: string;
     } | null>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    authenticateStudent(email: string, enteredUniqueCode: string): Promise<boolean>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     deleteMaterial(materialId: bigint): Promise<void>;
     deleteProduct(productName: string): Promise<void>;
     deleteSession(sessionId: bigint): Promise<void>;
+    findByEmailQuery(email: string): Promise<UpiPayment | null>;
     findUpiPaymentByAccessCode(code: string): Promise<UpiPayment | null>;
     getAllPayments(): Promise<Array<UpiPayment>>;
     getAllUpiPaymentsByEmail(email: string): Promise<Array<UpiPayment>>;
-    getAttendanceForStudent(studentId: bigint): Promise<Array<Attendance>>;
-    getAttendanceSummary(studentId: bigint): Promise<AttendanceSummary>;
+    getAttendanceForStudent(studentPrincipal: Principal): Promise<Array<Attendance>>;
+    getAttendanceSummary(studentPrincipal: Principal): Promise<AttendanceSummary>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getMaterialsForStudent(studentId: bigint): Promise<Array<Material>>;
+    getMaterialsForStudent(studentPrincipal: Principal): Promise<Array<Material>>;
     getPendingPayments(): Promise<Array<UpiPayment>>;
     getProducts(): Promise<Array<ShoppingItem>>;
-    getSessionsForStudent(studentId: bigint): Promise<Array<Session>>;
+    getSessionsForStudent(studentPrincipal: Principal): Promise<Array<Session>>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
     getUpiPaymentStatus(paymentId: bigint): Promise<UpiPaymentStatus | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
@@ -259,7 +265,7 @@ export interface backendInterface {
     isCallerApproved(): Promise<boolean>;
     isStripeConfigured(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
-    markAttendance(studentId: bigint, sessionId: bigint, status: AttendanceStatus): Promise<bigint>;
+    markAttendance(studentPrincipal: Principal, sessionId: bigint, status: AttendanceStatus): Promise<bigint>;
     rejectUpiPayment(paymentId: bigint, rejectionNote: string | null): Promise<void>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
@@ -371,7 +377,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addMaterial(arg0: bigint, arg1: string, arg2: string | null, arg3: Uint8Array | null, arg4: string | null, arg5: string): Promise<bigint> {
+    async addMaterial(arg0: Principal, arg1: string, arg2: string | null, arg3: Uint8Array | null, arg4: string | null, arg5: string): Promise<bigint> {
         if (this.processError) {
             try {
                 const result = await this.actor.addMaterial(arg0, arg1, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg2), to_candid_opt_n9(this._uploadFile, this._downloadFile, arg3), to_candid_opt_n8(this._uploadFile, this._downloadFile, arg4), arg5);
@@ -399,7 +405,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addSession(arg0: bigint, arg1: string, arg2: string, arg3: bigint, arg4: string, arg5: string | null): Promise<bigint> {
+    async addSession(arg0: Principal, arg1: string, arg2: string, arg3: bigint, arg4: string, arg5: string | null): Promise<bigint> {
         if (this.processError) {
             try {
                 const result = await this.actor.addSession(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
@@ -413,20 +419,35 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async approveUpiPayment(arg0: bigint): Promise<{
+    async adminLogin(arg0: string, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminLogin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminLogin(arg0, arg1);
+            return result;
+        }
+    }
+    async approveUpiPayment(arg0: bigint, arg1: string): Promise<{
         accessCode: string;
         fullName: string;
+        uniqueCode: string;
     } | null> {
         if (this.processError) {
             try {
-                const result = await this.actor.approveUpiPayment(arg0);
+                const result = await this.actor.approveUpiPayment(arg0, arg1);
                 return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.approveUpiPayment(arg0);
+            const result = await this.actor.approveUpiPayment(arg0, arg1);
             return from_candid_opt_n10(this._uploadFile, this._downloadFile, result);
         }
     }
@@ -441,6 +462,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n11(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async authenticateStudent(arg0: string, arg1: string): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.authenticateStudent(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.authenticateStudent(arg0, arg1);
             return result;
         }
     }
@@ -500,6 +535,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async findByEmailQuery(arg0: string): Promise<UpiPayment | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.findByEmailQuery(arg0);
+                return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.findByEmailQuery(arg0);
+            return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async findUpiPaymentByAccessCode(arg0: string): Promise<UpiPayment | null> {
         if (this.processError) {
             try {
@@ -542,7 +591,7 @@ export class Backend implements backendInterface {
             return from_candid_vec_n19(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getAttendanceForStudent(arg0: bigint): Promise<Array<Attendance>> {
+    async getAttendanceForStudent(arg0: Principal): Promise<Array<Attendance>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAttendanceForStudent(arg0);
@@ -556,7 +605,7 @@ export class Backend implements backendInterface {
             return from_candid_vec_n20(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getAttendanceSummary(arg0: bigint): Promise<AttendanceSummary> {
+    async getAttendanceSummary(arg0: Principal): Promise<AttendanceSummary> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAttendanceSummary(arg0);
@@ -598,7 +647,7 @@ export class Backend implements backendInterface {
             return from_candid_UserRole_n28(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getMaterialsForStudent(arg0: bigint): Promise<Array<Material>> {
+    async getMaterialsForStudent(arg0: Principal): Promise<Array<Material>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getMaterialsForStudent(arg0);
@@ -640,7 +689,7 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getSessionsForStudent(arg0: bigint): Promise<Array<Session>> {
+    async getSessionsForStudent(arg0: Principal): Promise<Array<Session>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getSessionsForStudent(arg0);
@@ -752,7 +801,7 @@ export class Backend implements backendInterface {
             return from_candid_vec_n41(this._uploadFile, this._downloadFile, result);
         }
     }
-    async markAttendance(arg0: bigint, arg1: bigint, arg2: AttendanceStatus): Promise<bigint> {
+    async markAttendance(arg0: Principal, arg1: bigint, arg2: AttendanceStatus): Promise<bigint> {
         if (this.processError) {
             try {
                 const result = await this.actor.markAttendance(arg0, arg1, to_candid_AttendanceStatus_n46(this._uploadFile, this._downloadFile, arg2));
@@ -932,9 +981,11 @@ function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: Externa
 function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [{
         accessCode: string;
         fullName: string;
+        uniqueCode: string;
     }]): {
     accessCode: string;
     fullName: string;
+    uniqueCode: string;
 } | null {
     return value.length === 0 ? null : value[0];
 }
@@ -969,6 +1020,7 @@ function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uin
     fullName: string;
     pricePerHour: bigint;
     email: string;
+    uniqueCode: [] | [string];
     totalAmount: bigint;
     phone: string;
     courseName: string;
@@ -982,6 +1034,7 @@ function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uin
     fullName: string;
     pricePerHour: bigint;
     email: string;
+    uniqueCode?: string;
     totalAmount: bigint;
     phone: string;
     courseName: string;
@@ -996,6 +1049,7 @@ function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uin
         fullName: value.fullName,
         pricePerHour: value.pricePerHour,
         email: value.email,
+        uniqueCode: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.uniqueCode)),
         totalAmount: value.totalAmount,
         phone: value.phone,
         courseName: value.courseName
@@ -1004,20 +1058,20 @@ function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uin
 function from_candid_record_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     status: _AttendanceStatus;
-    studentId: bigint;
+    studentPrincipal: Principal;
     markedAt: bigint;
     sessionId: bigint;
 }): {
     id: bigint;
     status: AttendanceStatus;
-    studentId: bigint;
+    studentPrincipal: Principal;
     markedAt: bigint;
     sessionId: bigint;
 } {
     return {
         id: value.id,
         status: from_candid_AttendanceStatus_n23(_uploadFile, _downloadFile, value.status),
-        studentId: value.studentId,
+        studentPrincipal: value.studentPrincipal,
         markedAt: value.markedAt,
         sessionId: value.sessionId
     };
@@ -1026,24 +1080,27 @@ function from_candid_record_n27(_uploadFile: (file: ExternalBlob) => Promise<Uin
     name: string;
     accessCode: [] | [string];
     email: string;
+    uniqueCode: [] | [string];
     phone: string;
 }): {
     name: string;
     accessCode?: string;
     email: string;
+    uniqueCode?: string;
     phone: string;
 } {
     return {
         name: value.name,
         accessCode: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.accessCode)),
         email: value.email,
+        uniqueCode: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.uniqueCode)),
         phone: value.phone
     };
 }
 function from_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     title: string;
-    studentId: bigint;
+    studentPrincipal: Principal;
     fileData: [] | [Uint8Array];
     description: [] | [string];
     fileLink: [] | [string];
@@ -1052,7 +1109,7 @@ function from_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): {
     id: bigint;
     title: string;
-    studentId: bigint;
+    studentPrincipal: Principal;
     fileData?: Uint8Array;
     description?: string;
     fileLink?: string;
@@ -1062,7 +1119,7 @@ function from_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uin
     return {
         id: value.id,
         title: value.title,
-        studentId: value.studentId,
+        studentPrincipal: value.studentPrincipal,
         fileData: record_opt_to_undefined(from_candid_opt_n33(_uploadFile, _downloadFile, value.fileData)),
         description: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.description)),
         fileLink: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.fileLink)),
@@ -1073,31 +1130,31 @@ function from_candid_record_n32(_uploadFile: (file: ExternalBlob) => Promise<Uin
 function from_candid_record_n36(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: bigint;
     topic: [] | [string];
-    studentId: bigint;
     meetLink: string;
     date: string;
     createdAt: bigint;
     time: string;
     durationHours: bigint;
+    studentPrincipal: Principal;
 }): {
     id: bigint;
     topic?: string;
-    studentId: bigint;
     meetLink: string;
     date: string;
     createdAt: bigint;
     time: string;
     durationHours: bigint;
+    studentPrincipal: Principal;
 } {
     return {
         id: value.id,
         topic: record_opt_to_undefined(from_candid_opt_n18(_uploadFile, _downloadFile, value.topic)),
-        studentId: value.studentId,
         meetLink: value.meetLink,
         date: value.date,
         createdAt: value.createdAt,
         time: value.time,
-        durationHours: value.durationHours
+        durationHours: value.durationHours,
+        studentPrincipal: value.studentPrincipal
     };
 }
 function from_candid_record_n39(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -1269,17 +1326,20 @@ function to_candid_record_n49(_uploadFile: (file: ExternalBlob) => Promise<Uint8
     name: string;
     accessCode?: string;
     email: string;
+    uniqueCode?: string;
     phone: string;
 }): {
     name: string;
     accessCode: [] | [string];
     email: string;
+    uniqueCode: [] | [string];
     phone: string;
 } {
     return {
         name: value.name,
         accessCode: value.accessCode ? candid_some(value.accessCode) : candid_none(),
         email: value.email,
+        uniqueCode: value.uniqueCode ? candid_some(value.uniqueCode) : candid_none(),
         phone: value.phone
     };
 }

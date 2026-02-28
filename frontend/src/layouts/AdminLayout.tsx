@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useRouter } from '@tanstack/react-router';
-import { getAuthState } from '../lib/auth';
-import { clearAuthState } from '../lib/store';
+import { getAuthState, clearAuthState } from '../lib/store';
 import {
   LayoutDashboard,
   Users,
@@ -28,8 +27,12 @@ function usePendingCount() {
     queryKey: ['pendingPayments'],
     queryFn: async () => {
       if (!actor) return 0;
-      const pending = await actor.getPendingPayments();
-      return pending.length;
+      try {
+        const pending = await actor.getPendingPayments();
+        return pending.length;
+      } catch {
+        return 0;
+      }
     },
     enabled: !!actor && !isFetching,
     refetchInterval: 30000,
@@ -40,10 +43,9 @@ const navItems = [
   { label: 'Dashboard', path: '/admin', icon: LayoutDashboard },
   { label: 'Students', path: '/admin/students', icon: Users },
   { label: 'Courses', path: '/admin/courses', icon: BookOpen },
-  { label: 'Sessions', path: '/admin/sessions', icon: Calendar },
-  { label: 'Manage Student Sessions', path: '/admin/manage-sessions', icon: Video },
-  { label: 'Manage Student Materials', path: '/admin/manage-materials', icon: FileText },
-  { label: 'Attendance Management', path: '/admin/attendance', icon: ClipboardList },
+  { label: 'Sessions', path: '/admin/manage-sessions', icon: Video },
+  { label: 'Materials', path: '/admin/manage-materials', icon: FileText },
+  { label: 'Attendance', path: '/admin/attendance', icon: ClipboardList },
   { label: 'Payments', path: '/admin/payments', icon: CreditCard, badge: true },
   { label: 'Notifications', path: '/admin/notifications', icon: Bell },
 ];
@@ -81,7 +83,7 @@ export default function AdminLayout() {
           {/* Logo */}
           <div className="p-4 border-b border-border flex items-center justify-between">
             <Link to="/admin" className="flex items-center gap-2">
-              <img src="/assets/generated/logo-mark.dim_128x128.png" alt="Logo" className="h-8 w-8" />
+              <img src="/assets/generated/logo-mark.dim_128x128.png" alt="Logo" className="h-8 w-8 rounded" />
               <div>
                 <div className="font-bold text-sm text-foreground">Rajat's Equation</div>
                 <div className="text-xs text-muted-foreground">Admin Panel</div>
@@ -129,6 +131,9 @@ export default function AdminLayout() {
 
           {/* Logout */}
           <div className="p-3 border-t border-border">
+            <div className="px-3 py-2 text-xs text-muted-foreground mb-1">
+              {auth?.name ?? 'Admin'}
+            </div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
@@ -158,7 +163,7 @@ export default function AdminLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>

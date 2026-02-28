@@ -1,220 +1,175 @@
-import React, { useState } from 'react';
-import { toast } from 'sonner';
+import { useState } from 'react';
+import { Bell, Send, Trash2 } from 'lucide-react';
 import { getStore, saveStore, type Notification } from '../../lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Bell, Send, Users, User } from 'lucide-react';
 
 export default function AdminNotifications() {
+  const [store, setStore] = useState(() => getStore());
   const [form, setForm] = useState({
-    target: 'all',
-    studentId: '',
     title: '',
     message: '',
+    type: 'info' as Notification['type'],
+    targetStudentId: '',
   });
-  const [isSending, setIsSending] = useState(false);
-  const [sentNotifications, setSentNotifications] = useState<Notification[]>(() =>
-    getStore().notifications
-  );
 
-  const store = getStore();
-  const students = store.students.filter((s) => s.status === 'approved');
+  const refresh = () => setStore(getStore());
 
-  const handleSend = async () => {
-    if (!form.title.trim() || !form.message.trim()) {
-      toast.error('Please fill in title and message');
-      return;
+  const handleSend = () => {
+    if (!form.title || !form.message) return;
+
+    const currentStore = getStore();
+    const newNotifications: Notification[] = [];
+
+    if (!form.targetStudentId) {
+      // Broadcast to all
+      newNotifications.push({
+        id: `notif_${Date.now()}_all`,
+        title: form.title,
+        message: form.message,
+        type: form.type,
+        readBy: [],
+        createdAt: new Date().toISOString(),
+      });
+    } else {
+      // Send to specific student
+      newNotifications.push({
+        id: `notif_${Date.now()}`,
+        title: form.title,
+        message: form.message,
+        type: form.type,
+        targetStudentId: form.targetStudentId,
+        readBy: [],
+        createdAt: new Date().toISOString(),
+      });
     }
-    if (form.target === 'specific' && !form.studentId) {
-      toast.error('Please select a student');
-      return;
-    }
 
-    setIsSending(true);
-    try {
-      const currentStore = getStore();
-      const newNotifications: Notification[] = [];
-
-      if (form.target === 'all') {
-        // Broadcast to all — no targetStudentId
-        newNotifications.push({
-          id: `notif_${Date.now()}_all`,
-          title: form.title.trim(),
-          message: form.message.trim(),
-          readBy: [],
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        // Specific student
-        const student = currentStore.students.find((s) => s.id === form.studentId);
-        if (student) {
-          newNotifications.push({
-            id: `notif_${Date.now()}`,
-            title: form.title.trim(),
-            message: form.message.trim(),
-            targetStudentId: student.id,
-            readBy: [],
-            createdAt: new Date().toISOString(),
-          });
-        }
-      }
-
-      currentStore.notifications = [...currentStore.notifications, ...newNotifications];
-      saveStore(currentStore);
-      setSentNotifications(currentStore.notifications);
-      setForm({ target: 'all', studentId: '', title: '', message: '' });
-      toast.success(`Notification sent to ${form.target === 'all' ? 'all students' : '1 student'}`);
-    } catch (err) {
-      toast.error('Failed to send notification');
-    } finally {
-      setIsSending(false);
-    }
+    currentStore.notifications = [...currentStore.notifications, ...newNotifications];
+    saveStore(currentStore);
+    setForm({ title: '', message: '', type: 'info', targetStudentId: '' });
+    refresh();
   };
 
+  const handleDelete = (notifId: string) => {
+    const currentStore = getStore();
+    currentStore.notifications = currentStore.notifications.filter((n) => n.id !== notifId);
+    saveStore(currentStore);
+    refresh();
+  };
+
+  const approvedStudents = store.students.filter((s) => s.status === 'approved');
+
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-        <p className="text-muted-foreground text-sm mt-1">Send in-app notifications to students</p>
+        <p className="text-muted-foreground text-sm mt-1">Send notifications to students</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Compose */}
-        <Card className="border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Send className="w-4 h-4 text-primary" />
-              Compose Notification
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <Label>Send To</Label>
-              <div className="flex gap-2">
+      {/* Send Form */}
+      <div className="bg-card border border-border rounded-xl p-5 mb-6">
+        <h2 className="font-bold text-foreground mb-4">Send Notification</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+            <input
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Notification title"
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Message</label>
+            <textarea
+              value={form.message}
+              onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+              placeholder="Notification message"
+              rows={3}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Type</label>
+              <select
+                value={form.type}
+                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as Notification['type'] }))}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="info">Info</option>
+                <option value="success">Success</option>
+                <option value="warning">Warning</option>
+                <option value="error">Error</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Target Student</label>
+              <select
+                value={form.targetStudentId}
+                onChange={(e) => setForm((f) => ({ ...f, targetStudentId: e.target.value }))}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="">All Students</option>
+                {approvedStudents.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button
+            onClick={handleSend}
+            disabled={!form.title || !form.message}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            Send Notification
+          </button>
+        </div>
+      </div>
+
+      {/* Notifications List */}
+      <div className="space-y-3">
+        {store.notifications.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p>No notifications sent yet.</p>
+          </div>
+        ) : (
+          [...store.notifications]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .map((notif) => (
+              <div key={notif.id} className="bg-card border border-border rounded-xl p-4 flex items-start gap-4">
+                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${
+                  notif.type === 'success' ? 'bg-green-500' :
+                  notif.type === 'warning' ? 'bg-amber-500' :
+                  notif.type === 'error' ? 'bg-red-500' :
+                  'bg-blue-500'
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{notif.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{notif.message}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(notif.createdAt).toLocaleDateString('en-IN')}
+                    </span>
+                    {notif.targetStudentId ? (
+                      <span className="text-xs text-primary">
+                        → {store.students.find((s) => s.id === notif.targetStudentId)?.name || 'Student'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Broadcast</span>
+                    )}
+                    <span className="text-xs text-muted-foreground">{notif.readBy.length} read</span>
+                  </div>
+                </div>
                 <button
-                  onClick={() => setForm((p) => ({ ...p, target: 'all', studentId: '' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                    form.target === 'all'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/50'
-                  }`}
+                  onClick={() => handleDelete(notif.id)}
+                  className="p-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-colors shrink-0"
                 >
-                  <Users className="w-4 h-4" /> All Students
-                </button>
-                <button
-                  onClick={() => setForm((p) => ({ ...p, target: 'specific' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                    form.target === 'specific'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/50'
-                  }`}
-                >
-                  <User className="w-4 h-4" /> Specific
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
-            </div>
-
-            {form.target === 'specific' && (
-              <div className="space-y-1">
-                <Label>Select Student</Label>
-                <select
-                  value={form.studentId}
-                  onChange={(e) => setForm((p) => ({ ...p, studentId: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">Choose a student...</option>
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <Label htmlFor="notif-title">Title</Label>
-              <Input
-                id="notif-title"
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                placeholder="Notification title"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="notif-msg">Message</Label>
-              <Textarea
-                id="notif-msg"
-                value={form.message}
-                onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
-                placeholder="Write your message here..."
-                rows={4}
-              />
-            </div>
-
-            <Button onClick={handleSend} disabled={isSending} className="w-full">
-              {isSending ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Sending...
-                </span>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-2" /> Send Notification
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Recent notifications */}
-        <Card className="border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Bell className="w-4 h-4 text-primary" />
-              Recent Notifications
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sentNotifications.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No notifications sent yet
-              </p>
-            ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {sentNotifications
-                  .slice()
-                  .sort(
-                    (a, b) =>
-                      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                  )
-                  .slice(0, 20)
-                  .map((n) => (
-                    <div key={n.id} className="p-3 bg-muted/30 rounded-lg">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground">{n.title}</p>
-                        <Badge
-                          variant={n.targetStudentId ? 'outline' : 'default'}
-                          className="text-xs shrink-0"
-                        >
-                          {n.targetStudentId ? 'Specific' : 'All'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">{n.message}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(n.createdAt).toLocaleDateString()} · {n.readBy.length} read
-                      </p>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            ))
+        )}
       </div>
     </div>
   );

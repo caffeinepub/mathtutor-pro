@@ -1,84 +1,64 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { CheckCircle, Home, BookOpen } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { useEffect } from 'react';
+import { Link, useSearch } from '@tanstack/react-router';
+import { CheckCircle } from 'lucide-react';
 import { getStore, saveStore } from '../lib/store';
 
 export default function PaymentSuccess() {
-  const [processed, setProcessed] = useState(false);
+  const search = useSearch({ strict: false }) as { session_id?: string; payment_id?: string };
 
   useEffect(() => {
-    // Process any pending payment completion
-    const pendingPayment = sessionStorage.getItem('pendingPayment');
-    if (pendingPayment) {
-      try {
-        const paymentData = JSON.parse(pendingPayment);
-        const store = getStore();
+    try {
+      const paymentId = search?.payment_id;
+      if (!paymentId) return;
 
-        // Update payment status to completed if it exists
-        const paymentIndex = store.payments.findIndex((p) => p.id === paymentData.id);
-        if (paymentIndex >= 0) {
-          store.payments[paymentIndex].status = 'completed';
-        }
+      const store = getStore();
+      const paymentIndex = store.payments.findIndex((p) => p.id === paymentId);
+      if (paymentIndex !== -1) {
+        store.payments[paymentIndex].status = 'approved';
 
-        // Update session status to scheduled (confirmed)
-        if (paymentData.sessionId) {
-          const sessionIndex = store.sessions.findIndex((s) => s.id === paymentData.sessionId);
-          if (sessionIndex >= 0) {
-            store.sessions[sessionIndex].status = 'scheduled';
-          }
-        }
-
-        // Notify admin via a broadcast notification (no targetStudentId = admin sees it)
+        const payment = store.payments[paymentIndex];
+        const totalAmount = payment.amount ?? payment.totalAmount ?? (payment.hours * payment.pricePerHour);
         store.notifications.push({
           id: `notif_${Date.now()}`,
-          title: 'New Payment Received',
-          message: `Payment of ₹${paymentData.amount?.toLocaleString('en-IN') || 0} received successfully.`,
+          title: 'Payment Approved',
+          message: `Your payment of ₹${totalAmount} for ${payment.courseName} has been approved.`,
+          type: 'success',
           readBy: [],
           createdAt: new Date().toISOString(),
         });
 
         saveStore(store);
-        sessionStorage.removeItem('pendingPayment');
-      } catch (e) {
-        console.error('Failed to process payment:', e);
       }
+    } catch {
+      // Silently ignore
     }
-    setProcessed(true);
-  }, []);
+  }, [search?.payment_id]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="max-w-md w-full shadow-lg">
-        <CardContent className="pt-8 pb-8 text-center space-y-6">
-          <div className="flex justify-center">
-            <div className="p-4 bg-green-100 rounded-full">
-              <CheckCircle className="w-12 h-12 text-green-600" />
-            </div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Payment Successful!</h1>
-            <p className="text-muted-foreground text-sm">
-              Your session has been booked and confirmed. You'll receive details shortly.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3">
-            <Link to="/student/sessions">
-              <Button className="w-full">
-                <BookOpen className="w-4 h-4 mr-2" />
-                View My Sessions
-              </Button>
-            </Link>
-            <Link to="/student">
-              <Button variant="outline" className="w-full">
-                <Home className="w-4 h-4 mr-2" />
-                Go to Dashboard
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="text-center max-w-md">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10 text-green-600" />
+        </div>
+        <h1 className="text-3xl font-bold text-foreground mb-3">Payment Successful!</h1>
+        <p className="text-muted-foreground mb-8">
+          Your payment has been processed successfully. You will receive a confirmation shortly.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link
+            to="/student"
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+          >
+            Go to Dashboard
+          </Link>
+          <Link
+            to="/student/payments"
+            className="px-6 py-3 border border-border text-foreground rounded-lg font-medium hover:bg-muted transition-colors"
+          >
+            View Payments
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

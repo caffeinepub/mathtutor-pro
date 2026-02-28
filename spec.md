@@ -1,15 +1,11 @@
 # Specification
 
 ## Summary
-**Goal:** Add per-student session scheduling, materials management, and attendance tracking to both the Admin Panel and Student Dashboard of Rajat Math Academy.
+**Goal:** Fix the hardcoded admin login credentials so that the admin account uses `admin@mathtutor.com` / `Admin@123` consistently across the backend and frontend.
 
 **Planned changes:**
-- Add backend data models and functions for Sessions, Materials, and Attendance, with strict per-student data isolation and admin-only mutation access
-- Add "Manage Student Sessions" page to Admin Panel: student dropdown, session creation form (date, time, duration, Meet link, optional topic), and session list with delete
-- Add "Manage Student Materials" page to Admin Panel: student dropdown, material form supporting file upload or URL link (title, description, related course), and materials list with delete
-- Add "Attendance Management" page to Admin Panel: student dropdown, session dropdown, Present/Absent marking, and attendance records table
-- Update Student Dashboard with three new sections: "My Sessions" (with Join button, duration, topic, attendance status), "My Materials" (with view/download), and "My Attendance Summary" (stat cards for total, present, absent)
-- Add sidebar navigation links for all three new admin sections with admin auth guard protection
-- Add backend migration to preserve existing stable state and initialise new maps as empty on upgrade
+- Update the backend admin authentication logic to accept email `admin@mathtutor.com` and password `Admin@123`, returning a valid admin session on success.
+- Update the frontend login logic (including the localStorage/store fallback) so the hardcoded admin record uses `admin@mathtutor.com` and `Admin@123`.
+- Ensure the login form no longer shows "invalid credentials" when the correct admin credentials are submitted.
 
-**User-visible outcome:** Admins can schedule sessions, upload/link materials, and mark attendance for individual students. Students can view their own sessions, materials, and attendance summary on their dashboard — no cross-student data is ever visible.
+**User-visible outcome:** Logging in with `admin@mathtutor.com` / `Admin@123` successfully authenticates the admin and redirects to the admin dashboard without any error.

@@ -3,23 +3,25 @@ import { XCircle } from 'lucide-react';
 
 export default function PaymentFailure() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-navy to-slate-800 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="text-center max-w-md">
         <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <XCircle size={40} className="text-red-500" />
+          <XCircle className="w-10 h-10 text-red-600" />
         </div>
-        <h1 className="text-2xl font-bold text-navy mb-3">Payment Failed</h1>
-        <p className="text-slate-500 mb-8">Your payment could not be processed. Please try again or contact support.</p>
-        <div className="flex gap-3 justify-center">
+        <h1 className="text-3xl font-bold text-foreground mb-3">Payment Failed</h1>
+        <p className="text-muted-foreground mb-8">
+          Your payment could not be processed. Please try again or contact support.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link
-            to="/student/book"
-            className="px-6 py-3 bg-navy text-white font-semibold rounded-xl hover:bg-navy/90 transition-all"
+            to="/student/payments"
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
           >
             Try Again
           </Link>
           <Link
             to="/student"
-            className="px-6 py-3 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-all"
+            className="px-6 py-3 border border-border text-foreground rounded-lg font-medium hover:bg-muted transition-colors"
           >
             Go to Dashboard
           </Link>

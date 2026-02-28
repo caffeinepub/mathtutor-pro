@@ -1,17 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { Material } from '../backend';
+import { Principal } from '@dfinity/principal';
 
-export function useGetMaterialsForStudent(studentId: bigint | null) {
+export function useGetMaterialsForStudent(studentPrincipal: Principal | null) {
   const { actor, isFetching } = useActor();
 
   return useQuery<Material[]>({
-    queryKey: ['materials', studentId?.toString()],
+    queryKey: ['materials', studentPrincipal?.toString()],
     queryFn: async () => {
-      if (!actor || studentId === null) return [];
-      return actor.getMaterialsForStudent(studentId);
+      if (!actor || studentPrincipal === null) return [];
+      return actor.getMaterialsForStudent(studentPrincipal);
     },
-    enabled: !!actor && !isFetching && studentId !== null,
+    enabled: !!actor && !isFetching && studentPrincipal !== null,
   });
 }
 
@@ -21,7 +22,7 @@ export function useAddMaterial() {
 
   return useMutation({
     mutationFn: async (params: {
-      studentId: bigint;
+      studentPrincipal: Principal;
       title: string;
       description: string | null;
       fileData: Uint8Array | null;
@@ -30,7 +31,7 @@ export function useAddMaterial() {
     }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.addMaterial(
-        params.studentId,
+        params.studentPrincipal,
         params.title,
         params.description,
         params.fileData,
@@ -39,7 +40,7 @@ export function useAddMaterial() {
       );
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['materials', variables.studentId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['materials', variables.studentPrincipal.toString()] });
     },
   });
 }
@@ -49,12 +50,12 @@ export function useDeleteMaterial() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { materialId: bigint; studentId: bigint }) => {
+    mutationFn: async (params: { materialId: bigint; studentPrincipal: Principal }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.deleteMaterial(params.materialId);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['materials', variables.studentId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['materials', variables.studentPrincipal.toString()] });
     },
   });
 }

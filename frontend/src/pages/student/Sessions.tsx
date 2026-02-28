@@ -1,132 +1,168 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Video, Calendar, Clock, ExternalLink, BookOpen } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getStore, getAuthState } from '../../lib/store';
-import { Calendar, Video, Clock, MessageCircle, BookOpen } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
+import { getStore, getAuthState, Session } from '../../lib/store';
 
 export default function StudentSessions() {
-  const auth = getAuthState();
-  const store = getStore();
-  const student = store.students.find((s) => s.userId === auth.userId);
-  const sessions = student
-    ? store.sessions.filter((s) => s.studentId === student.id)
-    : [];
+  const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
+  const [pastSessions, setPastSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const upcoming = sessions.filter((s) => s.status === 'scheduled');
-  const past = sessions.filter((s) => s.status === 'completed' || s.status === 'cancelled');
+  useEffect(() => {
+    loadSessions();
+  }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return <Badge className="bg-sky-100 text-sky-700 border-sky-300">Scheduled</Badge>;
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-700 border-green-300">Completed</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-red-100 text-red-700 border-red-300">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const loadSessions = () => {
+    setLoading(true);
+    try {
+      const auth = getAuthState();
+      if (!auth || !auth.userId) {
+        setLoading(false);
+        return;
+      }
+      const store = getStore();
+      const studentSessions = store.sessions.filter((s) => s.studentId === auth.userId);
+      const now = new Date();
+
+      const upcoming = studentSessions
+        .filter((s) => {
+          const sessionDate = new Date(`${s.date}T${s.time}`);
+          return sessionDate >= now && s.status !== 'cancelled';
+        })
+        .sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
+
+      const past = studentSessions
+        .filter((s) => {
+          const sessionDate = new Date(`${s.date}T${s.time}`);
+          return sessionDate < now || s.status === 'completed';
+        })
+        .sort((a, b) => new Date(`${b.date}T${b.time}`).getTime() - new Date(`${a.date}T${a.time}`).getTime());
+
+      setUpcomingSessions(upcoming);
+      setPastSessions(past);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
     }
   };
 
-  const SessionCard = ({ session }: { session: typeof sessions[0] }) => (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-sky-300 hover:shadow-sm transition-all">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="font-bold text-slate-800 text-lg">{session.courseName}</h3>
-          <p className="text-sm text-slate-500 capitalize">{session.sessionType} session</p>
-        </div>
-        {getStatusBadge(session.status)}
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-64">
+        <div className="text-muted-foreground">Loading sessions...</div>
       </div>
-      <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-3">
-        <span className="flex items-center gap-1.5">
-          <Calendar size={14} className="text-sky-500" />
-          {new Date(session.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Clock size={14} className="text-sky-500" />
-          {session.time}
-        </span>
-      </div>
-      {session.meetLink && session.status === 'scheduled' && (
-        <a href={session.meetLink} target="_blank" rel="noopener noreferrer">
-          <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white h-11 font-semibold">
-            <Video size={16} className="mr-2" />
-            Join Google Meet
-          </Button>
-        </a>
-      )}
-    </div>
-  );
+    );
+  }
 
-  const EmptyState = ({ type }: { type: 'upcoming' | 'past' }) => (
-    <div className="text-center py-12 bg-sky-50 rounded-2xl border border-sky-100">
-      <Calendar size={48} className="mx-auto text-sky-300 mb-3" />
-      <h3 className="text-lg font-semibold text-slate-700 mb-2">
-        {type === 'upcoming' ? 'No Upcoming Sessions' : 'No Past Sessions'}
-      </h3>
-      <p className="text-slate-500 mb-5 max-w-xs mx-auto">
-        {type === 'upcoming'
-          ? 'Book a session to get started with your learning journey.'
-          : 'Your completed sessions will appear here.'}
-      </p>
-      {type === 'upcoming' && (
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link to="/student/book">
-            <Button className="bg-sky-600 hover:bg-sky-700 text-white h-11 px-5 font-semibold">
-              <BookOpen size={16} className="mr-2" />
-              Book a Session
-            </Button>
-          </Link>
-          <Button
-            variant="outline"
-            className="border-green-400 text-green-700 hover:bg-green-50 h-11 px-5 font-semibold"
-            onClick={() => window.open('https://wa.me/919424135055?text=Hi! I want to book a session.', '_blank')}
-          >
-            <MessageCircle size={16} className="mr-2" />
-            WhatsApp Us
-          </Button>
+  const SessionCard = ({ session, isPast }: { session: Session; isPast: boolean }) => (
+    <Card className="border-border/50">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-foreground">
+                {session.topic || 'Class Session'}
+              </h3>
+              <Badge
+                variant={isPast ? 'secondary' : 'default'}
+                className={isPast ? '' : 'bg-blue-100 text-blue-700 border-blue-200'}
+              >
+                {isPast ? 'Completed' : 'Upcoming'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                {new Date(session.date).toLocaleDateString('en-IN', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {session.time}
+              </span>
+              <span>{session.durationHours} hour{session.durationHours !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+          {!isPast && session.meetLink ? (
+            <a href={session.meetLink} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" className="shrink-0">
+                <Video className="w-3.5 h-3.5 mr-1" />
+                Join
+              </Button>
+            </a>
+          ) : session.meetLink ? (
+            <a
+              href={session.meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Link
+            </a>
+          ) : null}
         </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-2">My Sessions</h1>
-      <p className="text-slate-500 mb-6">View your upcoming and past learning sessions.</p>
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">My Classes</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Your scheduled and past Google Meet classes
+        </p>
+      </div>
 
-      <Tabs defaultValue="upcoming">
-        <TabsList className="mb-5 bg-sky-50 border border-sky-100">
-          <TabsTrigger value="upcoming" className="data-[state=active]:bg-sky-600 data-[state=active]:text-white font-medium">
-            Upcoming ({upcoming.length})
-          </TabsTrigger>
-          <TabsTrigger value="past" className="data-[state=active]:bg-sky-600 data-[state=active]:text-white font-medium">
-            Past ({past.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Upcoming */}
+      <section>
+        <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Video className="w-5 h-5 text-primary" />
+          Upcoming Classes
+          <span className="text-sm font-normal text-muted-foreground">({upcomingSessions.length})</span>
+        </h2>
+        {upcomingSessions.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center">
+              <Video className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+              <p className="text-muted-foreground text-sm">No upcoming classes scheduled.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Your admin will schedule classes for you soon.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {upcomingSessions.map((s) => (
+              <SessionCard key={s.id} session={s} isPast={false} />
+            ))}
+          </div>
+        )}
+      </section>
 
-        <TabsContent value="upcoming">
-          {upcoming.length === 0 ? (
-            <EmptyState type="upcoming" />
-          ) : (
-            <div className="space-y-4">
-              {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="past">
-          {past.length === 0 ? (
-            <EmptyState type="past" />
-          ) : (
-            <div className="space-y-4">
-              {past.map((s) => <SessionCard key={s.id} session={s} />)}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      {/* Past */}
+      {pastSessions.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-muted-foreground" />
+            Past Classes
+            <span className="text-sm font-normal text-muted-foreground">({pastSessions.length})</span>
+          </h2>
+          <div className="space-y-3">
+            {pastSessions.map((s) => (
+              <SessionCard key={s.id} session={s} isPast={true} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

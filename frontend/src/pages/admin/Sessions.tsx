@@ -1,258 +1,421 @@
 import React, { useState } from 'react';
-import { toast } from 'sonner';
-import { getStore, saveStore, type Session } from '../../lib/store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Calendar, Clock, Video, User, BookOpen } from 'lucide-react';
+import { useActor } from '../../hooks/useActor';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, Video, Calendar, Clock, User, BookOpen, RefreshCw } from 'lucide-react';
+import { Principal } from '@dfinity/principal';
 
-// Valid session statuses matching the new Session interface
-const STATUS_OPTIONS: Session['status'][] = ['scheduled', 'completed', 'cancelled'];
+interface ApprovedStudent {
+  paymentId: number;
+  name: string;
+  email: string;
+  principalId?: string;
+}
+
+interface LocalSession {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  date: string;
+  time: string;
+  durationHours: number;
+  meetLink: string;
+  topic?: string;
+  createdAt: string;
+}
+
+function getLocalSessions(): LocalSession[] {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return [];
+    const store = JSON.parse(raw);
+    return store.adminSessions || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalSession(session: LocalSession) {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    const store = raw ? JSON.parse(raw) : {};
+    const sessions: LocalSession[] = store.adminSessions || [];
+    sessions.push(session);
+    store.adminSessions = sessions;
+    localStorage.setItem('rajats_equation_store', JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
+
+function deleteLocalSession(id: string) {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return;
+    const store = JSON.parse(raw);
+    store.adminSessions = (store.adminSessions || []).filter((s: LocalSession) => s.id !== id);
+    localStorage.setItem('rajats_equation_store', JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
 
 export default function AdminSessions() {
-  const [sessions, setSessions] = useState<Session[]>(() => getStore().sessions);
-  const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [editForm, setEditForm] = useState<{ meetLink: string; status: Session['status'] }>({
-    meetLink: '',
-    status: 'scheduled',
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [duration, setDuration] = useState('1');
+  const [meetLink, setMeetLink] = useState('');
+  const [topic, setTopic] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [localSessions, setLocalSessions] = useState<LocalSession[]>(getLocalSessions);
+  const [filterStudentId, setFilterStudentId] = useState('');
+
+  // Fetch all payments to get approved students
+  const { data: payments = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: ['allPayments'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllPayments();
+    },
+    enabled: !!actor,
   });
-  const [editOpen, setEditOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
 
-  const store = getStore();
-  const students = store.students;
+  const approvedStudents: ApprovedStudent[] = React.useMemo(() => {
+    const fromBackend = payments
+      .filter(p => p.status.__kind__ === 'approved')
+      .map(p => ({
+        paymentId: Number(p.id),
+        name: p.fullName,
+        email: p.email,
+      }));
 
-  const refreshSessions = () => {
-    setSessions(getStore().sessions);
-  };
-
-  const filteredSessions =
-    statusFilter === 'all'
-      ? sessions
-      : sessions.filter((s) => s.status === statusFilter);
-
-  const openEdit = (session: Session) => {
-    setEditingSession(session);
-    setEditForm({
-      meetLink: session.meetLink || '',
-      status: session.status,
-    });
-    setEditOpen(true);
-  };
-
-  const handleEditSubmit = async () => {
-    if (!editingSession) return;
-    setIsSubmitting(true);
+    // Also check localStorage
     try {
-      const currentStore = getStore();
-      currentStore.sessions = currentStore.sessions.map((s) =>
-        s.id === editingSession.id
-          ? {
-              ...s,
-              meetLink: editForm.meetLink || undefined,
-              status: editForm.status,
-            }
-          : s
-      );
+      const raw = localStorage.getItem('rajats_equation_store');
+      if (raw) {
+        const store = JSON.parse(raw);
+        const localActive = (store.students || [])
+          .filter((s: any) => s.status === 'active')
+          .map((s: any) => ({
+            paymentId: parseInt(s.id) || 0,
+            name: s.name,
+            email: s.email,
+          }));
+        for (const ls of localActive) {
+          if (!fromBackend.find(s => s.email === ls.email)) {
+            fromBackend.push(ls);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
 
-      // Notify student if status changed to scheduled (confirmed)
-      if (editForm.status === 'scheduled' && editingSession.status !== 'scheduled') {
-        const student = currentStore.students.find((s) => s.id === editingSession.studentId);
-        if (student) {
-          currentStore.notifications.push({
-            id: `notif_${Date.now()}`,
-            title: 'Session Confirmed!',
-            message: `Your session for ${editingSession.courseName} on ${editingSession.date} at ${editingSession.time} has been confirmed.${editForm.meetLink ? ` Meet link: ${editForm.meetLink}` : ''}`,
-            targetStudentId: student.id,
-            readBy: [],
-            createdAt: new Date().toISOString(),
-          });
+    return fromBackend;
+  }, [payments]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!selectedStudentId) {
+      setErrorMsg('Please select a student.');
+      return;
+    }
+    if (!date || !time || !meetLink) {
+      setErrorMsg('Please fill in all required fields.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const student = approvedStudents.find(s => String(s.paymentId) === selectedStudentId || s.email === selectedStudentId);
+      if (!student) {
+        setErrorMsg('Student not found.');
+        setSaving(false);
+        return;
+      }
+
+      // Try backend first if we have a principal
+      let savedToBackend = false;
+      if (actor && student.principalId) {
+        try {
+          const principal = Principal.fromText(student.principalId);
+          await actor.addSession(
+            principal,
+            date,
+            time,
+            BigInt(parseInt(duration)),
+            meetLink,
+            topic.trim() || null
+          );
+          savedToBackend = true;
+          queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        } catch (err) {
+          // Fall through to localStorage
         }
       }
 
-      saveStore(currentStore);
-      refreshSessions();
-      setEditOpen(false);
-      toast.success('Session updated successfully');
-    } catch (err) {
-      toast.error('Failed to update session');
+      // Always save to localStorage for display
+      const newSession: LocalSession = {
+        id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        studentId: String(student.paymentId),
+        studentName: student.name,
+        studentEmail: student.email,
+        date,
+        time,
+        durationHours: parseInt(duration),
+        meetLink,
+        topic: topic.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      saveLocalSession(newSession);
+      setLocalSessions(getLocalSessions());
+
+      setSuccessMsg(`Class created for ${student.name}!${savedToBackend ? ' (saved to backend)' : ''}`);
+      setDate('');
+      setTime('');
+      setDuration('1');
+      setMeetLink('');
+      setTopic('');
+      setSelectedStudentId('');
+    } catch (err: any) {
+      setErrorMsg(String(err?.message || 'Failed to save class. Please try again.'));
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const getStudentName = (studentId: string) => {
-    const student = students.find((s) => s.id === studentId);
-    return student?.name || 'Unknown Student';
+  const handleDelete = (id: string) => {
+    if (!confirm('Delete this class?')) return;
+    deleteLocalSession(id);
+    setLocalSessions(getLocalSessions());
   };
 
-  const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (status === 'scheduled') return 'default';
-    if (status === 'completed') return 'outline';
-    return 'destructive';
-  };
+  const displayedSessions = filterStudentId
+    ? localSessions.filter(s => String(s.studentId) === filterStudentId || s.studentEmail === filterStudentId)
+    : localSessions;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Sessions</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {sessions.length} session{sessions.length !== 1 ? 's' : ''} total
-          </p>
-        </div>
+    <div className="p-6 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Sessions (Classes)</h1>
+        <p className="text-muted-foreground text-sm mt-1">Create and manage classes for individual students</p>
       </div>
 
-      {/* Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {['all', ...STATUS_OPTIONS].map((status) => (
-          <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors capitalize ${
-              statusFilter === status
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {status}
-          </button>
-        ))}
-      </div>
+      {/* Create Class Form */}
+      <div className="bg-card border border-border rounded-xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Plus className="w-5 h-5 text-primary" />
+          Create Class for Student
+        </h2>
 
-      {filteredSessions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <Calendar className="w-8 h-8 text-muted-foreground" />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Student Select */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Select Student <span className="text-destructive">*</span>
+            </label>
+            {paymentsLoading ? (
+              <div className="text-sm text-muted-foreground">Loading students...</div>
+            ) : approvedStudents.length === 0 ? (
+              <div className="text-sm text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                No approved students yet. Approve students from the Students section first.
+              </div>
+            ) : (
+              <select
+                value={selectedStudentId}
+                onChange={e => setSelectedStudentId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              >
+                <option value="">-- Select a student --</option>
+                {approvedStudents.map(s => (
+                  <option key={s.email} value={String(s.paymentId) || s.email}>
+                    {s.name} ({s.email})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Sessions Found</h3>
-          <p className="text-muted-foreground text-sm">
-            {statusFilter === 'all' ? 'No sessions booked yet.' : `No ${statusFilter} sessions.`}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredSessions
-            .slice()
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .map((session) => (
-              <Card key={session.id} className="border-border hover:shadow-sm transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                        <Calendar className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold text-foreground">{session.courseName}</p>
-                          <Badge variant={statusVariant(session.status)} className="text-xs capitalize">
-                            {session.status}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            {getStudentName(session.studentId)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {session.date}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {session.time}
-                          </span>
-                          <span className="capitalize">{session.sessionType}</span>
-                        </div>
-                        {session.meetLink && (
-                          <a
-                            href={session.meetLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                          >
-                            <Video className="w-3 h-3" />
-                            Join Meet
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(session)}>
-                        Edit
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-        </div>
-      )}
 
-      {/* Edit Session Modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Update Session</DialogTitle>
-          </DialogHeader>
-          {editingSession && (
-            <div className="space-y-4 py-2">
-              <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
-                <p className="font-medium text-foreground">{editingSession.courseName}</p>
-                <p className="text-muted-foreground">
-                  {editingSession.date} at {editingSession.time} — {editingSession.sessionType}
-                </p>
-                <p className="text-muted-foreground">Student: {getStudentName(editingSession.studentId)}</p>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Date */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Date <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                required
+              />
+            </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="meet-link">Google Meet Link</Label>
-                <Input
-                  id="meet-link"
-                  value={editForm.meetLink}
-                  onChange={(e) => setEditForm((p) => ({ ...p, meetLink: e.target.value }))}
-                  placeholder="https://meet.google.com/..."
-                />
-              </div>
+            {/* Time */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Time <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="time"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                required
+              />
+            </div>
 
-              <div className="space-y-1">
-                <Label>Status</Label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value as Session['status'] }))}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s} className="capitalize">{s}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Duration */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Duration (hours) <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              >
+                {[1, 1.5, 2, 2.5, 3, 4].map(h => (
+                  <option key={h} value={String(h)}>{h} hour{h !== 1 ? 's' : ''}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Meet Link */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Google Meet Link <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="url"
+                value={meetLink}
+                onChange={e => setMeetLink(e.target.value)}
+                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Topic */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Class Topic <span className="text-muted-foreground text-xs">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              placeholder="e.g. Quadratic Equations, Trigonometry..."
+              className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+          </div>
+
+          {errorMsg && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
+              {errorMsg}
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleEditSubmit} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving...
-                </span>
-              ) : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {successMsg && (
+            <div className="bg-green-50 border border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400 rounded-lg px-3 py-2.5 text-sm">
+              {successMsg}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Create Class'}
+          </button>
+        </form>
+      </div>
+
+      {/* Sessions List */}
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary" />
+            All Classes ({localSessions.length})
+          </h2>
+          <div className="flex items-center gap-2">
+            <select
+              value={filterStudentId}
+              onChange={e => setFilterStudentId(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none"
+            >
+              <option value="">All Students</option>
+              {approvedStudents.map(s => (
+                <option key={s.email} value={String(s.paymentId) || s.email}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {displayedSessions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Calendar className="w-10 h-10 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No classes created yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {[...displayedSessions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(session => (
+              <div key={session.id} className="flex items-start justify-between gap-4 p-4 rounded-lg border border-border bg-background">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="font-medium text-sm text-foreground">{session.studentName}</span>
+                    <span className="text-xs text-muted-foreground">({session.studentEmail})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" /> {session.date}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> {session.time}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> {session.durationHours}h
+                    </span>
+                  </div>
+                  {session.topic && (
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <BookOpen className="w-3 h-3" /> {session.topic}
+                    </p>
+                  )}
+                  <a
+                    href={session.meetLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline flex items-center gap-1 mt-1"
+                  >
+                    <Video className="w-3 h-3" /> {session.meetLink}
+                  </a>
+                </div>
+                <button
+                  onClick={() => handleDelete(session.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                  title="Delete class"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

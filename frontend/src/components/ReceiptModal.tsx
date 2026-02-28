@@ -1,131 +1,98 @@
-import React from 'react';
-import { getStore, type Payment, type Student, type Session, type Course } from '../lib/store';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { IndianRupee, Calendar, Clock, BookOpen, User, Users } from 'lucide-react';
+import { X, Download } from 'lucide-react';
+import { type Payment } from '../lib/store';
 
 interface ReceiptModalProps {
-  payment: Payment | null;
-  open: boolean;
+  payment: Payment;
   onClose: () => void;
 }
 
-export default function ReceiptModal({ payment, open, onClose }: ReceiptModalProps) {
-  if (!payment) return null;
+export default function ReceiptModal({ payment, onClose }: ReceiptModalProps) {
+  const totalAmount = payment.amount ?? payment.totalAmount ?? (payment.hours * payment.pricePerHour);
 
-  const store = getStore();
-  const student = store.students.find((s: Student) => s.id === payment.studentId);
+  const statusLabel =
+    payment.status === 'approved' || payment.status === 'completed'
+      ? 'Payment Approved'
+      : payment.status === 'rejected'
+      ? 'Payment Rejected'
+      : 'Payment Pending';
 
-  const statusColor = {
-    completed: 'default',
-    pending: 'secondary',
-    failed: 'destructive',
-  } as const;
+  const paymentDate = payment.createdAt || payment.date || new Date().toISOString();
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <IndianRupee className="w-5 h-5 text-primary" />
-            Payment Receipt
-          </DialogTitle>
-        </DialogHeader>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-lg font-bold text-foreground">Payment Receipt</h2>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        <div className="space-y-4">
-          {/* Receipt header */}
-          <div className="text-center py-3 bg-muted/30 rounded-lg">
-            <img
-              src="/assets/generated/rajats-equation-logo.dim_400x300.png"
-              alt="The Rajat's Equation"
-              className="h-10 w-auto object-contain mx-auto mb-2"
-            />
-            <p className="text-xs text-muted-foreground">Receipt #{payment.id.slice(-8).toUpperCase()}</p>
-            <p className="text-xs text-muted-foreground">
-              {new Date(payment.createdAt).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          <div className="text-center py-4">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Download className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground">₹{totalAmount}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{statusLabel}</p>
           </div>
 
-          <Separator />
-
-          {/* Student info */}
-          <div className="flex items-center gap-2 text-sm">
-            <User className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Student:</span>
-            <span className="font-medium text-foreground">
-              {payment.studentName || student?.name || 'Unknown'}
-            </span>
-          </div>
-
-          {/* Course info */}
-          <div className="flex items-center gap-2 text-sm">
-            <BookOpen className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Course:</span>
-            <span className="font-medium text-foreground">{payment.courseName}</span>
-          </div>
-
-          {/* Session type */}
-          <div className="flex items-center gap-2 text-sm">
-            {payment.sessionType === 'group' ? (
-              <Users className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <User className="w-4 h-4 text-muted-foreground" />
-            )}
-            <span className="text-muted-foreground">Session Type:</span>
-            <span className="font-medium text-foreground capitalize">{payment.sessionType}</span>
-          </div>
-
-          {/* Hours */}
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Hours:</span>
-            <span className="font-medium text-foreground">{payment.hours} hour{payment.hours !== 1 ? 's' : ''}</span>
-          </div>
-
-          {/* Rate */}
-          <div className="flex items-center gap-2 text-sm">
-            <IndianRupee className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Rate:</span>
-            <span className="font-medium text-foreground">₹{payment.pricePerHour}/hr</span>
-          </div>
-
-          {payment.upiTransactionId && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">UPI Txn ID:</span>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Receipt ID</span>
+              <span className="font-medium text-foreground">{payment.id}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Student Name</span>
+              <span className="font-medium text-foreground">{payment.studentName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Course</span>
+              <span className="font-medium text-foreground">{payment.courseName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Session Type</span>
+              <span className="font-medium text-foreground capitalize">{payment.sessionType}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Hours</span>
+              <span className="font-medium text-foreground">{payment.hours} hrs</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price/Hour</span>
+              <span className="font-medium text-foreground">₹{payment.pricePerHour}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">UPI Transaction ID</span>
               <span className="font-medium text-foreground font-mono text-xs">{payment.upiTransactionId}</span>
             </div>
-          )}
-
-          <Separator />
-
-          {/* Payment details */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Status</span>
-              <Badge variant={statusColor[payment.status] || 'secondary'} className="text-xs">
-                {payment.status}
-              </Badge>
-            </div>
-            <div className="flex justify-between text-base font-bold">
-              <span className="text-foreground">Total Amount</span>
-              <span className="text-primary flex items-center gap-0.5">
-                <IndianRupee className="w-4 h-4" />
-                {payment.amount.toLocaleString('en-IN')}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Date</span>
+              <span className="font-medium text-foreground">
+                {new Date(paymentDate).toLocaleDateString('en-IN', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
               </span>
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="p-6 border-t border-border">
+          <button
+            onClick={onClose}
+            className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

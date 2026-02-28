@@ -1,124 +1,32 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Add per-student sessions, materials, and attendance management (admin + student dashboard)",
+  "title": "Fix hardcoded admin login credentials",
   "requirements": [
     {
-      "id": "REQ-4",
-      "summary": "Add 'Manage Student Sessions' section to Admin Panel for creating and managing student-specific sessions",
+      "id": "REQ-2",
+      "summary": "Update frontend Login page to authenticate admin using email 'admin@mathtutor.com' and password 'Admin@123'",
       "acceptanceCriteria": [
-        "Admin can select any approved student from a dropdown.",
-        "Submitting the form creates a session record for that student and clears the form.",
-        "The session list below the form updates immediately after saving.",
-        "All required fields (date, time, duration, meet link) are validated before submission.",
-        "Topic field is optional and saves correctly when provided or left blank."
+        "Submitting the admin login form with 'admin@mathtutor.com' / 'Admin@123' does not show an 'invalid credentials' error.",
+        "On successful admin login, the user is redirected to the admin dashboard.",
+        "The localStorage fallback admin check also uses the same credentials ('admin@mathtutor.com' / 'Admin@123').",
+        "The hardcoded admin user record in the local store (store.ts) has email 'admin@mathtutor.com' and password 'Admin@123'."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/hooks/useSessions.ts",
-          "operation": "create",
-          "description": "Create React Query hooks for session management: useAddSession (mutation for addSession backend call with studentId, date, time, durationHours, meetLink, topic), useGetSessionsForStudent (query for getSessionsForStudent backend call), useDeleteSession (mutation for deleteSession backend call). Include proper error handling and query invalidation on mutations."
-        },
-        {
-          "path": "frontend/src/pages/admin/ManageStudentSessions.tsx",
-          "operation": "create",
-          "description": "Create admin page component with: (1) Student dropdown using listApprovals backend data filtered to approved students; (2) Form with fields for Date (date input), Time (time input), Duration (number input in hours), Google Meet Link (URL input), Session Topic (optional text input); (3) Large 'Add Session' submit button; (4) Table displaying sessions for selected student with columns for date, time, duration, meet link, topic, and a delete button per row. Use useAddSession, useGetSessionsForStudent, and useDeleteSession hooks. Show loading states and validation errors. Clear form after successful submission."
-        }
-      ]
-    },
-    {
-      "id": "REQ-5",
-      "summary": "Add 'Manage Student Materials' section to Admin Panel for uploading and linking materials to specific students",
-      "acceptanceCriteria": [
-        "Admin can switch between file upload mode and URL link mode.",
-        "Submitting the form stores the material linked to the selected student.",
-        "The materials list updates immediately after saving.",
-        "Title and Related Course are required; Description is optional.",
-        "File upload stores binary data in-canister; URL link stores the provided URL string."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/hooks/useMaterials.ts",
-          "operation": "create",
-          "description": "Create React Query hooks for material management: useAddMaterial (mutation for addMaterial backend call with studentId, title, description, fileData, fileLink, relatedCourse), useGetMaterialsForStudent (query for getMaterialsForStudent backend call), useDeleteMaterial (mutation for deleteMaterial backend call). Handle file upload by converting File to Uint8Array. Include proper error handling and query invalidation on mutations."
-        },
-        {
-          "path": "frontend/src/pages/admin/ManageStudentMaterials.tsx",
-          "operation": "create",
-          "description": "Create admin page component with: (1) Student dropdown using listApprovals backend data filtered to approved students; (2) Radio buttons or toggle to switch between 'File Upload' and 'URL Link' modes; (3) Form with fields for Title (text input, required), Description (textarea, optional), File Upload (file input, shown in upload mode), File Link (URL input, shown in link mode), Related Course (text input, required); (4) Large 'Add Material' submit button; (5) Table displaying materials for selected student with columns for title, description, related course, type (file/link), and a delete button per row. Use useAddMaterial, useGetMaterialsForStudent, and useDeleteMaterial hooks. Show loading states and validation errors. Clear form after successful submission."
-        }
-      ]
-    },
-    {
-      "id": "REQ-6",
-      "summary": "Add 'Attendance Management' section to Admin Panel for marking and viewing student attendance",
-      "acceptanceCriteria": [
-        "Selecting a student populates the session dropdown with that student's sessions.",
-        "Admin can mark Present or Absent and save; the attendance table updates immediately.",
-        "Existing attendance status for a session is shown correctly in the table.",
-        "Saving attendance calls the backend markAttendance function."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/hooks/useAttendance.ts",
-          "operation": "create",
-          "description": "Create React Query hooks for attendance management: useMarkAttendance (mutation for markAttendance backend call with studentId, sessionId, status), useGetAttendanceForStudent (query for getAttendanceForStudent backend call), useGetAttendanceSummary (query for getAttendanceSummary backend call). Include proper error handling and query invalidation on mutations."
-        },
-        {
-          "path": "frontend/src/pages/admin/AttendanceManagement.tsx",
-          "operation": "create",
-          "description": "Create admin page component with: (1) Student dropdown using listApprovals backend data filtered to approved students; (2) Session dropdown populated with sessions for the selected student using useGetSessionsForStudent; (3) Radio buttons or dropdown for selecting Present or Absent status; (4) Large 'Mark Attendance' submit button; (5) Table displaying all attendance records for selected student with columns for session date, session topic, and attendance status. Use useMarkAttendance and useGetAttendanceForStudent hooks. Show loading states. Automatically update table after marking attendance."
-        }
-      ]
-    },
-    {
-      "id": "REQ-7",
-      "summary": "Update Student Dashboard to show student-specific sessions, materials, and attendance summary",
-      "acceptanceCriteria": [
-        "My Sessions lists only sessions assigned to the logged-in student.",
-        "Google Meet link renders as a clickable 'Join' button opening in a new tab.",
-        "Attendance status (Present/Absent/Not Marked) is shown per session.",
-        "My Materials lists only materials assigned to the logged-in student with working view/download links.",
-        "My Attendance Summary stat cards show correct totals derived from backend getAttendanceSummary.",
-        "No other student's sessions, materials, or attendance data is visible."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/pages/student/Dashboard.tsx",
+          "path": "frontend/src/pages/Login.tsx",
           "operation": "modify",
-          "description": "Add three new sections to the student dashboard (after approval check): (1) 'My Sessions' section displaying sessions using useGetSessionsForStudent with the logged-in student's ID from their profile, showing date, time, duration, topic, Google Meet link as a 'Join' button (target=_blank), and attendance status badge (Present/Absent/Not Marked) derived from useGetAttendanceForStudent; (2) 'My Materials' section displaying materials using useGetMaterialsForStudent, showing title, related course, and a 'View/Download' button that opens the file or link; (3) 'My Attendance Summary' section displaying stat cards for Total Sessions, Present Count, and Absent Count using useGetAttendanceSummary. Use StatCard component for summary stats. Ensure all data is filtered to the logged-in student's ID only."
+          "description": "Update the admin authentication logic in the handleAdminLogin function to check credentials against email 'admin@mathtutor.com' and password 'Admin@123'. Ensure both the backend actor call (adminLogin) and the localStorage fallback use these exact credentials. Update error handling to properly redirect to /admin/dashboard on successful authentication."
         },
         {
-          "path": "frontend/src/pages/student/MySessions.tsx",
-          "operation": "create",
-          "description": "Create dedicated student page component for viewing sessions in detail. Display a list of sessions for the logged-in student using useGetSessionsForStudent and useGetAttendanceForStudent hooks. Show each session's date, time, duration, topic, Google Meet link as a large 'Join Session' button (opening in new tab), and attendance status badge. Use card or table layout with clear typography and large buttons. Show empty state when no sessions exist."
-        },
-        {
-          "path": "frontend/src/pages/student/MyMaterials.tsx",
-          "operation": "create",
-          "description": "Create dedicated student page component for viewing materials in detail. Display a list of materials for the logged-in student using useGetMaterialsForStudent hook. Show each material's title, description, related course, and a large 'View/Download' button. For file uploads, trigger download of the Uint8Array data; for URL links, open the link in a new tab. Use card layout with file type icons. Show empty state when no materials exist."
-        }
-      ]
-    },
-    {
-      "id": "REQ-8",
-      "summary": "Add navigation links for new admin sections to AdminLayout sidebar and register admin routes",
-      "acceptanceCriteria": [
-        "Sidebar shows links for Manage Student Sessions, Manage Student Materials, and Attendance Management.",
-        "Clicking each link navigates to the correct page.",
-        "All three routes are protected by the admin auth guard.",
-        "Active route is visually highlighted in the sidebar."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/layouts/AdminLayout.tsx",
+          "path": "frontend/src/lib/store.ts",
           "operation": "modify",
-          "description": "Add three new navigation links to the sidebar navigation array: 'Manage Student Sessions' linking to /admin/manage-sessions, 'Manage Student Materials' linking to /admin/manage-materials, and 'Attendance Management' linking to /admin/attendance. Use the same icon and styling pattern as existing links. Ensure active route highlighting works for all three new routes."
+          "description": "Update the hardcoded admin user object in the initialStudents array to use email 'admin@mathtutor.com' and password 'Admin@123'. Ensure the isAdmin flag remains true and all other admin properties are preserved."
         },
         {
-          "path": "frontend/src/routeTree.ts",
+          "path": "frontend/src/lib/auth.ts",
           "operation": "modify",
-          "description": "Register three new admin routes in the route tree: /admin/manage-sessions importing ManageStudentSessions component, /admin/manage-materials importing ManageStudentMaterials component, and /admin/attendance importing AttendanceManagement component. Apply the same admin auth guard (beforeLoad check for isAdmin) as existing admin routes. Ensure these routes are children of the admin layout route."
+          "description": "Update any admin credential checks or authentication helper functions to use email 'admin@mathtutor.com' and password 'Admin@123' for the hardcoded admin account verification."
         }
       ]
     }

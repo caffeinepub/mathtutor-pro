@@ -1,334 +1,200 @@
 import React from 'react';
 import { Link } from '@tanstack/react-router';
+import { Calendar, FileText, Video, BookOpen, Clock, ArrowRight } from 'lucide-react';
 import { getAuthState } from '../../lib/auth';
-import { getStore } from '../../lib/store';
-import { useGetSessionsForStudent } from '../../hooks/useSessions';
-import { useGetMaterialsForStudent } from '../../hooks/useMaterials';
-import { useGetAttendanceForStudent, useGetAttendanceSummary } from '../../hooks/useAttendance';
-import { AttendanceStatus } from '../../backend';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  Loader2,
-  Video,
-  BookOpen,
-  ClipboardList,
-  Calendar,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Download,
-  Link as LinkIcon,
-  AlertCircle,
-} from 'lucide-react';
 
-function getStudentPaymentId(): bigint | null {
-  const store = getStore();
-  const auth = getAuthState();
-  if (!auth) return null;
-  const student = store.students.find(s => s.userId === auth.userId);
-  if (!student?.accessCode) return null;
-  const match = student.accessCode.match(/RJMATH-(\d+)/);
-  if (!match) return null;
-  return BigInt(parseInt(match[1], 10));
+interface LocalSession {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  date: string;
+  time: string;
+  durationHours: number;
+  meetLink: string;
+  topic?: string;
+  createdAt: string;
+}
+
+interface LocalMaterial {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  title: string;
+  description?: string;
+  fileLink: string;
+  relatedCourse?: string;
+  createdAt: string;
+}
+
+function getStudentData(email: string, userId: string) {
+  try {
+    const raw = localStorage.getItem('rajats_equation_store');
+    if (!raw) return { sessions: [], materials: [] };
+    const store = JSON.parse(raw);
+
+    const sessions: LocalSession[] = (store.adminSessions || []).filter(
+      (s: LocalSession) =>
+        s.studentEmail?.toLowerCase() === email?.toLowerCase() ||
+        s.studentId === userId
+    );
+
+    const materials: LocalMaterial[] = (store.adminMaterials || []).filter(
+      (m: LocalMaterial) =>
+        m.studentEmail?.toLowerCase() === email?.toLowerCase() ||
+        m.studentId === userId
+    );
+
+    return { sessions, materials };
+  } catch {
+    return { sessions: [], materials: [] };
+  }
 }
 
 export default function StudentDashboard() {
   const auth = getAuthState();
-  const store = getStore();
-  const student = auth ? store.students.find(s => s.userId === auth.userId) : null;
-  const studentId = getStudentPaymentId();
 
-  const { data: sessions = [], isLoading: sessionsLoading } = useGetSessionsForStudent(studentId);
-  const { data: materials = [], isLoading: materialsLoading } = useGetMaterialsForStudent(studentId);
-  const { data: attendanceRecords = [] } = useGetAttendanceForStudent(studentId);
-  const { data: summary, isLoading: summaryLoading } = useGetAttendanceSummary(studentId);
-
-  if (!student) {
+  if (!auth) {
     return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Please log in to view your dashboard.</p>
-          </CardContent>
-        </Card>
+      <div className="p-6 text-center text-muted-foreground">
+        Please log in to view your dashboard.
       </div>
     );
   }
 
-  if (student.status === 'pending') {
-    return (
-      <div className="p-6">
-        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
-          <CardContent className="py-12 text-center">
-            <div className="text-4xl mb-4">⏳</div>
-            <h2 className="text-xl font-bold mb-2">Application Under Review</h2>
-            <p className="text-muted-foreground">
-              Your registration is pending admin approval. You'll be notified once approved.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (student.status === 'rejected') {
-    return (
-      <div className="p-6">
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
-          <CardContent className="py-12 text-center">
-            <div className="text-4xl mb-4">❌</div>
-            <h2 className="text-xl font-bold mb-2">Application Not Approved</h2>
-            <p className="text-muted-foreground">
-              Your registration was not approved. Please contact support for more information.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const getAttendanceForSession = (sessionId: bigint) => {
-    return attendanceRecords.find(a => a.sessionId === sessionId);
-  };
+  const { sessions, materials } = getStudentData(auth.email || '', auth.userId || '');
+  const now = new Date();
 
   const upcomingSessions = sessions
-    .filter(s => new Date(`${s.date}T${s.time}`) >= new Date())
-    .sort(
-      (a, b) =>
-        new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime()
-    )
+    .filter(s => new Date(`${s.date}T${s.time}`) >= now)
+    .sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime())
     .slice(0, 3);
 
   const recentMaterials = [...materials]
-    .sort((a, b) => Number(b.uploadedAt) - Number(a.uploadedAt))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 3);
 
-  const downloadFile = (fileData: Uint8Array, title: string) => {
-    const blob = new Blob([new Uint8Array(fileData.buffer as ArrayBuffer)]);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = title;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-primary-foreground">
-        <h1 className="text-2xl font-bold mb-1">Welcome back, {student.name}! 👋</h1>
-        <p className="opacity-90">Here's your learning overview</p>
-        {student.accessCode && (
-          <div className="mt-3 inline-flex items-center gap-2 bg-white/20 rounded-lg px-3 py-1.5 text-sm">
-            <span className="font-mono font-bold">{student.accessCode}</span>
-          </div>
-        )}
+      <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 mb-6 text-primary-foreground">
+        <h1 className="text-2xl font-bold mb-1">Welcome back, {auth.name || 'Student'}! 👋</h1>
+        <p className="text-primary-foreground/80 text-sm">
+          Here's an overview of your learning journey.
+        </p>
       </div>
 
-      {/* Attendance Summary Stats */}
-      <div>
-        <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <ClipboardList className="h-5 w-5" />
-          My Attendance Summary
-        </h2>
-        {summaryLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading...
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-4">
-            <Card className="text-center">
-              <CardContent className="pt-6 pb-4">
-                <div className="text-3xl font-bold text-foreground">
-                  {summary ? summary.totalSessions.toString() : '0'}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">Total Sessions</div>
-              </CardContent>
-            </Card>
-            <Card className="text-center border-green-200">
-              <CardContent className="pt-6 pb-4">
-                <div className="text-3xl font-bold text-green-600">
-                  {summary ? summary.presentCount.toString() : '0'}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">Present</div>
-              </CardContent>
-            </Card>
-            <Card className="text-center border-red-200">
-              <CardContent className="pt-6 pb-4">
-                <div className="text-3xl font-bold text-red-500">
-                  {summary ? summary.absentCount.toString() : '0'}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">Absent</div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <Calendar className="w-6 h-6 text-primary mx-auto mb-1" />
+          <p className="text-2xl font-bold text-foreground">{sessions.length}</p>
+          <p className="text-xs text-muted-foreground">Total Classes</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <Clock className="w-6 h-6 text-blue-500 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-foreground">{upcomingSessions.length}</p>
+          <p className="text-xs text-muted-foreground">Upcoming</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <FileText className="w-6 h-6 text-green-500 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-foreground">{materials.length}</p>
+          <p className="text-xs text-muted-foreground">Materials</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 text-center">
+          <BookOpen className="w-6 h-6 text-purple-500 mx-auto mb-1" />
+          <p className="text-2xl font-bold text-foreground">
+            {sessions.filter(s => new Date(`${s.date}T${s.time}`) < now).length}
+          </p>
+          <p className="text-xs text-muted-foreground">Completed</p>
+        </div>
       </div>
 
-      {/* My Sessions */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Video className="h-5 w-5" />
-            My Sessions
-          </h2>
-          <Link to="/student/my-sessions">
-            <Button variant="outline" size="sm">
-              View All
-            </Button>
-          </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Upcoming Classes */}
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" /> Upcoming Classes
+            </h2>
+            <Link to="/student/my-sessions" className="text-xs text-primary hover:underline flex items-center gap-1">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          {upcomingSessions.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <Calendar className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No upcoming classes</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {upcomingSessions.map(session => (
+                <div key={session.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {session.topic || 'Class'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(session.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at {session.time} · {session.durationHours}h
+                    </p>
+                  </div>
+                  {session.meetLink && (
+                    <a
+                      href={session.meetLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      <Video className="w-3 h-3" /> Join
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {sessionsLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading sessions...
+        {/* Recent Materials */}
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" /> Recent Materials
+            </h2>
+            <Link to="/student/my-materials" className="text-xs text-primary hover:underline flex items-center gap-1">
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
-        ) : !studentId ? (
-          <Card>
-            <CardContent className="py-6 text-center text-muted-foreground text-sm">
-              No access code linked. Contact your tutor.
-            </CardContent>
-          </Card>
-        ) : upcomingSessions.length === 0 ? (
-          <Card>
-            <CardContent className="py-6 text-center text-muted-foreground text-sm">
-              No upcoming sessions scheduled.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {upcomingSessions.map(session => {
-              const attendance = getAttendanceForSession(session.id);
-              return (
-                <Card key={session.id.toString()}>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="font-medium">{session.topic ?? 'Session'}</div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {session.date}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            {session.time}
-                          </span>
-                          <span>{session.durationHours.toString()}h</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {attendance ? (
-                          attendance.status === AttendanceStatus.present ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-200">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Present
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Absent
-                            </Badge>
-                          )
-                        ) : null}
-                        <a href={session.meetLink} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm" className="gap-1">
-                            <Video className="h-3.5 w-3.5" />
-                            Join
-                          </Button>
-                        </a>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
-      {/* My Materials */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            My Materials
-          </h2>
-          <Link to="/student/my-materials">
-            <Button variant="outline" size="sm">
-              View All
-            </Button>
-          </Link>
-        </div>
-
-        {materialsLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading materials...
-          </div>
-        ) : !studentId ? (
-          <Card>
-            <CardContent className="py-6 text-center text-muted-foreground text-sm">
-              No access code linked. Contact your tutor.
-            </CardContent>
-          </Card>
-        ) : recentMaterials.length === 0 ? (
-          <Card>
-            <CardContent className="py-6 text-center text-muted-foreground text-sm">
-              No materials assigned yet.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {recentMaterials.map(material => (
-              <Card key={material.id.toString()}>
-                <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="font-medium text-sm">{material.title}</div>
-                    {material.fileLink ? (
-                      <Badge variant="outline" className="gap-1 text-xs shrink-0">
-                        <LinkIcon className="h-2.5 w-2.5" />
-                        Link
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="gap-1 text-xs shrink-0">
-                        <Download className="h-2.5 w-2.5" />
-                        File
-                      </Badge>
+          {recentMaterials.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No materials yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentMaterials.map(material => (
+                <div key={material.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{material.title}</p>
+                    {material.relatedCourse && (
+                      <p className="text-xs text-muted-foreground">{material.relatedCourse}</p>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground mb-3">{material.relatedCourse}</div>
-                  {material.fileLink ? (
-                    <a href={material.fileLink} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline" className="w-full gap-1">
-                        <LinkIcon className="h-3.5 w-3.5" />
-                        View
-                      </Button>
-                    </a>
-                  ) : material.fileData ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full gap-1"
-                      onClick={() => downloadFile(material.fileData!, material.title)}
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Download
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  <a
+                    href={material.fileLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-xs text-primary hover:underline"
+                  >
+                    View
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

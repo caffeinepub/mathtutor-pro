@@ -1,324 +1,365 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import {
-  getStudents,
-  updateStudent,
-  generateNextAccessCode,
-  Student,
-} from '../../lib/store';
-import {
-  CheckCircle,
-  XCircle,
-  Search,
-  User,
-  Mail,
-  Phone,
-  BookOpen,
-  Copy,
-  Check,
-} from 'lucide-react';
-import { toast } from 'sonner';
+import { useActor } from '../../hooks/useActor';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CheckCircle, XCircle, Clock, Copy, Check, RefreshCw, User } from 'lucide-react';
+
+interface StudentRecord {
+  id: string;
+  paymentId: number;
+  name: string;
+  email: string;
+  phone: string;
+  courseName: string;
+  sessionType: string;
+  hours: number;
+  totalAmount: number;
+  upiTransactionId: string;
+  status: 'pending' | 'active' | 'rejected';
+  accessCode?: string;
+  uniqueCode?: string;
+}
+
+function generateUniqueCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'RE-';
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 
 export default function AdminStudents() {
-  const [students, setStudents] = useState<Student[]>(() => getStudents());
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [approvedCode, setApprovedCode] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState<{ [key: string]: string }>({});
+  const [showRejectInput, setShowRejectInput] = useState<{ [key: string]: boolean }>({});
 
-  const refresh = () => setStudents(getStudents());
-
-  const filtered = students.filter((s) => {
-    const matchSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-    return matchSearch && matchStatus;
+  // Fetch all payments from backend
+  const { data: payments = [], isLoading, refetch } = useQuery({
+    queryKey: ['allPayments'],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllPayments();
+    },
+    enabled: !!actor,
   });
 
-  const handleApprove = (student: Student) => {
-    const code = generateNextAccessCode();
-    updateStudent(student.id, { status: 'approved', accessCode: code });
-    setApprovedCode(code);
-    setSelectedStudent({ ...student, status: 'approved', accessCode: code });
-    refresh();
-    toast.success(`${student.name} approved! Access code: ${code}`);
-  };
-
-  const handleReject = (student: Student) => {
-    updateStudent(student.id, { status: 'rejected' });
-    refresh();
-    toast.error(`${student.name}'s registration rejected.`);
-    if (selectedStudent?.id === student.id) {
-      setSelectedStudent({ ...student, status: 'rejected' });
+  // Also get localStorage students as fallback
+  const getLocalStudents = (): StudentRecord[] => {
+    try {
+      const raw = localStorage.getItem('rajats_equation_store');
+      if (!raw) return [];
+      const store = JSON.parse(raw);
+      return (store.students || []).map((s: any) => ({
+        id: s.id,
+        paymentId: parseInt(s.id) || 0,
+        name: s.name,
+        email: s.email,
+        phone: s.phone || '',
+        courseName: s.courseName || s.course || '',
+        sessionType: s.sessionType || '',
+        hours: s.hours || 0,
+        totalAmount: s.totalAmount || 0,
+        upiTransactionId: s.upiTransactionId || '',
+        status: s.status || 'pending',
+        accessCode: s.accessCode,
+        uniqueCode: s.uniqueCode || s.accessCode,
+      }));
+    } catch {
+      return [];
     }
   };
 
-  const copyCode = (code: string) => {
+  // Merge backend payments with localStorage
+  const allStudents: StudentRecord[] = React.useMemo(() => {
+    const backendStudents: StudentRecord[] = payments.map(p => ({
+      id: String(p.id),
+      paymentId: Number(p.id),
+      name: p.fullName,
+      email: p.email,
+      phone: p.phone,
+      courseName: p.courseName,
+      sessionType: p.sessionType,
+      hours: Number(p.hours),
+      totalAmount: Number(p.totalAmount),
+      upiTransactionId: p.upiTransactionId,
+      status: p.status.__kind__ === 'approved' ? 'active' : p.status.__kind__ === 'rejected' ? 'rejected' : 'pending',
+      accessCode: p.accessCode ?? undefined,
+      uniqueCode: p.uniqueCode ?? undefined,
+    }));
+
+    const localStudents = getLocalStudents();
+
+    // Merge: backend takes priority, add local-only ones
+    const merged = [...backendStudents];
+    for (const ls of localStudents) {
+      if (!merged.find(s => s.email === ls.email)) {
+        merged.push(ls);
+      }
+    }
+    return merged;
+  }, [payments]);
+
+  const approveMutation = useMutation({
+    mutationFn: async ({ paymentId, uniqueCode }: { paymentId: number; uniqueCode: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      const result = await actor.approveUpiPayment(BigInt(paymentId), uniqueCode);
+      return result;
+    },
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['allPayments'] });
+      // Also update localStorage
+      updateLocalStudentStatus(variables.paymentId, 'active', variables.uniqueCode);
+      setActionSuccess(`Student approved! Unique Code: ${variables.uniqueCode}`);
+      setTimeout(() => setActionSuccess(null), 5000);
+    },
+    onError: (err: any) => {
+      setActionError(String(err?.message || 'Failed to approve student'));
+      setTimeout(() => setActionError(null), 5000);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ paymentId, note }: { paymentId: number; note?: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      await actor.rejectUpiPayment(BigInt(paymentId), note || null);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['allPayments'] });
+      updateLocalStudentStatus(variables.paymentId, 'rejected');
+      setActionSuccess('Student rejected.');
+      setTimeout(() => setActionSuccess(null), 3000);
+    },
+    onError: (err: any) => {
+      setActionError(String(err?.message || 'Failed to reject student'));
+      setTimeout(() => setActionError(null), 5000);
+    },
+  });
+
+  function updateLocalStudentStatus(paymentId: number, status: string, uniqueCode?: string) {
+    try {
+      const raw = localStorage.getItem('rajats_equation_store');
+      if (!raw) return;
+      const store = JSON.parse(raw);
+      const students = store.students || [];
+      const idx = students.findIndex((s: any) => s.id === String(paymentId) || s.paymentId === paymentId);
+      if (idx !== -1) {
+        students[idx].status = status;
+        if (uniqueCode) {
+          students[idx].uniqueCode = uniqueCode;
+          students[idx].accessCode = uniqueCode;
+        }
+        store.students = students;
+        localStorage.setItem('rajats_equation_store', JSON.stringify(store));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleApprove(student: StudentRecord) {
+    const code = generateUniqueCode();
+    approveMutation.mutate({ paymentId: student.paymentId, uniqueCode: code });
+  }
+
+  function handleReject(student: StudentRecord) {
+    const note = rejectNote[student.id] || '';
+    rejectMutation.mutate({ paymentId: student.paymentId, note });
+    setShowRejectInput(prev => ({ ...prev, [student.id]: false }));
+  }
+
+  function copyCode(code: string, id: string) {
     navigator.clipboard.writeText(code).then(() => {
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
-      toast.success('Access code copied!');
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
     });
+  }
+
+  const statusBadge = (status: string) => {
+    if (status === 'active') return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+        <CheckCircle className="w-3 h-3" /> ACTIVE
+      </span>
+    );
+    if (status === 'rejected') return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <XCircle className="w-3 h-3" /> REJECTED
+      </span>
+    );
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+        <Clock className="w-3 h-3" /> PENDING
+      </span>
+    );
   };
 
-  const statusCounts = {
-    all: students.length,
-    pending: students.filter((s) => s.status === 'pending').length,
-    approved: students.filter((s) => s.status === 'approved').length,
-    rejected: students.filter((s) => s.status === 'rejected').length,
-  };
-
-  const getStatusBadge = (status: Student['status']) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">Pending</Badge>;
-      case 'approved':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">Rejected</Badge>;
-    }
-  };
+  const pending = allStudents.filter(s => s.status === 'pending');
+  const active = allStudents.filter(s => s.status === 'active');
+  const rejected = allStudents.filter(s => s.status === 'rejected');
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Student Management</h1>
-        <p className="text-slate-500 mt-1">Approve or reject student registrations and manage access codes.</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Students Management</h1>
+          <p className="text-muted-foreground text-sm mt-1">Manage student registrations and approvals</p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm hover:bg-muted transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {(['all', 'pending', 'approved', 'rejected'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`p-4 rounded-xl border text-left transition-all ${
-              statusFilter === s
-                ? 'bg-sky-600 text-white border-sky-600'
-                : 'bg-white text-slate-700 border-slate-200 hover:border-sky-300'
-            }`}
-          >
-            <div className="text-2xl font-bold">{statusCounts[s]}</div>
-            <div className="text-sm capitalize mt-1 opacity-80">{s === 'all' ? 'Total Students' : `${s}`}</div>
-          </button>
-        ))}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-sm text-muted-foreground">Pending</p>
+          <p className="text-2xl font-bold text-yellow-600">{pending.length}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-sm text-muted-foreground">Active</p>
+          <p className="text-2xl font-bold text-green-600">{active.length}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-sm text-muted-foreground">Rejected</p>
+          <p className="text-2xl font-bold text-red-600">{rejected.length}</p>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or email..."
-          className="pl-10 h-11 border-slate-200"
-        />
-      </div>
+      {/* Alerts */}
+      {actionError && (
+        <div className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-4 py-3 text-sm">
+          {actionError}
+        </div>
+      )}
+      {actionSuccess && (
+        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400 rounded-lg px-4 py-3 text-sm">
+          {actionSuccess}
+        </div>
+      )}
 
-      {/* Student List */}
-      <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <User size={48} className="mx-auto mb-3 opacity-30" />
-            <p className="text-lg">No students found</p>
-          </div>
-        ) : (
-          filtered.map((student) => (
-            <div
-              key={student.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center gap-4 hover:border-sky-300 transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-slate-800">{student.name}</span>
-                  {getStatusBadge(student.status)}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
-                  <span className="flex items-center gap-1"><Mail size={13} />{student.email}</span>
-                  <span className="flex items-center gap-1"><Phone size={13} />{student.phone}</span>
-                  <span className="flex items-center gap-1"><BookOpen size={13} />{student.course}</span>
-                  <span className="capitalize">{student.sessionType}</span>
-                </div>
-                {student.status === 'approved' && student.accessCode && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Access Code:</span>
-                    <span className="font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded text-sm">
-                      {student.accessCode}
-                    </span>
-                    <button
-                      onClick={() => copyCode(student.accessCode)}
-                      className="text-slate-400 hover:text-sky-600 transition-colors"
-                      title="Copy access code"
-                    >
-                      <Copy size={14} />
-                    </button>
+      {isLoading ? (
+        <div className="text-center py-12 text-muted-foreground">Loading students...</div>
+      ) : allStudents.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <User className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p>No students registered yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {allStudents.map(student => (
+            <div key={student.id} className="bg-card border border-border rounded-xl p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-foreground">{student.name}</h3>
+                    {statusBadge(student.status)}
                   </div>
-                )}
-              </div>
+                  <p className="text-sm text-muted-foreground">{student.email} · {student.phone}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {student.courseName} · {student.sessionType} · {student.hours}h · ₹{student.totalAmount}
+                  </p>
+                  {student.upiTransactionId && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      UPI Txn: <span className="font-mono">{student.upiTransactionId}</span>
+                    </p>
+                  )}
 
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setSelectedStudent(student); setApprovedCode(null); setCopiedCode(false); }}
-                  className="border-slate-200 text-slate-600"
-                >
-                  View Details
-                </Button>
-                {student.status === 'pending' && (
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={() => handleApprove(student)}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                  {/* Show unique code for active students */}
+                  {student.status === 'active' && student.uniqueCode && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Unique Code:</span>
+                      <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded border border-border text-foreground">
+                        {student.uniqueCode}
+                      </code>
+                      <button
+                        onClick={() => copyCode(student.uniqueCode!, student.id)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        title="Copy code"
+                      >
+                        {copiedId === student.id ? (
+                          <Check className="w-3.5 h-3.5 text-green-500" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2 shrink-0">
+                  {student.status === 'pending' && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(student)}
+                        disabled={approveMutation.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {approveMutation.isPending ? 'Approving...' : 'Approve & Generate Code'}
+                      </button>
+
+                      {showRejectInput[student.id] ? (
+                        <div className="flex flex-col gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="Rejection reason (optional)"
+                            value={rejectNote[student.id] || ''}
+                            onChange={e => setRejectNote(prev => ({ ...prev, [student.id]: e.target.value }))}
+                            className="px-2 py-1.5 text-xs border border-border rounded-lg bg-background text-foreground"
+                          />
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleReject(student)}
+                              disabled={rejectMutation.isPending}
+                              className="flex-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                              Confirm Reject
+                            </button>
+                            <button
+                              onClick={() => setShowRejectInput(prev => ({ ...prev, [student.id]: false }))}
+                              className="px-2 py-1.5 border border-border rounded-lg text-xs hover:bg-muted transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowRejectInput(prev => ({ ...prev, [student.id]: true }))}
+                          className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {student.status === 'active' && (
+                    <button
+                      onClick={() => {
+                        if (confirm('Revoke this student\'s access?')) {
+                          rejectMutation.mutate({ paymentId: student.paymentId, note: 'Access revoked by admin' });
+                        }
+                      }}
+                      disabled={rejectMutation.isPending}
+                      className="px-3 py-1.5 border border-border text-muted-foreground rounded-lg text-sm hover:bg-muted transition-colors disabled:opacity-50"
                     >
-                      <CheckCircle size={15} className="mr-1" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleReject(student)}
-                    >
-                      <XCircle size={15} className="mr-1" />
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {student.status === 'approved' && (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleReject(student)}
-                  >
-                    Revoke
-                  </Button>
-                )}
+                      Revoke Access
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Student Detail Dialog */}
-      <Dialog open={!!selectedStudent} onOpenChange={(open) => { if (!open) { setSelectedStudent(null); setApprovedCode(null); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Student Details</DialogTitle>
-            <DialogDescription>View and manage student registration</DialogDescription>
-          </DialogHeader>
-          {selectedStudent && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Name</p>
-                  <p className="font-semibold text-slate-800">{selectedStudent.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Status</p>
-                  {getStatusBadge(selectedStudent.status)}
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Email</p>
-                  <p className="text-slate-700">{selectedStudent.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Phone</p>
-                  <p className="text-slate-700">{selectedStudent.phone}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Course</p>
-                  <p className="text-slate-700">{selectedStudent.course}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Session Type</p>
-                  <p className="text-slate-700 capitalize">{selectedStudent.sessionType}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">Registered</p>
-                  <p className="text-slate-700">{new Date(selectedStudent.registeredAt).toLocaleDateString()}</p>
-                </div>
-              </div>
-
-              {/* Access Code Display */}
-              {selectedStudent.status === 'approved' && selectedStudent.accessCode && (
-                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 text-center">
-                  <p className="text-sm text-green-700 font-medium mb-2">✅ Student Access Code</p>
-                  <p className="text-3xl font-bold font-mono text-green-800 tracking-widest mb-3">
-                    {selectedStudent.accessCode}
-                  </p>
-                  <Button
-                    onClick={() => copyCode(selectedStudent.accessCode)}
-                    variant="outline"
-                    className="border-green-400 text-green-700 hover:bg-green-100"
-                  >
-                    {copiedCode ? (
-                      <><Check size={15} className="mr-1" /> Copied!</>
-                    ) : (
-                      <><Copy size={15} className="mr-1" /> Copy Code</>
-                    )}
-                  </Button>
-                  <p className="text-xs text-green-600 mt-2">
-                    Share this code with the student. They use it to log in.
-                  </p>
-                </div>
-              )}
-
-              {/* Newly approved code highlight */}
-              {approvedCode && selectedStudent.status === 'approved' && (
-                <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-center">
-                  <p className="text-sm text-sky-700">
-                    🎉 Access code generated and student approved!
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                {selectedStudent.status === 'pending' && (
-                  <>
-                    <Button
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => handleApprove(selectedStudent)}
-                    >
-                      <CheckCircle size={16} className="mr-1" />
-                      Approve & Generate Code
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="flex-1"
-                      onClick={() => handleReject(selectedStudent)}
-                    >
-                      <XCircle size={16} className="mr-1" />
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {selectedStudent.status === 'approved' && (
-                  <Button
-                    variant="destructive"
-                    className="flex-1"
-                    onClick={() => handleReject(selectedStudent)}
-                  >
-                    Revoke Approval
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

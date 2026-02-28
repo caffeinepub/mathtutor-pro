@@ -46,6 +46,7 @@ export const UpiPayment = IDL.Record({
   'fullName' : IDL.Text,
   'pricePerHour' : IDL.Nat,
   'email' : IDL.Text,
+  'uniqueCode' : IDL.Opt(IDL.Text),
   'totalAmount' : IDL.Nat,
   'phone' : IDL.Text,
   'courseName' : IDL.Text,
@@ -57,7 +58,7 @@ export const AttendanceStatus = IDL.Variant({
 export const Attendance = IDL.Record({
   'id' : IDL.Nat,
   'status' : AttendanceStatus,
-  'studentId' : IDL.Nat,
+  'studentPrincipal' : IDL.Principal,
   'markedAt' : IDL.Nat,
   'sessionId' : IDL.Nat,
 });
@@ -70,12 +71,13 @@ export const UserProfile = IDL.Record({
   'name' : IDL.Text,
   'accessCode' : IDL.Opt(IDL.Text),
   'email' : IDL.Text,
+  'uniqueCode' : IDL.Opt(IDL.Text),
   'phone' : IDL.Text,
 });
 export const Material = IDL.Record({
   'id' : IDL.Nat,
   'title' : IDL.Text,
-  'studentId' : IDL.Nat,
+  'studentPrincipal' : IDL.Principal,
   'fileData' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   'description' : IDL.Opt(IDL.Text),
   'fileLink' : IDL.Opt(IDL.Text),
@@ -85,12 +87,12 @@ export const Material = IDL.Record({
 export const Session = IDL.Record({
   'id' : IDL.Nat,
   'topic' : IDL.Opt(IDL.Text),
-  'studentId' : IDL.Nat,
   'meetLink' : IDL.Text,
   'date' : IDL.Text,
   'createdAt' : IDL.Nat,
   'time' : IDL.Text,
   'durationHours' : IDL.Nat,
+  'studentPrincipal' : IDL.Principal,
 });
 export const StripeSessionStatus = IDL.Variant({
   'completed' : IDL.Record({
@@ -161,7 +163,7 @@ export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addMaterial' : IDL.Func(
       [
-        IDL.Nat,
+        IDL.Principal,
         IDL.Text,
         IDL.Opt(IDL.Text),
         IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -173,16 +175,26 @@ export const idlService = IDL.Service({
     ),
   'addProduct' : IDL.Func([ShoppingItem], [], []),
   'addSession' : IDL.Func(
-      [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
+      [IDL.Principal, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
       [IDL.Nat],
       [],
     ),
+  'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
   'approveUpiPayment' : IDL.Func(
-      [IDL.Nat],
-      [IDL.Opt(IDL.Record({ 'accessCode' : IDL.Text, 'fullName' : IDL.Text }))],
+      [IDL.Nat, IDL.Text],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'accessCode' : IDL.Text,
+            'fullName' : IDL.Text,
+            'uniqueCode' : IDL.Text,
+          })
+        ),
+      ],
       [],
     ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'authenticateStudent' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
       [IDL.Text],
@@ -191,6 +203,7 @@ export const idlService = IDL.Service({
   'deleteMaterial' : IDL.Func([IDL.Nat], [], []),
   'deleteProduct' : IDL.Func([IDL.Text], [], []),
   'deleteSession' : IDL.Func([IDL.Nat], [], []),
+  'findByEmailQuery' : IDL.Func([IDL.Text], [IDL.Opt(UpiPayment)], ['query']),
   'findUpiPaymentByAccessCode' : IDL.Func(
       [IDL.Text],
       [IDL.Opt(UpiPayment)],
@@ -203,21 +216,29 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getAttendanceForStudent' : IDL.Func(
-      [IDL.Nat],
+      [IDL.Principal],
       [IDL.Vec(Attendance)],
       ['query'],
     ),
-  'getAttendanceSummary' : IDL.Func([IDL.Nat], [AttendanceSummary], ['query']),
+  'getAttendanceSummary' : IDL.Func(
+      [IDL.Principal],
+      [AttendanceSummary],
+      ['query'],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getMaterialsForStudent' : IDL.Func(
-      [IDL.Nat],
+      [IDL.Principal],
       [IDL.Vec(Material)],
       ['query'],
     ),
   'getPendingPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
   'getProducts' : IDL.Func([], [IDL.Vec(ShoppingItem)], ['query']),
-  'getSessionsForStudent' : IDL.Func([IDL.Nat], [IDL.Vec(Session)], ['query']),
+  'getSessionsForStudent' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Vec(Session)],
+      ['query'],
+    ),
   'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
   'getUpiPaymentStatus' : IDL.Func(
       [IDL.Nat],
@@ -234,7 +255,7 @@ export const idlService = IDL.Service({
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
   'markAttendance' : IDL.Func(
-      [IDL.Nat, IDL.Nat, AttendanceStatus],
+      [IDL.Principal, IDL.Nat, AttendanceStatus],
       [IDL.Nat],
       [],
     ),
@@ -308,6 +329,7 @@ export const idlFactory = ({ IDL }) => {
     'fullName' : IDL.Text,
     'pricePerHour' : IDL.Nat,
     'email' : IDL.Text,
+    'uniqueCode' : IDL.Opt(IDL.Text),
     'totalAmount' : IDL.Nat,
     'phone' : IDL.Text,
     'courseName' : IDL.Text,
@@ -319,7 +341,7 @@ export const idlFactory = ({ IDL }) => {
   const Attendance = IDL.Record({
     'id' : IDL.Nat,
     'status' : AttendanceStatus,
-    'studentId' : IDL.Nat,
+    'studentPrincipal' : IDL.Principal,
     'markedAt' : IDL.Nat,
     'sessionId' : IDL.Nat,
   });
@@ -332,12 +354,13 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'accessCode' : IDL.Opt(IDL.Text),
     'email' : IDL.Text,
+    'uniqueCode' : IDL.Opt(IDL.Text),
     'phone' : IDL.Text,
   });
   const Material = IDL.Record({
     'id' : IDL.Nat,
     'title' : IDL.Text,
-    'studentId' : IDL.Nat,
+    'studentPrincipal' : IDL.Principal,
     'fileData' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'description' : IDL.Opt(IDL.Text),
     'fileLink' : IDL.Opt(IDL.Text),
@@ -347,12 +370,12 @@ export const idlFactory = ({ IDL }) => {
   const Session = IDL.Record({
     'id' : IDL.Nat,
     'topic' : IDL.Opt(IDL.Text),
-    'studentId' : IDL.Nat,
     'meetLink' : IDL.Text,
     'date' : IDL.Text,
     'createdAt' : IDL.Nat,
     'time' : IDL.Text,
     'durationHours' : IDL.Nat,
+    'studentPrincipal' : IDL.Principal,
   });
   const StripeSessionStatus = IDL.Variant({
     'completed' : IDL.Record({
@@ -420,7 +443,7 @@ export const idlFactory = ({ IDL }) => {
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addMaterial' : IDL.Func(
         [
-          IDL.Nat,
+          IDL.Principal,
           IDL.Text,
           IDL.Opt(IDL.Text),
           IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -432,20 +455,37 @@ export const idlFactory = ({ IDL }) => {
       ),
     'addProduct' : IDL.Func([ShoppingItem], [], []),
     'addSession' : IDL.Func(
-        [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
+        [
+          IDL.Principal,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+        ],
         [IDL.Nat],
         [],
       ),
+    'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
     'approveUpiPayment' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Nat, IDL.Text],
         [
           IDL.Opt(
-            IDL.Record({ 'accessCode' : IDL.Text, 'fullName' : IDL.Text })
+            IDL.Record({
+              'accessCode' : IDL.Text,
+              'fullName' : IDL.Text,
+              'uniqueCode' : IDL.Text,
+            })
           ),
         ],
         [],
       ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'authenticateStudent' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Bool],
+        ['query'],
+      ),
     'createCheckoutSession' : IDL.Func(
         [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
         [IDL.Text],
@@ -454,6 +494,7 @@ export const idlFactory = ({ IDL }) => {
     'deleteMaterial' : IDL.Func([IDL.Nat], [], []),
     'deleteProduct' : IDL.Func([IDL.Text], [], []),
     'deleteSession' : IDL.Func([IDL.Nat], [], []),
+    'findByEmailQuery' : IDL.Func([IDL.Text], [IDL.Opt(UpiPayment)], ['query']),
     'findUpiPaymentByAccessCode' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(UpiPayment)],
@@ -466,26 +507,26 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getAttendanceForStudent' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Principal],
         [IDL.Vec(Attendance)],
         ['query'],
       ),
     'getAttendanceSummary' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Principal],
         [AttendanceSummary],
         ['query'],
       ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getMaterialsForStudent' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Principal],
         [IDL.Vec(Material)],
         ['query'],
       ),
     'getPendingPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
     'getProducts' : IDL.Func([], [IDL.Vec(ShoppingItem)], ['query']),
     'getSessionsForStudent' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Principal],
         [IDL.Vec(Session)],
         ['query'],
       ),
@@ -505,7 +546,7 @@ export const idlFactory = ({ IDL }) => {
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
     'markAttendance' : IDL.Func(
-        [IDL.Nat, IDL.Nat, AttendanceStatus],
+        [IDL.Principal, IDL.Nat, AttendanceStatus],
         [IDL.Nat],
         [],
       ),

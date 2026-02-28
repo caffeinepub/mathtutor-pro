@@ -16,7 +16,7 @@ export type ApprovalStatus = { 'pending' : null } |
 export interface Attendance {
   'id' : bigint,
   'status' : AttendanceStatus,
-  'studentId' : bigint,
+  'studentPrincipal' : Principal,
   'markedAt' : bigint,
   'sessionId' : bigint,
 }
@@ -30,7 +30,7 @@ export interface AttendanceSummary {
 export interface Material {
   'id' : bigint,
   'title' : string,
-  'studentId' : bigint,
+  'studentPrincipal' : Principal,
   'fileData' : [] | [Uint8Array],
   'description' : [] | [string],
   'fileLink' : [] | [string],
@@ -40,12 +40,12 @@ export interface Material {
 export interface Session {
   'id' : bigint,
   'topic' : [] | [string],
-  'studentId' : bigint,
   'meetLink' : string,
   'date' : string,
   'createdAt' : bigint,
   'time' : string,
   'durationHours' : bigint,
+  'studentPrincipal' : Principal,
 }
 export interface ShoppingItem {
   'productName' : string,
@@ -81,6 +81,7 @@ export interface UpiPayment {
   'fullName' : string,
   'pricePerHour' : bigint,
   'email' : string,
+  'uniqueCode' : [] | [string],
   'totalAmount' : bigint,
   'phone' : string,
   'courseName' : string,
@@ -96,6 +97,7 @@ export interface UserProfile {
   'name' : string,
   'accessCode' : [] | [string],
   'email' : string,
+  'uniqueCode' : [] | [string],
   'phone' : string,
 }
 export type UserRole = { 'admin' : null } |
@@ -136,19 +138,28 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addMaterial' : ActorMethod<
-    [bigint, string, [] | [string], [] | [Uint8Array], [] | [string], string],
+    [
+      Principal,
+      string,
+      [] | [string],
+      [] | [Uint8Array],
+      [] | [string],
+      string,
+    ],
     bigint
   >,
   'addProduct' : ActorMethod<[ShoppingItem], undefined>,
   'addSession' : ActorMethod<
-    [bigint, string, string, bigint, string, [] | [string]],
+    [Principal, string, string, bigint, string, [] | [string]],
     bigint
   >,
+  'adminLogin' : ActorMethod<[string, string], boolean>,
   'approveUpiPayment' : ActorMethod<
-    [bigint],
-    [] | [{ 'accessCode' : string, 'fullName' : string }]
+    [bigint, string],
+    [] | [{ 'accessCode' : string, 'fullName' : string, 'uniqueCode' : string }]
   >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'authenticateStudent' : ActorMethod<[string, string], boolean>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string
@@ -156,17 +167,18 @@ export interface _SERVICE {
   'deleteMaterial' : ActorMethod<[bigint], undefined>,
   'deleteProduct' : ActorMethod<[string], undefined>,
   'deleteSession' : ActorMethod<[bigint], undefined>,
+  'findByEmailQuery' : ActorMethod<[string], [] | [UpiPayment]>,
   'findUpiPaymentByAccessCode' : ActorMethod<[string], [] | [UpiPayment]>,
   'getAllPayments' : ActorMethod<[], Array<UpiPayment>>,
   'getAllUpiPaymentsByEmail' : ActorMethod<[string], Array<UpiPayment>>,
-  'getAttendanceForStudent' : ActorMethod<[bigint], Array<Attendance>>,
-  'getAttendanceSummary' : ActorMethod<[bigint], AttendanceSummary>,
+  'getAttendanceForStudent' : ActorMethod<[Principal], Array<Attendance>>,
+  'getAttendanceSummary' : ActorMethod<[Principal], AttendanceSummary>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getMaterialsForStudent' : ActorMethod<[bigint], Array<Material>>,
+  'getMaterialsForStudent' : ActorMethod<[Principal], Array<Material>>,
   'getPendingPayments' : ActorMethod<[], Array<UpiPayment>>,
   'getProducts' : ActorMethod<[], Array<ShoppingItem>>,
-  'getSessionsForStudent' : ActorMethod<[bigint], Array<Session>>,
+  'getSessionsForStudent' : ActorMethod<[Principal], Array<Session>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getUpiPaymentStatus' : ActorMethod<[bigint], [] | [UpiPaymentStatus]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
@@ -174,7 +186,7 @@ export interface _SERVICE {
   'isCallerApproved' : ActorMethod<[], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
-  'markAttendance' : ActorMethod<[bigint, bigint, AttendanceStatus], bigint>,
+  'markAttendance' : ActorMethod<[Principal, bigint, AttendanceStatus], bigint>,
   'rejectUpiPayment' : ActorMethod<[bigint, [] | [string]], undefined>,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,

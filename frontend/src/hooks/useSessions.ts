@@ -1,17 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { Session } from '../backend';
+import { Principal } from '@dfinity/principal';
 
-export function useGetSessionsForStudent(studentId: bigint | null) {
+export function useGetSessionsForStudent(studentPrincipal: Principal | null) {
   const { actor, isFetching } = useActor();
 
   return useQuery<Session[]>({
-    queryKey: ['sessions', studentId?.toString()],
+    queryKey: ['sessions', studentPrincipal?.toString()],
     queryFn: async () => {
-      if (!actor || studentId === null) return [];
-      return actor.getSessionsForStudent(studentId);
+      if (!actor || studentPrincipal === null) return [];
+      return actor.getSessionsForStudent(studentPrincipal);
     },
-    enabled: !!actor && !isFetching && studentId !== null,
+    enabled: !!actor && !isFetching && studentPrincipal !== null,
   });
 }
 
@@ -21,7 +22,7 @@ export function useAddSession() {
 
   return useMutation({
     mutationFn: async (params: {
-      studentId: bigint;
+      studentPrincipal: Principal;
       date: string;
       time: string;
       durationHours: bigint;
@@ -30,7 +31,7 @@ export function useAddSession() {
     }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.addSession(
-        params.studentId,
+        params.studentPrincipal,
         params.date,
         params.time,
         params.durationHours,
@@ -39,7 +40,7 @@ export function useAddSession() {
       );
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', variables.studentId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', variables.studentPrincipal.toString()] });
     },
   });
 }
@@ -49,12 +50,12 @@ export function useDeleteSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: { sessionId: bigint; studentId: bigint }) => {
+    mutationFn: async (params: { sessionId: bigint; studentPrincipal: Principal }) => {
       if (!actor) throw new Error('Actor not available');
       return actor.deleteSession(params.sessionId);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions', variables.studentId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', variables.studentPrincipal.toString()] });
     },
   });
 }

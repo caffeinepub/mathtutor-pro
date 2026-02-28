@@ -1,53 +1,18 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "A student management system on the Internet Computer with username/password authentication. Admin panel includes student approval, per-student session management (date, time, duration, Google Meet link, topic), per-student materials management (file upload or URL, title, description, related course), and attendance tracking (Present/Absent per student per session). Student dashboard shows My Sessions, My Materials, and My Attendance Summary. Data is strictly isolated per student.",
+  "summary": "MathTutor admin portal with student approval flow and class creation features. Admin login uses hardcoded credentials (admin@mathtutor.com / Admin@123).",
   "architectural_notes": [
-    "Data model: Student → Sessions → Attendance, Student → Materials; all data strictly isolated per student",
-    "Authentication: existing username/password system preserved; no changes to auth flow",
-    "Materials support both in-app file uploads (stored on Internet Computer) and external URL links",
-    "Students self-register and remain pending until admin approves; admin manages approvals"
+    "Hardcoded default admin account: email=admin@mathtutor.com, password=Admin@123"
   ],
   "known_issues": [],
-  "isFixRequest": false,
+  "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-add-a-manage-student-sessions-section-to-the-admin-panel-the-page-must-list-all-approved-enrolled-students-in-a-dropdown-for-selection-show-a-form-to-add-a-new-session-for-the-selected-student-fields-date-time-duration-in-hours-google-meet-link-session-topic-optional-display-a-table-of-existing-sessions-for-the-selected-student-with-delete-capability-use-large-clearly-labelled-buttons-keep-the-layout-clean-and-simple",
-      "title": "Add a 'Manage Student Sessions' section to the Admin Panel. The page must: list all approved/enrolled students in a dropdown for selection; show a form to add a new session for the selected student (fields: Date, Time, Duration in hours, Google Meet link, Session topic [optional]); display a table of existing sessions for the selected student with delete capability. Use large, clearly-labelled buttons. Keep the layout clean and simple.",
+      "id": "feature-update-the-frontend-login-page-so-that-when-the-admin-login-form-is-submitted-with-email-admin-mathtutor-com-and-password-admin-123-it-correctly-authenticates-against-the-backend-and-or-localstorage-fallback-using-these-exact-credentials-stores-the-admin-session-and-redirects-to-the-admin-dashboard-without-showing-invalid-credentials",
+      "title": "Update the frontend Login page so that when the admin login form is submitted with email 'admin@mathtutor.com' and password 'Admin@123', it correctly authenticates against the backend (and/or localStorage fallback) using these exact credentials, stores the admin session, and redirects to the admin dashboard without showing 'invalid credentials'.",
       "reqIds": [
-        "REQ-4"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-a-manage-student-materials-section-to-the-admin-panel-the-page-must-let-admin-select-an-approved-student-provide-a-form-with-fields-title-description-optional-file-upload-stored-in-canister-or-file-link-url-related-course-display-a-list-of-existing-materials-for-the-selected-student-with-delete-capability-support-both-file-upload-and-url-based-materials-in-the-same-form-radio-or-toggle-to-switch-mode-use-large-buttons-and-a-clean-layout",
-      "title": "Add a 'Manage Student Materials' section to the Admin Panel. The page must: let admin select an approved student; provide a form with fields: Title, Description (optional), File Upload (stored in-canister) or File Link (URL), Related Course; display a list of existing materials for the selected student with delete capability. Support both file upload and URL-based materials in the same form (radio or toggle to switch mode). Use large buttons and a clean layout.",
-      "reqIds": [
-        "REQ-5"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-an-attendance-management-section-to-the-admin-panel-the-page-must-let-admin-select-a-student-load-that-student-s-sessions-in-a-second-dropdown-let-admin-mark-attendance-as-present-or-absent-for-the-selected-session-display-a-table-showing-all-attendance-records-for-the-selected-student-session-date-topic-status-use-large-buttons-and-a-clean-layout",
-      "title": "Add an 'Attendance Management' section to the Admin Panel. The page must: let admin select a student; load that student's sessions in a second dropdown; let admin mark attendance as Present or Absent for the selected session; display a table showing all attendance records for the selected student (session date, topic, status). Use large buttons and a clean layout.",
-      "reqIds": [
-        "REQ-6"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-update-the-student-dashboard-to-include-three-sections-1-my-sessions-shows-each-session-s-date-time-google-meet-link-as-a-join-button-duration-topic-and-attendance-status-present-absent-not-marked-2-my-materials-shows-only-materials-assigned-to-this-student-with-title-related-course-and-a-view-download-button-for-each-3-my-attendance-summary-shows-total-sessions-present-count-and-absent-count-as-stat-cards-all-data-must-be-fetched-for-the-logged-in-student-s-id-only-use-clean-layout-and-large-buttons",
-      "title": "Update the Student Dashboard to include three sections: (1) My Sessions – shows each session's date, time, Google Meet link (as a Join button), duration, topic, and attendance status (Present/Absent/Not Marked); (2) My Materials – shows only materials assigned to this student with title, related course, and a view/download button for each; (3) My Attendance Summary – shows Total Sessions, Present Count, and Absent Count as stat cards. All data must be fetched for the logged-in student's ID only. Use clean layout and large buttons.",
-      "reqIds": [
-        "REQ-7"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-navigation-links-for-the-three-new-admin-sections-manage-student-sessions-manage-student-materials-attendance-management-to-the-adminlayout-sidebar-each-link-must-be-clearly-labelled-and-route-to-the-corresponding-admin-page-update-the-route-tree-to-include-these-new-admin-routes-with-the-same-admin-auth-guard-as-existing-admin-routes",
-      "title": "Add navigation links for the three new admin sections (Manage Student Sessions, Manage Student Materials, Attendance Management) to the AdminLayout sidebar. Each link must be clearly labelled and route to the corresponding admin page. Update the route tree to include these new admin routes with the same admin auth guard as existing admin routes.",
-      "reqIds": [
-        "REQ-8"
+        "REQ-2"
       ],
       "version": 1
     }
@@ -55,69 +20,15 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "Admin: Manage Student Sessions – add per-student sessions with date, time, duration, Google Meet link, optional topic",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-2",
-      "summary": "Admin: Manage Student Materials – add per-student materials with title, description, file upload or URL link, related course",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-3",
-      "summary": "Admin: Attendance Management – mark Present/Absent per student per session",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-4",
-      "summary": "Admin: Student Approval – review and approve/reject pending student registrations",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-5",
-      "summary": "Student Dashboard: My Sessions, My Materials, My Attendance Summary – strictly student-specific data isolation",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-6",
-      "summary": "Extend the backend data model to support student-specific sessions. Add a Session type with fields: id, studentId, date, time, durationHours, meetLink, topic (optional), and createdAt. Store sessions in a stable var map keyed by session ID. Expose functions: addSession(studentId, date, time, durationHours, meetLink, topic), getSessionsForStudent(studentId), deleteSession(sessionId). Only the admin may call addSession and deleteSession; any authenticated user may call getSessionsForStudent but results must be filtered to the caller's own studentId (or unrestricted for admin).",
+      "summary": "Update the backend admin authentication logic so that the hardcoded admin account uses the email 'admin@mathtutor.com' and password 'Admin@123'. The login check must match against these exact credentials and return a valid admin session/token on success.",
       "reqIds": [
         "REQ-1"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-7",
-      "summary": "Extend the backend data model to support student-specific materials. Add a Material type with fields: id, studentId, title, description (optional), fileData (Blob or Base64 for uploads), fileLink (URL, optional), relatedCourse, uploadedAt. Store materials in a stable var map keyed by material ID. Expose functions: addMaterial(studentId, title, description, fileData?, fileLink?, relatedCourse), getMaterialsForStudent(studentId), deleteMaterial(materialId). Admin-only mutations; student access is filtered to own studentId.",
-      "reqIds": [
-        "REQ-2"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-8",
-      "summary": "Extend the backend to support attendance tracking. Add an Attendance type with fields: id, studentId, sessionId, status (Present | Absent), markedAt. Store attendance records in a stable var map. Expose functions: markAttendance(studentId, sessionId, status), getAttendanceForStudent(studentId), getAttendanceSummary(studentId) returning {totalSessions, presentCount, absentCount}. Admin-only mutation; student may call getAttendanceForStudent and getAttendanceSummary for their own ID only.",
-      "reqIds": [
-        "REQ-3"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-14",
-      "summary": "Generate a migration file (backend/migration.mo) that preserves all existing stable state (users, students, courses, payments, notifications) and initialises the new stable vars for sessions, materials, and attendance as empty maps during canister upgrade.",
-      "reqIds": [
-        "REQ-9"
       ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "Rajat Math Academy",
+  "projectName": "MathTutor",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

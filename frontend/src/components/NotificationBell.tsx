@@ -1,14 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Bell } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getStore, saveStore, markNotificationRead, type Notification } from '../lib/store';
-import { Badge } from '@/components/ui/badge';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface NotificationBellProps {
   studentId: string;
@@ -16,105 +9,86 @@ interface NotificationBellProps {
 
 export default function NotificationBell({ studentId }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(() =>
-    getStore().notifications.filter(
-      (n) => !n.targetStudentId || n.targetStudentId === studentId
-    )
+  const store = getStore();
+
+  const notifications = store.notifications.filter(
+    (n) => !n.targetStudentId || n.targetStudentId === studentId
   );
 
-  const unreadCount = notifications.filter((n) => !n.readBy.includes(studentId)).length;
+  const unread = notifications.filter((n) => !n.readBy.includes(studentId));
 
-  const markAllRead = () => {
-    const store = getStore();
-    notifications.forEach((n) => {
-      if (!n.readBy.includes(studentId)) {
-        const idx = store.notifications.findIndex((sn) => sn.id === n.id);
-        if (idx >= 0 && !store.notifications[idx].readBy.includes(studentId)) {
-          store.notifications[idx].readBy.push(studentId);
-        }
-      }
-    });
-    saveStore(store);
-    setNotifications(
-      store.notifications.filter(
-        (n) => !n.targetStudentId || n.targetStudentId === studentId
-      )
-    );
+  const handleMarkRead = (notifId: string) => {
+    markNotificationRead(notifId, studentId);
   };
 
-  const handleOpen = (isOpen: boolean) => {
-    setOpen(isOpen);
-    if (isOpen) {
-      setNotifications(
-        getStore().notifications.filter(
-          (n) => !n.targetStudentId || n.targetStudentId === studentId
-        )
-      );
-    }
+  const handleMarkAllRead = () => {
+    const store2 = getStore();
+    store2.notifications = store2.notifications.map((n) => {
+      if (n.targetStudentId && n.targetStudentId !== studentId) return n;
+      if (n.readBy.includes(studentId)) return n;
+      return { ...n, readBy: [...n.readBy, studentId] };
+    });
+    saveStore(store2);
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 text-xs px-1 py-0 min-w-[18px] h-[18px] flex items-center justify-center"
-            >
-              {unreadCount}
-            </Badge>
+        <button className="relative p-1 rounded-lg hover:bg-muted transition-colors">
+          <Bell className="w-5 h-5 text-muted-foreground" />
+          {unread.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center font-bold">
+              {unread.length > 9 ? '9+' : unread.length}
+            </span>
           )}
-        </Button>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="font-semibold text-sm text-foreground">Notifications</h3>
-          {unreadCount > 0 && (
+          <span className="font-semibold text-sm text-foreground">Notifications</span>
+          {unread.length > 0 && (
             <button
-              onClick={markAllRead}
+              onClick={handleMarkAllRead}
               className="text-xs text-primary hover:underline"
             >
               Mark all read
             </button>
           )}
         </div>
-        <ScrollArea className="max-h-80">
+        <div className="max-h-80 overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               No notifications yet
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {notifications
-                .slice()
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((n) => {
-                  const isUnread = !n.readBy.includes(studentId);
-                  return (
-                    <div
-                      key={n.id}
-                      className={`px-4 py-3 ${isUnread ? 'bg-primary/5' : ''}`}
-                    >
-                      <div className="flex items-start gap-2">
-                        {isUnread && (
-                          <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
-                        )}
-                        <div className={isUnread ? '' : 'pl-4'}>
-                          <p className="text-sm font-medium text-foreground">{n.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(n.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
+            notifications
+              .slice()
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+              .map((n) => {
+                const isRead = n.readBy.includes(studentId);
+                return (
+                  <div
+                    key={n.id}
+                    className={`px-4 py-3 border-b border-border last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!isRead ? 'bg-primary/5' : ''}`}
+                    onClick={() => !isRead && handleMarkRead(n.id)}
+                  >
+                    <div className="flex items-start gap-2">
+                      {!isRead && (
+                        <span className="mt-1.5 w-2 h-2 rounded-full bg-primary shrink-0" />
+                      )}
+                      <div className={!isRead ? '' : 'pl-4'}>
+                        <p className="text-sm font-medium text-foreground">{n.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(n.createdAt).toLocaleDateString('en-IN')}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-            </div>
+                  </div>
+                );
+              })
           )}
-        </ScrollArea>
+        </div>
       </PopoverContent>
     </Popover>
   );

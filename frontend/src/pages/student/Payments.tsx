@@ -1,146 +1,127 @@
 import React, { useState } from 'react';
+import { CreditCard, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { getStore, getAuthState, type Payment } from '../../lib/store';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { IndianRupee, Receipt, TrendingUp, CreditCard } from 'lucide-react';
 import ReceiptModal from '../../components/ReceiptModal';
 
 export default function StudentPayments() {
   const auth = getAuthState();
   const store = getStore();
-
-  const student = store.students.find((s) => s.userId === auth.userId);
-  const payments = student
-    ? store.payments.filter((p) => p.studentId === student.id)
-    : [];
+  const student = auth ? store.students.find((s) => s.id === auth.userId || s.userId === auth.userId) : null;
 
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [receiptOpen, setReceiptOpen] = useState(false);
 
-  const totalPaid = payments
-    .filter((p) => p.status === 'completed')
-    .reduce((sum, p) => sum + p.amount, 0);
+  const payments = store.payments
+    .filter((p) => p.studentId === student?.id)
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
-  const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
-    if (status === 'completed') return 'default';
-    if (status === 'pending') return 'secondary';
-    return 'destructive';
+  const approvedPayments = payments.filter(
+    (p) => p.status === 'approved' || p.status === 'completed'
+  );
+  const pendingPayments = payments.filter((p) => p.status === 'pending');
+  const totalSpent = approvedPayments.reduce((sum, p) => {
+    const amt = p.amount ?? p.totalAmount ?? (p.hours * p.pricePerHour);
+    return sum + amt;
+  }, 0);
+
+  const statusIcon = (status: Payment['status']) => {
+    if (status === 'approved' || status === 'completed')
+      return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (status === 'rejected')
+      return <XCircle className="w-4 h-4 text-red-600" />;
+    return <Clock className="w-4 h-4 text-amber-600" />;
+  };
+
+  const statusLabel = (status: Payment['status']) => {
+    if (status === 'approved' || status === 'completed') return 'Approved';
+    if (status === 'rejected') return 'Rejected';
+    return 'Pending';
+  };
+
+  const statusClass = (status: Payment['status']) => {
+    if (status === 'approved' || status === 'completed') return 'bg-green-100 text-green-700';
+    if (status === 'rejected') return 'bg-red-100 text-red-700';
+    return 'bg-amber-100 text-amber-700';
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-2">Payment History</h1>
-      <p className="text-slate-500 mb-6">Track all your session payments.</p>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Payments</h1>
+        <p className="text-muted-foreground text-sm mt-1">Your payment history</p>
+      </div>
 
-      {/* Summary */}
-      {payments.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <Card className="border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Paid</p>
-                <p className="text-xl font-bold text-foreground flex items-center gap-0.5">
-                  <IndianRupee className="w-4 h-4" />
-                  {totalPaid.toLocaleString('en-IN')}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Receipt className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Completed</p>
-                <p className="text-xl font-bold text-foreground">
-                  {payments.filter((p) => p.status === 'completed').length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <IndianRupee className="w-5 h-5 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Pending</p>
-                <p className="text-xl font-bold text-foreground">
-                  {payments.filter((p) => p.status === 'pending').length}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="text-xs text-muted-foreground mb-1">Total Spent</div>
+          <div className="text-xl font-bold text-foreground">₹{totalSpent.toLocaleString('en-IN')}</div>
         </div>
-      )}
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="text-xs text-muted-foreground mb-1">Approved</div>
+          <div className="text-xl font-bold text-green-600">{approvedPayments.length}</div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="text-xs text-muted-foreground mb-1">Pending</div>
+          <div className="text-xl font-bold text-amber-600">{pendingPayments.length}</div>
+        </div>
+      </div>
 
+      {/* Payments List */}
       {payments.length === 0 ? (
-        <div className="text-center py-16 bg-sky-50 rounded-2xl border border-sky-100">
-          <CreditCard size={56} className="mx-auto text-sky-300 mb-4" />
-          <h2 className="text-xl font-semibold text-slate-700 mb-2">No Payments Yet</h2>
-          <p className="text-slate-500">Your payment history will appear here after booking sessions.</p>
+        <div className="text-center py-16 text-muted-foreground">
+          <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-lg font-medium">No payments yet</p>
+          <p className="text-sm mt-1">Your payment history will appear here.</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {payments
-            .slice()
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .map((payment) => (
-              <Card key={payment.id} className="border-border hover:shadow-sm transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                        <IndianRupee className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {payment.courseName}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate capitalize">
-                          {payment.sessionType} · {payment.hours} hour{payment.hours !== 1 ? 's' : ''} · ₹{payment.pricePerHour}/hr
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(payment.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
+          {payments.map((payment) => {
+            const totalAmount = payment.amount ?? payment.totalAmount ?? (payment.hours * payment.pricePerHour);
+            return (
+              <div key={payment.id} className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-foreground truncate">{payment.courseName}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-1 ${statusClass(payment.status)}`}>
+                        {statusIcon(payment.status)}
+                        {statusLabel(payment.status)}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <p className="font-bold text-primary flex items-center gap-0.5">
-                          <IndianRupee className="w-3.5 h-3.5" />
-                          {payment.amount.toLocaleString('en-IN')}
-                        </p>
-                        <Badge variant={statusVariant(payment.status)} className="text-xs">
-                          {payment.status}
-                        </Badge>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => { setSelectedPayment(payment); setReceiptOpen(true); }}
-                        className="shrink-0"
-                      >
-                        <Receipt className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    <p className="text-xs text-muted-foreground capitalize">{payment.sessionType} · {payment.hours}h</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      UPI: {payment.upiTransactionId}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(payment.createdAt).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                  <div className="text-right shrink-0">
+                    <div className="text-lg font-bold text-foreground">₹{totalAmount}</div>
+                    <button
+                      onClick={() => setSelectedPayment(payment)}
+                      className="text-xs text-primary hover:underline mt-1"
+                    >
+                      View Receipt
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      <ReceiptModal
-        payment={selectedPayment}
-        open={receiptOpen}
-        onClose={() => { setReceiptOpen(false); setSelectedPayment(null); }}
-      />
+      {selectedPayment && (
+        <ReceiptModal payment={selectedPayment} onClose={() => setSelectedPayment(null)} />
+      )}
     </div>
   );
 }
