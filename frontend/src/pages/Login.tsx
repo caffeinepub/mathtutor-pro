@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from '@tanstack/react-router';
 import { useActor } from '../hooks/useActor';
 import { storeAuthState } from '../lib/auth';
+import { getStore } from '../lib/store';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -26,13 +27,16 @@ export default function Login() {
         return;
       }
 
+      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedCode = uniqueCode.trim();
+
       // First try backend authentication
       if (actor) {
         try {
-          const isValid = await actor.authenticateStudent(email.trim().toLowerCase(), uniqueCode.trim());
+          const isValid = await actor.authenticateStudent(normalizedEmail, normalizedCode);
           if (isValid) {
             // Find the payment record to get student info
-            const payment = await actor.findByEmailQuery(email.trim().toLowerCase());
+            const payment = await actor.findByEmailQuery(normalizedEmail);
             if (payment) {
               storeAuthState({
                 role: 'student',
@@ -45,31 +49,30 @@ export default function Login() {
             }
           }
         } catch (backendErr: any) {
-          // Backend threw - means invalid credentials or not found
           const msg = String(backendErr?.message || backendErr || '');
           if (
             msg.includes('No payment found') ||
             msg.includes('No unique code') ||
             msg.includes('Unique code does not match')
           ) {
-            setError('Invalid email or unique code. Please check your credentials.');
-            setLoading(false);
-            return;
+            // Don't return yet — fall through to localStorage check
+          } else if (msg.includes('Unauthorized')) {
+            // Actor not authenticated — fall through to localStorage
           }
-          // Fall through to localStorage fallback
+          // Fall through to localStorage fallback for all backend errors
         }
       }
 
       // Fallback: check localStorage store
-      const raw = localStorage.getItem('rajats_equation_store');
-      if (raw) {
-        const store = JSON.parse(raw);
-        const students: any[] = store.students || [];
+      // Check students array — match by email + uniqueCode (or accessCode) with approved status
+      try {
+        const store = getStore();
+        const students = store.students || [];
         const student = students.find(
-          (s: any) =>
-            s.email?.toLowerCase() === email.trim().toLowerCase() &&
-            (s.accessCode === uniqueCode.trim() || s.uniqueCode === uniqueCode.trim()) &&
-            s.status === 'active'
+          (s) =>
+            s.email?.toLowerCase() === normalizedEmail &&
+            (s.uniqueCode === normalizedCode || s.accessCode === normalizedCode) &&
+            s.status === 'approved'
         );
         if (student) {
           storeAuthState({
@@ -81,6 +84,31 @@ export default function Login() {
           navigate({ to: '/student' });
           return;
         }
+
+        // Also check payments array for uniqueCode match (in case student record wasn't updated)
+        const payments = store.payments || [];
+        const matchedPayment = payments.find(
+          (p) =>
+            p.studentName && // has a name
+            p.status === 'approved' &&
+            p.uniqueCode === normalizedCode
+        );
+        if (matchedPayment) {
+          // Find the corresponding student
+          const matchedStudent = students.find(s => s.id === matchedPayment.studentId);
+          if (matchedStudent && matchedStudent.email.toLowerCase() === normalizedEmail) {
+            storeAuthState({
+              role: 'student',
+              userId: matchedStudent.id,
+              email: matchedStudent.email,
+              name: matchedStudent.name,
+            });
+            navigate({ to: '/student' });
+            return;
+          }
+        }
+      } catch {
+        // ignore store errors
       }
 
       setError('Invalid email or unique code. Please check your credentials.');
@@ -135,10 +163,9 @@ export default function Login() {
       }
 
       // Also check localStorage store admins array
-      const raw = localStorage.getItem('rajats_equation_store');
-      if (raw) {
-        const store = JSON.parse(raw);
-        const admins: any[] = store.admins || [];
+      try {
+        const store = getStore();
+        const admins: any[] = (store as any).admins || [];
         const admin = admins.find(
           (a: any) =>
             a.email?.toLowerCase() === email.trim().toLowerCase() &&
@@ -154,6 +181,8 @@ export default function Login() {
           navigate({ to: '/admin' });
           return;
         }
+      } catch {
+        // ignore
       }
 
       setError('Invalid admin credentials.');
@@ -223,18 +252,18 @@ export default function Login() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Unique Code
+                  Unique Login Code
                 </label>
                 <input
                   type="text"
                   value={uniqueCode}
-                  onChange={e => setUniqueCode(e.target.value)}
-                  placeholder="Enter your unique code (e.g. RJMATH-001)"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
+                  onChange={e => setUniqueCode(e.target.value.toUpperCase())}
+                  placeholder="Enter your unique code (e.g. AB12CD34)"
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm font-mono"
                   required
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Your unique code is provided by the admin after approval.
+                  Your unique login code is provided by the admin after payment approval.
                 </p>
               </div>
 

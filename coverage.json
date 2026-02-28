@@ -1,40 +1,53 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T11:53:02.292Z",
+  "generatedAt": "2026-02-28T12:59:38.766Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 2,
-    "implemented": 1,
+    "total": 3,
+    "implemented": 2,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Update the backend admin authentication logic so that the hardcoded admin account uses the email 'admin@mathtutor.com' and password 'Admin@123'. The login check must match against these exact credentials and return a valid admin session/token on success.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
+        "summary": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/admin/Payments.tsx",
+          "frontend/src/pages/admin/Students.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/admin/Payments.tsx",
+          "frontend/src/pages/admin/Students.tsx"
+        ]
       },
       {
         "id": "REQ-2",
-        "summary": "Update the frontend Login page so that when the admin login form is submitted with email 'admin@mathtutor.com' and password 'Admin@123', it correctly authenticates against the backend (and/or localStorage fallback) using these exact credentials, stores the admin session, and redirects to the admin dashboard without showing 'invalid credentials'.",
+        "summary": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/lib/store.ts",
-          "frontend/src/lib/auth.ts"
+          "frontend/src/hooks/useCanisterHealth.ts",
+          "frontend/src/layouts/AdminLayout.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/lib/store.ts"
+          "frontend/src/hooks/useCanisterHealth.ts",
+          "frontend/src/layouts/AdminLayout.tsx"
         ]
+      },
+      {
+        "id": "REQ-3",
+        "summary": "Review the approveUpiPayment method in backend/main.mo and ensure it does not contain any logic that could cause the canister to stop or trap unexpectedly (e.g., unguarded assertions, out-of-memory conditions, or explicit stop calls). Add defensive checks: validate that input parameters are non-empty before processing, and wrap any mutable state updates in safe patterns to prevent partial state corruption. The method should return a structured Result type (e.g., Result<Text, Text>) so callers can distinguish success from error without relying on traps.",
+        "status": "unknown",
+        "plannedFiles": [],
+        "matchedFiles": []
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
+    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
@@ -43,8 +56,10 @@
     "frontend/src/backend.ts",
     "frontend/src/declarations/backend.did.d.ts",
     "frontend/src/declarations/backend.did.js",
-    "frontend/src/lib/store.ts",
-    "frontend/src/pages/Login.tsx",
+    "frontend/src/hooks/useCanisterHealth.ts",
+    "frontend/src/layouts/AdminLayout.tsx",
+    "frontend/src/pages/admin/Payments.tsx",
+    "frontend/src/pages/admin/Students.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

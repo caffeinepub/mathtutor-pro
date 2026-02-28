@@ -13,7 +13,9 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import UserApproval "user-approval/approval";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
   include MixinStorage();
   let accessControlState = AccessControl.initState();
@@ -413,6 +415,27 @@ actor {
     "RJMATH-" # padNat(number);
   };
 
+  // Or type
+  public type PaymentResult = {
+    #ok : Nat;
+    #err : Text;
+  };
+
+  public type ApproveResult = {
+    #ok : { fullName : Text; accessCode : Text; uniqueCode : Text };
+    #err : Text;
+  };
+
+  public type RejectResult = {
+    #ok : ();
+    #err : Text;
+  };
+
+  public type AuthResult = {
+    #ok : Bool;
+    #err : Text;
+  };
+
   public shared ({ caller }) func submitUpiPayment(
     courseName : Text,
     sessionType : Text,
@@ -423,7 +446,30 @@ actor {
     fullName : Text,
     email : Text,
     phone : Text
-  ) : async Nat {
+  ) : async PaymentResult {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      return #err("Unauthorized: Must be logged in to submit a payment");
+    };
+
+    if (courseName.size() == 0) {
+      return #err("Course name must not be empty");
+    };
+    if (sessionType.size() == 0) {
+      return #err("Session type must not be empty");
+    };
+    if (upiTransactionId.size() == 0) {
+      return #err("UPI transaction ID must not be empty");
+    };
+    if (fullName.size() == 0) {
+      return #err("Full name must not be empty");
+    };
+    if (email.size() == 0) {
+      return #err("Email must not be empty");
+    };
+    if (phone.size() == 0) {
+      return #err("Phone must not be empty");
+    };
+
     let paymentId = nextPaymentId;
     nextPaymentId += 1;
 
@@ -444,60 +490,71 @@ actor {
     };
 
     upiPayments.add(paymentId, payment);
-    paymentId;
+    #ok(paymentId);
   };
 
-  public shared ({ caller }) func approveUpiPayment(paymentId : Nat, uniqueCode : Text) : async ?{
-    fullName : Text;
-    accessCode : Text;
-    uniqueCode : Text;
-  } {
+  public shared ({ caller }) func approveUpiPayment(paymentId : Nat, uniqueCode : Text) : async ApproveResult {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can approve payments");
+      return #err("Unauthorized: Only admins can approve payments");
     };
 
-    let existingPayment = upiPayments.get(paymentId);
+    if (uniqueCode.size() == 0) {
+      return #err("Unique code must not be empty");
+    };
 
-    switch (existingPayment) {
-      case (null) { null };
+    switch (upiPayments.get(paymentId)) {
+      case (null) {
+        #err("Payment not found");
+      };
       case (?payment) {
-        let accessCode = generateAccessCode(paymentId);
-        let updatedPayment : UpiPayment = {
-          payment with
-          status = #approved(accessCode);
-          accessCode = ?accessCode;
-          uniqueCode = ?uniqueCode;
-        };
-        upiPayments.add(paymentId, updatedPayment);
-        ?{
-          fullName = payment.fullName;
-          accessCode;
-          uniqueCode;
+        switch (payment.status) {
+          case (#pending) {
+            let accessCode = generateAccessCode(paymentId);
+            let updatedPayment : UpiPayment = {
+              payment with
+              status = #approved(accessCode);
+              accessCode = ?accessCode;
+              uniqueCode = ?uniqueCode;
+            };
+            upiPayments.add(paymentId, updatedPayment);
+
+            #ok({
+              fullName = payment.fullName;
+              accessCode;
+              uniqueCode;
+            });
+          };
+          case (_) {
+            #err("Payment is not in pending state");
+          };
         };
       };
     };
   };
 
-  public shared ({ caller }) func rejectUpiPayment(paymentId : Nat, rejectionNote : ?Text) : async () {
+  public shared ({ caller }) func rejectUpiPayment(paymentId : Nat, rejectionNote : ?Text) : async RejectResult {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can reject payments");
+      return #err("Unauthorized: Only admins can reject payments");
     };
 
-    let payment = switch (upiPayments.get(paymentId)) {
-      case (?p) { p };
-      case (null) { Runtime.trap("Payment not found") };
-    };
-
-    switch (payment.status) {
-      case (#pending) {
-        let updatedPayment : UpiPayment = {
-          payment with
-          status = #rejected(rejectionNote);
-        };
-        upiPayments.add(paymentId, updatedPayment);
+    switch (upiPayments.get(paymentId)) {
+      case (null) {
+        #err("Payment not found");
       };
-      case (_) {
-        Runtime.trap("Payment is not in pending state");
+      case (?payment) {
+        switch (payment.status) {
+          case (#pending) {
+            let updatedPayment : UpiPayment = {
+              payment with
+              status = #rejected(rejectionNote);
+            };
+            upiPayments.add(paymentId, updatedPayment);
+            #ok(());
+          };
+          case (_) {
+            #err("Payment is not in pending state");
+          };
+        };
       };
     };
   };
@@ -582,7 +639,14 @@ actor {
     );
   };
 
+  // findByEmailQuery restricted to logged-in users or admins to protect sensitive payment data
   public query ({ caller }) func findByEmailQuery(email : Text) : async ?UpiPayment {
+    if (
+      not AccessControl.hasPermission(accessControlState, caller, #user) and
+      not AccessControl.isAdmin(accessControlState, caller)
+    ) {
+      Runtime.trap("Unauthorized: Must be logged in to search payments by email");
+    };
     findByEmail(email);
   };
 
@@ -617,22 +681,38 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  public query ({ caller }) func authenticateStudent(email : Text, enteredUniqueCode : Text) : async Bool {
+  // authenticateStudent restricted to logged-in users or admins to protect credential validation
+  public query ({ caller }) func authenticateStudent(email : Text, enteredUniqueCode : Text) : async AuthResult {
+    if (
+      not AccessControl.hasPermission(accessControlState, caller, #user) and
+      not AccessControl.isAdmin(accessControlState, caller)
+    ) {
+      return #err("Unauthorized: Must be logged in to authenticate");
+    };
+
+    if (email.size() == 0) {
+      return #err("Email must not be empty");
+    };
+    if (enteredUniqueCode.size() == 0) {
+      return #err("Unique code must not be empty");
+    };
+
     let payment = findByEmail(email);
     switch (payment) {
       case (null) {
-        Runtime.trap("No payment found for provided email");
+        #err("No payment found for provided email");
       };
       case (?p) {
         switch (p.uniqueCode) {
           case (null) {
-            Runtime.trap("No unique code set for this payment record");
+            #err("No unique code set for this payment record");
           };
           case (?storedCode) {
             if (storedCode != enteredUniqueCode) {
-              Runtime.trap("Unique code does not match");
+              #err("Unique code does not match");
+            } else {
+              #ok(true);
             };
-            true;
           };
         };
       };

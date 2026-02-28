@@ -1,157 +1,144 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useActor } from '../hooks/useActor';
-import { CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
-
-const COURSES = [
-  { id: 'jee-maths', name: 'JEE Mathematics', price: 800 },
-  { id: 'neet-maths', name: 'NEET Mathematics', price: 700 },
-  { id: 'class-11-12', name: 'Class 11-12 Mathematics', price: 600 },
-  { id: 'class-9-10', name: 'Class 9-10 Mathematics', price: 500 },
-  { id: 'foundation', name: 'Foundation Mathematics', price: 400 },
-];
+import { getStore, saveStore, type Payment, type Student } from '../lib/store';
+import { BookOpen, CheckCircle, ArrowLeft, Clock } from 'lucide-react';
 
 const SESSION_TYPES = [
-  { id: 'individual', name: 'Individual (1-on-1)', multiplier: 1.0 },
-  { id: 'group', name: 'Group Session', multiplier: 0.7 },
+  { value: 'online', label: 'Online (Google Meet)', price: 800 },
+  { value: 'offline', label: 'Offline (In-Person)', price: 1000 },
+  { value: 'hybrid', label: 'Hybrid', price: 900 },
 ];
 
-const HOURS_OPTIONS = [5, 10, 15, 20, 30];
-
 export default function Register() {
-  const { actor } = useActor();
-  const [step, setStep] = useState(1);
+  const store = getStore();
+  const courses = store.courses || [];
+
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    courseId: '',
+    sessionType: 'online',
+    hours: 1,
+    upiTransactionId: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [paymentId, setPaymentId] = useState<number | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [paymentId, setPaymentId] = useState('');
 
-  // Form fields
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState('');
-  const [sessionType, setSessionType] = useState('individual');
-  const [hours, setHours] = useState(10);
-  const [upiTransactionId, setUpiTransactionId] = useState('');
+  const selectedCourse = courses.find((c: { id: string }) => c.id === form.courseId);
+  const selectedSessionType = SESSION_TYPES.find(s => s.value === form.sessionType);
+  const pricePerHour = selectedSessionType?.price || 800;
+  const totalAmount = pricePerHour * form.hours;
 
-  const course = COURSES.find(c => c.id === selectedCourse);
-  const sessionTypeObj = SESSION_TYPES.find(s => s.id === sessionType);
-  const pricePerHour = course ? Math.round(course.price * (sessionTypeObj?.multiplier || 1)) : 0;
-  const totalAmount = pricePerHour * hours;
-
-  const handleStep1 = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fullName.trim() || !email.trim() || !phone.trim()) {
-      setError('Please fill in all fields.');
-      return;
-    }
-    setError('');
-    setStep(2);
-  };
-
-  const handleStep2 = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCourse) {
-      setError('Please select a course.');
-      return;
-    }
-    setError('');
-    setStep(3);
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.fullName.trim()) newErrors.fullName = 'Full name is required';
+    if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) newErrors.email = 'Valid email is required';
+    if (!form.phone.trim() || !/^\d{10}$/.test(form.phone.replace(/\s/g, ''))) newErrors.phone = 'Valid 10-digit phone is required';
+    if (!form.courseId) newErrors.courseId = 'Please select a course';
+    if (form.hours < 1 || form.hours > 1000) newErrors.hours = 'Hours must be between 1 and 1000';
+    if (!form.upiTransactionId.trim()) newErrors.upiTransactionId = 'UPI Transaction ID is required';
+    return newErrors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    if (!upiTransactionId.trim()) {
-      setError('Please enter your UPI transaction ID.');
+    const newErrors = validate();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
-
     setSubmitting(true);
     try {
-      let pid: number | null = null;
+      const freshStore = getStore();
+      const id = `PAY-${Date.now()}`;
+      const studentId = `STU-${Date.now()}`;
+      const courseName = selectedCourse?.name || selectedCourse?.title || '';
+      const now = new Date().toISOString();
 
-      if (actor) {
-        try {
-          const result = await actor.submitUpiPayment(
-            course?.name || selectedCourse,
-            sessionType,
-            BigInt(pricePerHour),
-            BigInt(hours),
-            BigInt(totalAmount),
-            upiTransactionId.trim(),
-            fullName.trim(),
-            email.trim().toLowerCase(),
-            phone.trim()
-          );
-          pid = Number(result);
-          setPaymentId(pid);
-        } catch (backendErr: any) {
-          // Fall through to localStorage
-        }
-      }
-
-      // Always save to localStorage as well
-      const raw = localStorage.getItem('rajats_equation_store');
-      const store = raw ? JSON.parse(raw) : { students: [], sessions: [], materials: [], payments: [], notifications: [], attendance: [] };
-      const newId = pid ? String(pid) : `student_${Date.now()}`;
-      const newStudent = {
-        id: newId,
-        userId: newId,
-        name: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        courseName: course?.name || selectedCourse,
-        course: course?.name || selectedCourse,
-        sessionType,
-        hours,
+      const payment: Payment = {
+        id,
+        studentId,
+        studentName: form.fullName,
+        courseName,
+        sessionType: form.sessionType,
+        hours: form.hours,
         pricePerHour,
+        amount: totalAmount,
         totalAmount,
-        upiTransactionId: upiTransactionId.trim(),
+        upiTransactionId: form.upiTransactionId,
         status: 'pending',
-        createdAt: new Date().toISOString(),
+        createdAt: now,
       };
-      store.students = store.students || [];
-      // Avoid duplicates
-      if (!store.students.find((s: any) => s.email === newStudent.email)) {
-        store.students.push(newStudent);
-      }
-      localStorage.setItem('rajats_equation_store', JSON.stringify(store));
 
-      setStep(4);
-    } catch (err: any) {
-      setError(String(err?.message || 'Registration failed. Please try again.'));
+      const student: Student = {
+        id: studentId,
+        userId: studentId,
+        name: form.fullName,
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        course: courseName,
+        sessionType: form.sessionType,
+        accessCode: '',
+        status: 'pending',
+        registeredAt: now,
+        enrolledCourses: [form.courseId],
+      };
+
+      freshStore.payments = [...(freshStore.payments || []), payment];
+      freshStore.students = [...(freshStore.students || []), student];
+      saveStore(freshStore);
+
+      setPaymentId(id);
+      setSuccess(true);
+    } catch (err) {
+      console.error('Registration error:', err);
+      setErrors({ submit: 'Registration failed. Please try again.' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (step === 4) {
+  if (success) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md text-center">
-          <div className="bg-card border border-border rounded-2xl p-8">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-foreground mb-2">Registration Submitted!</h1>
-            <p className="text-muted-foreground mb-6">
-              Your registration and payment details have been submitted successfully.
-              The admin will review your payment and approve your account.
-            </p>
-            <div className="bg-muted rounded-xl p-4 text-left mb-6 space-y-2">
-              <h3 className="font-semibold text-foreground text-sm">What happens next?</h3>
-              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                <li>Admin reviews your UPI payment</li>
-                <li>Admin approves your account and generates a Unique Code</li>
-                <li>You'll receive your Unique Code to log in</li>
-                <li>Log in using your Email + Unique Code</li>
-              </ol>
+        <div className="bg-card rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-3">Registration Submitted!</h2>
+          <p className="text-muted-foreground mb-6">
+            Your payment is under review. Once approved by the admin, you'll receive your unique access code to log in.
+          </p>
+          <div className="bg-muted rounded-xl p-4 text-left mb-6 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Payment ID</span>
+              <span className="font-mono font-medium text-foreground">{paymentId}</span>
             </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Course</span>
+              <span className="font-medium text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Hours</span>
+              <span className="font-medium text-foreground">{form.hours}h</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total Paid</span>
+              <span className="font-medium text-foreground">₹{totalAmount.toLocaleString()}</span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              <strong>Next Steps:</strong> The admin will verify your UPI payment and generate your access code. You can then log in using your email and the provided code.
+            </p>
             <Link
-              to="/login"
-              className="block w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors"
+              to="/"
+              className="block w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors text-center"
             >
-              Go to Login
+              Back to Home
             </Link>
           </div>
         </div>
@@ -160,235 +147,210 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <Link to="/">
-            <img
-              src="/assets/generated/rajats-equation-logo.dim_400x300.png"
-              alt="Rajat's Equation"
-              className="h-14 mx-auto mb-3 object-contain"
-            />
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-card border-b border-border px-6 py-4">
+        <div className="max-w-2xl mx-auto flex items-center gap-4">
+          <Link to="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </Link>
-          <h1 className="text-2xl font-bold text-foreground">Student Registration</h1>
-          <p className="text-muted-foreground text-sm mt-1">Step {step} of 3</p>
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-primary" />
+            <span className="font-bold text-foreground">The Rajat's Equation</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Student Registration</h1>
+          <p className="text-muted-foreground">Register and pay via UPI to get started</p>
         </div>
 
-        {/* Progress */}
-        <div className="flex gap-2 mb-6">
-          {[1, 2, 3].map(s => (
-            <div
-              key={s}
-              className={`flex-1 h-1.5 rounded-full transition-colors ${
-                s <= step ? 'bg-primary' : 'bg-muted'
-              }`}
-            />
-          ))}
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl p-6">
-          {/* Step 1: Personal Info */}
-          {step === 1 && (
-            <form onSubmit={handleStep1} className="space-y-4">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Personal Information</h2>
+        <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-6 space-y-6">
+          {/* Personal Info */}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Personal Information</h2>
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Full Name</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Full Name *</label>
                 <input
                   type="text"
-                  value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  placeholder="Your full name"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  required
+                  value={form.fullName}
+                  onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
+                  placeholder="Enter your full name"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                {errors.fullName && <p className="text-red-500 text-xs mt-1">{errors.fullName}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Email Address</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Email Address *</label>
                 <input
                   type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="your@email.com"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  required
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Phone Number</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Phone Number *</label>
                 <input
                   type="tel"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  placeholder="+91 XXXXX XXXXX"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  required
+                  value={form.phone}
+                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="10-digit mobile number"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
               </div>
-              {error && <div className="text-destructive text-sm">{error}</div>}
-              <button type="submit" className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                Next <ChevronRight className="w-4 h-4" />
-              </button>
-            </form>
-          )}
+            </div>
+          </div>
 
-          {/* Step 2: Course Selection */}
-          {step === 2 && (
-            <form onSubmit={handleStep2} className="space-y-4">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Course & Session Details</h2>
-
+          {/* Course Selection */}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Course & Session Details</h2>
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Select Course</label>
-                <div className="space-y-2">
-                  {COURSES.map(c => (
-                    <label key={c.id} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedCourse === c.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
-                    }`}>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="course"
-                          value={c.id}
-                          checked={selectedCourse === c.id}
-                          onChange={() => setSelectedCourse(c.id)}
-                          className="text-primary"
-                        />
-                        <span className="text-sm font-medium text-foreground">{c.name}</span>
-                      </div>
-                      <span className="text-sm text-muted-foreground">₹{c.price}/hr</span>
-                    </label>
+                <label className="block text-sm font-medium text-foreground mb-1">Select Course *</label>
+                <select
+                  value={form.courseId}
+                  onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">-- Select a course --</option>
+                  {courses.map((c: { id: string; name?: string; title?: string }) => (
+                    <option key={c.id} value={c.id}>{c.name || c.title}</option>
                   ))}
-                </div>
+                </select>
+                {errors.courseId && <p className="text-red-500 text-xs mt-1">{errors.courseId}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Session Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="block text-sm font-medium text-foreground mb-1">Session Type *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {SESSION_TYPES.map(st => (
-                    <label key={st.id} className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      sessionType === st.id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
-                    }`}>
+                    <label
+                      key={st.value}
+                      className={`flex flex-col p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        form.sessionType === st.value
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="sessionType"
-                        value={st.id}
-                        checked={sessionType === st.id}
-                        onChange={() => setSessionType(st.id)}
-                        className="text-primary"
+                        value={st.value}
+                        checked={form.sessionType === st.value}
+                        onChange={e => setForm(f => ({ ...f, sessionType: e.target.value }))}
+                        className="sr-only"
                       />
-                      <span className="text-sm text-foreground">{st.name}</span>
+                      <span className="font-medium text-sm text-foreground">{st.label}</span>
+                      <span className="text-xs text-muted-foreground mt-1">₹{st.price}/hour</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Number of Hours</label>
-                <div className="flex flex-wrap gap-2">
-                  {HOURS_OPTIONS.map(h => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setHours(h)}
-                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        hours === h ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'
-                      }`}
-                    >
-                      {h}h
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {selectedCourse && (
-                <div className="bg-muted rounded-xl p-4">
-                  <p className="text-sm font-medium text-foreground">Summary</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {course?.name} · {sessionTypeObj?.name} · {hours} hours
-                  </p>
-                  <p className="text-lg font-bold text-foreground mt-1">₹{totalAmount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">₹{pricePerHour}/hour × {hours} hours</p>
-                </div>
-              )}
-
-              {error && <div className="text-destructive text-sm">{error}</div>}
-
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(1)} className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors flex items-center justify-center gap-2">
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-                <button type="submit" className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                  Next <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Step 3: Payment */}
-          {step === 3 && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Payment via UPI</h2>
-
-              <div className="bg-muted rounded-xl p-4 text-center">
-                <img
-                  src="/assets/generated/upi-qr-code.dim_300x300.png"
-                  alt="UPI QR Code"
-                  className="w-40 h-40 mx-auto mb-2 object-contain"
-                />
-                <p className="text-sm font-medium text-foreground">Scan to pay ₹{totalAmount.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground mt-1">UPI ID: rajatsequation@upi</p>
-              </div>
-
-              <div className="bg-muted rounded-xl p-3">
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Amount:</span> ₹{totalAmount.toLocaleString()}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Course:</span> {course?.name}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  UPI Transaction ID <span className="text-destructive">*</span>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Number of Hours * <span className="text-muted-foreground font-normal">(1 – 1000)</span>
                 </label>
-                <input
-                  type="text"
-                  value={upiTransactionId}
-                  onChange={e => setUpiTransactionId(e.target.value)}
-                  placeholder="Enter your UPI transaction ID"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  required
-                />
-              </div>
-
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
-                  {error}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={form.hours}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10);
+                      setForm(f => ({ ...f, hours: isNaN(val) ? 1 : Math.min(1000, Math.max(1, val)) }));
+                    }}
+                    className="w-32 border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">hours</span>
                 </div>
-              )}
-
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(2)} className="flex-1 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors flex items-center justify-center gap-2">
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? 'Submitting...' : 'Submit Registration'}
-                </button>
+                {errors.hours && <p className="text-red-500 text-xs mt-1">{errors.hours}</p>}
               </div>
-            </form>
-          )}
-        </div>
+            </div>
+          </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          Already registered?{' '}
-          <Link to="/login" className="text-primary hover:underline">Sign in here</Link>
-        </p>
-      </div>
+          {/* Payment Summary */}
+          {form.courseId && (
+            <div className="bg-muted/50 rounded-xl p-4">
+              <h3 className="font-semibold text-foreground mb-3">Payment Summary</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Course</span>
+                  <span className="text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Session Type</span>
+                  <span className="text-foreground capitalize">{form.sessionType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Hours</span>
+                  <span className="text-foreground">{form.hours}h × ₹{pricePerHour}</span>
+                </div>
+                <div className="border-t border-border pt-2 flex justify-between font-bold">
+                  <span className="text-foreground">Total Amount</span>
+                  <span className="text-primary text-lg">₹{totalAmount.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* UPI Payment */}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">UPI Payment</h2>
+            <div className="flex flex-col items-center mb-4">
+              <img
+                src="/assets/generated/upi-qr-code.dim_300x300.png"
+                alt="UPI QR Code"
+                className="w-48 h-48 rounded-xl border border-border object-contain bg-white p-2"
+              />
+              <p className="text-sm text-muted-foreground mt-2">Scan to pay via UPI</p>
+              <p className="text-sm font-medium text-foreground mt-1">UPI ID: rajatsequation@upi</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">UPI Transaction ID *</label>
+              <input
+                type="text"
+                value={form.upiTransactionId}
+                onChange={e => setForm(f => ({ ...f, upiTransactionId: e.target.value }))}
+                placeholder="Enter your UPI transaction ID after payment"
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {errors.upiTransactionId && <p className="text-red-500 text-xs mt-1">{errors.upiTransactionId}</p>}
+            </div>
+          </div>
+
+          {errors.submit && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+              {errors.submit}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              'Submit Registration & Payment'
+            )}
+          </button>
+        </form>
+      </main>
     </div>
   );
 }

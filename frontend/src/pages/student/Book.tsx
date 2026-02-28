@@ -1,382 +1,323 @@
 import React, { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import {
-  getCourses,
-  createSession,
-  createPayment,
-  getAuthState,
-  getStore,
-  type Course,
-} from '../../lib/store';
-import { BookOpen, Calendar, CheckCircle, Users, User, MessageCircle, IndianRupee } from 'lucide-react';
-import { toast } from 'sonner';
+import { getStore, saveStore, type Payment } from '../../lib/store';
+import { CheckCircle, Clock, BookOpen } from 'lucide-react';
 
-type Step = 1 | 2 | 3;
+const SESSION_TYPES = [
+  { value: 'online', label: 'Online (Google Meet)', price: 800 },
+  { value: 'offline', label: 'Offline (In-Person)', price: 1000 },
+  { value: 'hybrid', label: 'Hybrid', price: 900 },
+];
 
-export default function StudentBook() {
-  const navigate = useNavigate();
-  const auth = getAuthState();
+export default function Book() {
   const store = getStore();
-  const student = auth ? store.students.find((s) => s.id === auth.userId || s.userId === auth.userId) : null;
+  const courses = store.courses || [];
 
-  const [step, setStep] = useState<Step>(1);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [sessionType, setSessionType] = useState<'group' | 'one-on-one'>('group');
-  const [hours, setHours] = useState<number>(1);
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [upiTxnId, setUpiTxnId] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    courseId: '',
+    sessionType: 'online',
+    hours: 1,
+    preferredDate: '',
+    preferredTime: '',
+    upiTransactionId: '',
+    notes: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [paymentId, setPaymentId] = useState('');
 
-  const courses = getCourses().filter((c) => c.active || c.isActive);
+  const auth = (() => {
+    try {
+      const raw = localStorage.getItem('rajats_equation_auth');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
 
-  const pricePerHour = selectedCourse
-    ? sessionType === 'group'
-      ? selectedCourse.groupPricePerHour
-      : selectedCourse.oneOnOnePricePerHour
-    : 0;
+  const selectedCourse = courses.find((c: { id: string }) => c.id === form.courseId);
+  const selectedSessionType = SESSION_TYPES.find(s => s.value === form.sessionType);
+  const pricePerHour = selectedSessionType?.price || 800;
+  const totalAmount = pricePerHour * form.hours;
 
-  const totalAmount = pricePerHour * hours;
-
-  if (!student) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground">Student profile not found. Please contact admin.</p>
-      </div>
-    );
-  }
-
-  const handleCourseSelect = (course: Course) => {
-    setSelectedCourse(course);
-    setStep(2);
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.courseId) newErrors.courseId = 'Please select a course';
+    if (form.hours < 1 || form.hours > 1000) newErrors.hours = 'Hours must be between 1 and 1000';
+    if (!form.upiTransactionId.trim()) newErrors.upiTransactionId = 'UPI Transaction ID is required';
+    return newErrors;
   };
 
-  const handleBookingSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourse) return;
-    setIsSubmitting(true);
-
+    const newErrors = validate();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    setSubmitting(true);
     try {
-      const courseName = selectedCourse.name || selectedCourse.title || '';
+      const freshStore = getStore();
+      const id = `PAY-${Date.now()}`;
+      const studentId = auth?.userId || '';
+      const student = freshStore.students?.find((s: { id: string }) => s.id === studentId);
+      const courseName = selectedCourse?.name || selectedCourse?.title || '';
 
-      createSession({
-        studentId: student.id,
-        studentName: student.name,
-        studentEmail: student.email,
-        date,
-        time,
-        durationHours: hours,
-        duration: `${hours}h`,
-        meetLink: '',
-        topic: courseName,
+      const payment: Payment = {
+        id,
+        studentId,
+        studentName: student?.name || auth?.name || 'Student',
         courseName,
-        courseId: selectedCourse.id,
-        sessionType,
-        status: 'scheduled',
-      });
-
-      createPayment({
-        studentId: student.id,
-        studentName: student.name,
-        courseName,
-        sessionType,
-        hours,
+        sessionType: form.sessionType,
+        hours: form.hours,
         pricePerHour,
         amount: totalAmount,
         totalAmount,
-        upiTransactionId: upiTxnId,
+        upiTransactionId: form.upiTransactionId,
         status: 'pending',
-      });
+        createdAt: new Date().toISOString(),
+      };
 
-      toast.success('Session booked successfully! Admin will confirm shortly.');
-      setStep(3);
-    } catch {
-      toast.error('Failed to book session. Please try again.');
+      freshStore.payments = [...(freshStore.payments || []), payment];
+      saveStore(freshStore);
+
+      setPaymentId(id);
+      setSuccess(true);
+    } catch (err) {
+      console.error('Booking error:', err);
+      setErrors({ submit: 'Booking failed. Please try again.' });
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  // Step 1: Course Selection
-  if (step === 1) {
+  if (success) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Book a Session</h1>
-          <p className="text-muted-foreground mt-1">Step 1 of 3 — Choose your course</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          {courses.map((course) => (
-            <div
-              key={course.id}
-              className="bg-card rounded-2xl border border-border p-5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer"
-              onClick={() => handleCourseSelect(course)}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-bold text-foreground text-lg">{course.name || course.title}</h3>
-                <Badge variant="outline" className="text-xs ml-2 shrink-0">
-                  {course.level}
-                </Badge>
-              </div>
-              <p className="text-muted-foreground text-sm mb-4">{course.description}</p>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between bg-sky-50 rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-1.5 text-sm text-slate-600">
-                    <Users size={14} className="text-sky-500" />
-                    Group Class
-                  </span>
-                  <span className="font-bold text-sky-700">₹{course.groupPricePerHour}/hr</span>
-                </div>
-                <div className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
-                  <span className="flex items-center gap-1.5 text-sm text-slate-600">
-                    <User size={14} className="text-purple-500" />
-                    One-on-One
-                  </span>
-                  <span className="font-bold text-purple-700">₹{course.oneOnOnePricePerHour}/hr</span>
-                </div>
-              </div>
-              <Button
-                className="w-full mt-4 bg-primary hover:opacity-90 text-primary-foreground h-11 font-semibold"
-                onClick={(e) => { e.stopPropagation(); handleCourseSelect(course); }}
-              >
-                Select This Course
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-6 p-4 bg-green-50 rounded-xl border border-green-200 text-center">
-          <p className="text-green-700 font-medium mb-2">Need help choosing?</p>
-          <Button
-            variant="outline"
-            className="border-green-400 text-green-700 hover:bg-green-100"
-            onClick={() => window.open('https://wa.me/919424135055?text=Hi! I need help choosing the right course.', '_blank')}
-          >
-            <MessageCircle size={16} className="mr-2" />
-            Ask on WhatsApp
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Step 2: Booking Details
-  if (step === 2) {
-    return (
-      <div className="p-6 max-w-2xl mx-auto">
-        <div className="mb-6">
-          <button onClick={() => setStep(1)} className="text-primary hover:underline text-sm mb-2 flex items-center gap-1">
-            ← Back to courses
-          </button>
-          <h1 className="text-2xl font-bold text-foreground">Book a Session</h1>
-          <p className="text-muted-foreground mt-1">Step 2 of 3 — Enter booking details</p>
-        </div>
-
-        <div className="bg-primary/5 rounded-xl border border-primary/20 p-4 mb-6">
-          <div className="flex items-center gap-2 mb-1">
-            <BookOpen size={18} className="text-primary" />
-            <span className="font-semibold text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+      <div className="p-6 max-w-lg mx-auto">
+        <div className="bg-card rounded-2xl border border-border p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
-          <p className="text-sm text-muted-foreground">{selectedCourse?.level}</p>
-        </div>
-
-        <form onSubmit={handleBookingSubmit} className="space-y-5">
-          <div className="space-y-2">
-            <Label className="text-base font-medium text-foreground">Session Type</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSessionType('group')}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  sessionType === 'group'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-card hover:border-primary/50'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Users size={18} className="text-sky-600" />
-                  <span className="font-semibold text-foreground">Group Class</span>
-                </div>
-                <span className="text-sky-700 font-bold">₹{selectedCourse?.groupPricePerHour}/hr</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSessionType('one-on-one')}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  sessionType === 'one-on-one'
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-border bg-card hover:border-purple-300'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <User size={18} className="text-purple-600" />
-                  <span className="font-semibold text-foreground">One-on-One</span>
-                </div>
-                <span className="text-purple-700 font-bold">₹{selectedCourse?.oneOnOnePricePerHour}/hr</span>
-              </button>
+          <h2 className="text-xl font-bold text-foreground mb-2">Booking Submitted!</h2>
+          <p className="text-muted-foreground text-sm mb-4">
+            Your session booking and payment are under review. The admin will confirm your session shortly.
+          </p>
+          <div className="bg-muted rounded-xl p-4 text-left space-y-2 text-sm mb-6">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Payment ID</span>
+              <span className="font-mono font-medium text-foreground">{paymentId}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Course</span>
+              <span className="font-medium text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Hours</span>
+              <span className="font-medium text-foreground">{form.hours}h</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-medium text-foreground">₹{totalAmount.toLocaleString()}</span>
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="hours" className="text-base font-medium text-foreground">
-              Number of Hours
-            </Label>
-            <Input
-              id="hours"
-              type="number"
-              min={1}
-              value={hours}
-              onChange={(e) => setHours(Math.max(1, parseInt(e.target.value) || 1))}
-              className="h-12 text-base"
-              required
-            />
-          </div>
-
-          <div className="bg-muted/50 rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">Total Amount</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  ₹{pricePerHour}/hr × {hours} hour{hours !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <IndianRupee size={22} className="text-primary" />
-                <span className="text-3xl font-bold text-primary">{totalAmount.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="date" className="text-base font-medium text-foreground">
-              Preferred Date
-            </Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
-              className="h-12 text-base"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="time" className="text-base font-medium text-foreground">
-              Preferred Time
-            </Label>
-            <Input
-              id="time"
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="h-12 text-base"
-              required
-            />
-          </div>
-
-          <div className="bg-muted/30 rounded-xl border border-border p-4 space-y-3">
-            <h3 className="font-semibold text-foreground">Payment via UPI</h3>
-            <div className="flex justify-center">
-              <img
-                src="/assets/generated/upi-qr-code.dim_300x300.png"
-                alt="UPI QR Code"
-                className="w-40 h-40 object-contain rounded-lg border border-border"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            </div>
-            <p className="text-sm text-muted-foreground text-center">
-              Scan the QR code and pay <strong>₹{totalAmount.toLocaleString('en-IN')}</strong>
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="upiTxnId" className="text-base font-medium text-foreground">
-                UPI Transaction ID
-              </Label>
-              <Input
-                id="upiTxnId"
-                value={upiTxnId}
-                onChange={(e) => setUpiTxnId(e.target.value)}
-                placeholder="Enter your UPI transaction ID"
-                className="h-12 text-base"
-                required
-              />
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full h-12 text-base font-semibold"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin rounded-full h-4 w-4 border-2 border-primary-foreground border-t-transparent" />
-                Booking...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Calendar size={18} />
-                Confirm Booking — ₹{totalAmount.toLocaleString('en-IN')}
-              </span>
-            )}
-          </Button>
-        </form>
-      </div>
-    );
-  }
-
-  // Step 3: Confirmation
-  return (
-    <div className="p-6 max-w-lg mx-auto text-center">
-      <div className="bg-green-50 rounded-2xl border border-green-200 p-8">
-        <CheckCircle size={64} className="mx-auto text-green-500 mb-4" />
-        <h2 className="text-2xl font-bold text-foreground mb-2">Booking Confirmed!</h2>
-        <p className="text-muted-foreground mb-2">
-          Your session for <strong>{selectedCourse?.name || selectedCourse?.title}</strong> has been booked.
-        </p>
-        <p className="text-muted-foreground text-sm mb-6">
-          Admin will review your payment and confirm the session. You'll see it in your sessions page.
-        </p>
-        <div className="bg-white rounded-xl border border-green-200 p-4 mb-6 text-left space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Course</span>
-            <span className="font-medium text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Session Type</span>
-            <span className="font-medium text-foreground capitalize">{sessionType}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Hours</span>
-            <span className="font-medium text-foreground">{hours}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Total Paid</span>
-            <span className="font-bold text-primary">₹{totalAmount.toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          <Button
-            className="w-full h-12 font-semibold"
-            onClick={() => navigate({ to: '/student/sessions' })}
-          >
-            View My Sessions
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full h-12 font-semibold"
-            onClick={() => { setStep(1); setSelectedCourse(null); setHours(1); setDate(''); setTime(''); setUpiTxnId(''); }}
+          <button
+            onClick={() => {
+              setSuccess(false);
+              setForm({ courseId: '', sessionType: 'online', hours: 1, preferredDate: '', preferredTime: '', upiTransactionId: '', notes: '' });
+              setErrors({});
+            }}
+            className="w-full py-2 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
           >
             Book Another Session
-          </Button>
+          </button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <BookOpen className="w-6 h-6 text-primary" />
+          Book a Session
+        </h1>
+        <p className="text-muted-foreground mt-1">Select your course, session type, and pay via UPI</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-6 space-y-6">
+        {/* Course Selection */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Select Course *</label>
+          <select
+            value={form.courseId}
+            onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">-- Select a course --</option>
+            {courses.map((c: { id: string; name?: string; title?: string }) => (
+              <option key={c.id} value={c.id}>{c.name || c.title}</option>
+            ))}
+          </select>
+          {errors.courseId && <p className="text-red-500 text-xs mt-1">{errors.courseId}</p>}
+        </div>
+
+        {/* Session Type */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">Session Type *</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {SESSION_TYPES.map(st => (
+              <label
+                key={st.value}
+                className={`flex flex-col p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                  form.sessionType === st.value
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="sessionType"
+                  value={st.value}
+                  checked={form.sessionType === st.value}
+                  onChange={e => setForm(f => ({ ...f, sessionType: e.target.value }))}
+                  className="sr-only"
+                />
+                <span className="font-medium text-sm text-foreground">{st.label}</span>
+                <span className="text-xs text-muted-foreground mt-1">₹{st.price}/hour</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Hours */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Number of Hours * <span className="text-muted-foreground font-normal">(1 – 1000)</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={form.hours}
+              onChange={e => {
+                const val = parseInt(e.target.value, 10);
+                setForm(f => ({ ...f, hours: isNaN(val) ? 1 : Math.min(1000, Math.max(1, val)) }));
+              }}
+              className="w-32 border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">hours</span>
+          </div>
+          {errors.hours && <p className="text-red-500 text-xs mt-1">{errors.hours}</p>}
+        </div>
+
+        {/* Preferred Date & Time */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Preferred Date</label>
+            <input
+              type="date"
+              value={form.preferredDate}
+              onChange={e => setForm(f => ({ ...f, preferredDate: e.target.value }))}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Preferred Time</label>
+            <input
+              type="time"
+              value={form.preferredTime}
+              onChange={e => setForm(f => ({ ...f, preferredTime: e.target.value }))}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Additional Notes</label>
+          <textarea
+            value={form.notes}
+            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            placeholder="Any specific topics or requirements..."
+            rows={3}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          />
+        </div>
+
+        {/* Payment Summary */}
+        {form.courseId && (
+          <div className="bg-muted/50 rounded-xl p-4">
+            <h3 className="font-semibold text-foreground mb-3">Payment Summary</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Course</span>
+                <span className="text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Session Type</span>
+                <span className="text-foreground capitalize">{form.sessionType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Hours</span>
+                <span className="text-foreground">{form.hours}h × ₹{pricePerHour}</span>
+              </div>
+              <div className="border-t border-border pt-2 flex justify-between font-bold">
+                <span className="text-foreground">Total Amount</span>
+                <span className="text-primary text-lg">₹{totalAmount.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* UPI Payment */}
+        <div>
+          <h2 className="text-base font-semibold text-foreground mb-3">UPI Payment</h2>
+          <div className="flex flex-col items-center mb-4">
+            <img
+              src="/assets/generated/upi-qr-code.dim_300x300.png"
+              alt="UPI QR Code"
+              className="w-40 h-40 rounded-xl border border-border object-contain bg-white p-2"
+            />
+            <p className="text-sm text-muted-foreground mt-2">Scan to pay via UPI</p>
+            <p className="text-sm font-medium text-foreground mt-1">UPI ID: rajatsequation@upi</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">UPI Transaction ID *</label>
+            <input
+              type="text"
+              value={form.upiTransactionId}
+              onChange={e => setForm(f => ({ ...f, upiTransactionId: e.target.value }))}
+              placeholder="Enter your UPI transaction ID after payment"
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {errors.upiTransactionId && <p className="text-red-500 text-xs mt-1">{errors.upiTransactionId}</p>}
+          </div>
+        </div>
+
+        {errors.submit && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+            {errors.submit}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {submitting ? (
+            <>
+              <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            'Submit Booking & Payment'
+          )}
+        </button>
+      </form>
     </div>
   );
 }

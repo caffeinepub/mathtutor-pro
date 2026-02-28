@@ -17,6 +17,7 @@ export interface Student {
   course: string;
   sessionType: string;
   accessCode: string;
+  uniqueCode?: string; // unique login code generated on payment approval
   status: 'pending' | 'approved' | 'rejected';
   registeredAt: string;
   role?: 'student';
@@ -86,6 +87,7 @@ export interface Payment {
   upiTransactionId: string;
   status: 'pending' | 'approved' | 'completed' | 'rejected';
   accessCode?: string;
+  uniqueCode?: string;  // unique login code generated on payment approval
   date?: string;        // kept for compat
   createdAt: string;
 }
@@ -265,6 +267,7 @@ export function getStore(): AppStore {
       enrolledCourses: Array.isArray(s.enrolledCourses) ? s.enrolledCourses : [],
       role: s.role || 'student',
       accessCode: s.accessCode || '',
+      uniqueCode: s.uniqueCode || undefined,
     }));
 
     // Migrate courses — ensure all fields exist
@@ -299,6 +302,7 @@ export function getStore(): AppStore {
       amount: p.amount || p.totalAmount || 0,
       totalAmount: p.totalAmount || p.amount || 0,
       createdAt: p.createdAt || p.date || new Date().toISOString(),
+      uniqueCode: p.uniqueCode || undefined,
     }));
 
     // Migrate notifications
@@ -478,6 +482,10 @@ export function markNotificationRead(notificationId: string, studentId: string):
 
 // ─── Student helpers ──────────────────────────────────────────────────────────
 
+/**
+ * Find a student by email and unique code (the code generated on payment approval).
+ * Accepts either the accessCode (RJMATH-XXX) or the uniqueCode (random alphanumeric).
+ */
 export function findStudentByEmailAndCode(email: string, code: string): Student | null {
   try {
     const store = getStore();
@@ -486,7 +494,7 @@ export function findStudentByEmailAndCode(email: string, code: string): Student 
     return store.students.find(
       s =>
         s.email.toLowerCase() === normalizedEmail &&
-        (s.accessCode === normalizedCode) &&
+        (s.accessCode === normalizedCode || s.uniqueCode === normalizedCode) &&
         s.status === 'approved'
     ) || null;
   } catch {
@@ -497,7 +505,8 @@ export function findStudentByEmailAndCode(email: string, code: string): Student 
 export function updateStudentStatus(
   studentId: string,
   status: 'pending' | 'approved' | 'rejected',
-  accessCode?: string
+  accessCode?: string,
+  uniqueCode?: string
 ): void {
   try {
     const store = getStore();
@@ -507,6 +516,7 @@ export function updateStudentStatus(
           ...s,
           status,
           accessCode: accessCode !== undefined ? accessCode : s.accessCode,
+          uniqueCode: uniqueCode !== undefined ? uniqueCode : s.uniqueCode,
         };
       }
       return s;

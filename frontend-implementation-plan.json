@@ -1,32 +1,48 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix hardcoded admin login credentials",
+  "title": "Fix IC0508 canister-stopped error with frontend error handling and health check",
   "requirements": [
     {
-      "id": "REQ-2",
-      "summary": "Update frontend Login page to authenticate admin using email 'admin@mathtutor.com' and password 'Admin@123'",
+      "id": "REQ-1",
+      "summary": "Wrap backend actor calls in admin Payments and Students pages with IC0508 error handling",
       "acceptanceCriteria": [
-        "Submitting the admin login form with 'admin@mathtutor.com' / 'Admin@123' does not show an 'invalid credentials' error.",
-        "On successful admin login, the user is redirected to the admin dashboard.",
-        "The localStorage fallback admin check also uses the same credentials ('admin@mathtutor.com' / 'Admin@123').",
-        "The hardcoded admin user record in the local store (store.ts) has email 'admin@mathtutor.com' and password 'Admin@123'."
+        "When approveUpiPayment or rejectUpiPayment returns an IC0508 rejection, no unhandled error is thrown in the UI",
+        "A user-friendly error message is displayed informing the admin the canister is temporarily unavailable",
+        "The error message distinguishes IC0508 from other generic errors"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/Login.tsx",
+          "path": "frontend/src/pages/admin/Payments.tsx",
           "operation": "modify",
-          "description": "Update the admin authentication logic in the handleAdminLogin function to check credentials against email 'admin@mathtutor.com' and password 'Admin@123'. Ensure both the backend actor call (adminLogin) and the localStorage fallback use these exact credentials. Update error handling to properly redirect to /admin/dashboard on successful authentication."
+          "description": "Wrap all approveUpiPayment and rejectUpiPayment backend actor calls in try/catch blocks. Detect IC0508 errors by checking if the error message includes 'IC0508' or 'Canister is stopped' (case-insensitive). When caught, display a toast message: 'The backend service is temporarily unavailable. Please try again shortly or contact support.' For other errors, display a generic error message. Ensure existing approval/rejection logic remains intact."
         },
         {
-          "path": "frontend/src/lib/store.ts",
+          "path": "frontend/src/pages/admin/Students.tsx",
           "operation": "modify",
-          "description": "Update the hardcoded admin user object in the initialStudents array to use email 'admin@mathtutor.com' and password 'Admin@123'. Ensure the isAdmin flag remains true and all other admin properties are preserved."
+          "description": "Wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks. Detect IC0508 errors by checking if the error message includes 'IC0508' or 'Canister is stopped' (case-insensitive). When caught, display a user-friendly toast or inline error message: 'The backend service is temporarily unavailable. Please try again shortly or contact support.' For other errors, display appropriate error messages. Preserve existing student management functionality."
+        }
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "summary": "Add canister health check indicator to AdminLayout with periodic status updates",
+      "acceptanceCriteria": [
+        "Admin layout shows a health status badge (Online / Service Unavailable)",
+        "Status is checked on mount and every 60 seconds",
+        "IC0508 errors set the status to 'Service Unavailable' with a red indicator",
+        "Successful responses set the status to 'Online' with a green indicator"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useCanisterHealth.ts",
+          "operation": "create",
+          "description": "Create a custom hook that performs a lightweight backend health check. Use useActor to get the backend actor. On mount and every 60 seconds (via setInterval or React Query's refetchInterval), call a lightweight query method (e.g., isCallerAdmin or getProducts) to verify canister availability. Return an object with { isOnline: boolean, isChecking: boolean, lastChecked: Date | null }. Set isOnline to false when IC0508 or network errors are detected (check error message for 'IC0508' or 'Canister is stopped'). Set isOnline to true on successful response. Clean up interval on unmount."
         },
         {
-          "path": "frontend/src/lib/auth.ts",
+          "path": "frontend/src/layouts/AdminLayout.tsx",
           "operation": "modify",
-          "description": "Update any admin credential checks or authentication helper functions to use email 'admin@mathtutor.com' and password 'Admin@123' for the hardcoded admin account verification."
+          "description": "Import and use the useCanisterHealth hook. Display a small status badge in the admin sidebar header area showing 'Online' with a green dot/icon when isOnline is true, and 'Service Unavailable' with a red dot/icon when isOnline is false. Include a tooltip or subtitle showing the last check time. Position the badge prominently so admins can see backend availability at a glance. The badge should update automatically every 60 seconds based on the health check results."
         }
       ]
     }

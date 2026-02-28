@@ -15,11 +15,16 @@ import {
   Video,
   FileText,
   ClipboardList,
+  Wifi,
+  WifiOff,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { useActor } from '../hooks/useActor';
+import { useCanisterHealth } from '../hooks/useCanisterHealth';
 
 function usePendingCount() {
   const { actor, isFetching } = useActor();
@@ -49,6 +54,45 @@ const navItems = [
   { label: 'Payments', path: '/admin/payments', icon: CreditCard, badge: true },
   { label: 'Notifications', path: '/admin/notifications', icon: Bell },
 ];
+
+function HealthBadge() {
+  const { isOnline, isChecking, lastChecked } = useCanisterHealth();
+
+  const lastCheckedText = lastChecked
+    ? `Last checked: ${lastChecked.toLocaleTimeString()}`
+    : 'Checking…';
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-default select-none transition-colors ${
+              isChecking
+                ? 'bg-muted text-muted-foreground'
+                : isOnline
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+            }`}
+          >
+            {isChecking ? (
+              <RefreshCw className="w-3 h-3 animate-spin" />
+            ) : isOnline ? (
+              <Wifi className="w-3 h-3" />
+            ) : (
+              <WifiOff className="w-3 h-3" />
+            )}
+            <span>{isChecking ? 'Checking…' : isOnline ? 'Online' : 'Service Unavailable'}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="text-xs">
+          <p>{isOnline ? 'Backend canister is reachable' : 'Backend canister may be stopped or unreachable'}</p>
+          <p className="text-muted-foreground mt-0.5">{lastCheckedText}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -95,6 +139,11 @@ export default function AdminLayout() {
             >
               <X className="h-5 w-5" />
             </button>
+          </div>
+
+          {/* Health Status */}
+          <div className="px-4 py-2 border-b border-border">
+            <HealthBadge />
           </div>
 
           {/* Navigation */}

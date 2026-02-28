@@ -26,11 +26,20 @@ export const ShoppingItem = IDL.Record({
   'priceInCents' : IDL.Nat,
   'productDescription' : IDL.Text,
 });
+export const ApproveResult = IDL.Variant({
+  'ok' : IDL.Record({
+    'accessCode' : IDL.Text,
+    'fullName' : IDL.Text,
+    'uniqueCode' : IDL.Text,
+  }),
+  'err' : IDL.Text,
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const AuthResult = IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text });
 export const UpiPaymentStatus = IDL.Variant({
   'pending' : IDL.Null,
   'approved' : IDL.Text,
@@ -110,10 +119,12 @@ export const UserApprovalInfo = IDL.Record({
   'status' : ApprovalStatus,
   'principal' : IDL.Principal,
 });
+export const RejectResult = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const StripeConfiguration = IDL.Record({
   'allowedCountries' : IDL.Vec(IDL.Text),
   'secretKey' : IDL.Text,
 });
+export const PaymentResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text });
 export const http_header = IDL.Record({
   'value' : IDL.Text,
   'name' : IDL.Text,
@@ -180,21 +191,13 @@ export const idlService = IDL.Service({
       [],
     ),
   'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
-  'approveUpiPayment' : IDL.Func(
-      [IDL.Nat, IDL.Text],
-      [
-        IDL.Opt(
-          IDL.Record({
-            'accessCode' : IDL.Text,
-            'fullName' : IDL.Text,
-            'uniqueCode' : IDL.Text,
-          })
-        ),
-      ],
-      [],
-    ),
+  'approveUpiPayment' : IDL.Func([IDL.Nat, IDL.Text], [ApproveResult], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'authenticateStudent' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
+  'authenticateStudent' : IDL.Func(
+      [IDL.Text, IDL.Text],
+      [AuthResult],
+      ['query'],
+    ),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
       [IDL.Text],
@@ -259,7 +262,11 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
-  'rejectUpiPayment' : IDL.Func([IDL.Nat, IDL.Opt(IDL.Text)], [], []),
+  'rejectUpiPayment' : IDL.Func(
+      [IDL.Nat, IDL.Opt(IDL.Text)],
+      [RejectResult],
+      [],
+    ),
   'requestApproval' : IDL.Func([], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
@@ -277,7 +284,7 @@ export const idlService = IDL.Service({
         IDL.Text,
         IDL.Text,
       ],
-      [IDL.Nat],
+      [PaymentResult],
       [],
     ),
   'transform' : IDL.Func(
@@ -309,11 +316,20 @@ export const idlFactory = ({ IDL }) => {
     'priceInCents' : IDL.Nat,
     'productDescription' : IDL.Text,
   });
+  const ApproveResult = IDL.Variant({
+    'ok' : IDL.Record({
+      'accessCode' : IDL.Text,
+      'fullName' : IDL.Text,
+      'uniqueCode' : IDL.Text,
+    }),
+    'err' : IDL.Text,
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const AuthResult = IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text });
   const UpiPaymentStatus = IDL.Variant({
     'pending' : IDL.Null,
     'approved' : IDL.Text,
@@ -393,10 +409,12 @@ export const idlFactory = ({ IDL }) => {
     'status' : ApprovalStatus,
     'principal' : IDL.Principal,
   });
+  const RejectResult = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const StripeConfiguration = IDL.Record({
     'allowedCountries' : IDL.Vec(IDL.Text),
     'secretKey' : IDL.Text,
   });
+  const PaymentResult = IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text });
   const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
   const http_request_result = IDL.Record({
     'status' : IDL.Nat,
@@ -467,23 +485,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
-    'approveUpiPayment' : IDL.Func(
-        [IDL.Nat, IDL.Text],
-        [
-          IDL.Opt(
-            IDL.Record({
-              'accessCode' : IDL.Text,
-              'fullName' : IDL.Text,
-              'uniqueCode' : IDL.Text,
-            })
-          ),
-        ],
-        [],
-      ),
+    'approveUpiPayment' : IDL.Func([IDL.Nat, IDL.Text], [ApproveResult], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'authenticateStudent' : IDL.Func(
         [IDL.Text, IDL.Text],
-        [IDL.Bool],
+        [AuthResult],
         ['query'],
       ),
     'createCheckoutSession' : IDL.Func(
@@ -550,7 +556,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
-    'rejectUpiPayment' : IDL.Func([IDL.Nat, IDL.Opt(IDL.Text)], [], []),
+    'rejectUpiPayment' : IDL.Func(
+        [IDL.Nat, IDL.Opt(IDL.Text)],
+        [RejectResult],
+        [],
+      ),
     'requestApproval' : IDL.Func([], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
@@ -572,7 +582,7 @@ export const idlFactory = ({ IDL }) => {
           IDL.Text,
           IDL.Text,
         ],
-        [IDL.Nat],
+        [PaymentResult],
         [],
       ),
     'transform' : IDL.Func(

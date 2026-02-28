@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useActor } from '../../hooks/useActor';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle, XCircle, Clock, Copy, Check, RefreshCw, User } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Copy, Check, RefreshCw, User, AlertTriangle } from 'lucide-react';
 
 interface StudentRecord {
   id: string;
@@ -28,6 +28,12 @@ function generateUniqueCode(): string {
   return code;
 }
 
+function isIC0508Error(err: unknown): boolean {
+  if (!err) return false;
+  const msg = String((err as any)?.message || err).toLowerCase();
+  return msg.includes('ic0508') || msg.includes('canister is stopped') || msg.includes('canister stopped');
+}
+
 export default function AdminStudents() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -42,7 +48,15 @@ export default function AdminStudents() {
     queryKey: ['allPayments'],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllPayments();
+      try {
+        return await actor.getAllPayments();
+      } catch (err: unknown) {
+        if (isIC0508Error(err)) {
+          // Return empty array gracefully; health badge will show unavailable
+          return [];
+        }
+        throw err;
+      }
     },
     enabled: !!actor,
   });
@@ -116,9 +130,15 @@ export default function AdminStudents() {
       setActionSuccess(`Student approved! Unique Code: ${variables.uniqueCode}`);
       setTimeout(() => setActionSuccess(null), 5000);
     },
-    onError: (err: any) => {
-      setActionError(String(err?.message || 'Failed to approve student'));
-      setTimeout(() => setActionError(null), 5000);
+    onError: (err: unknown) => {
+      if (isIC0508Error(err)) {
+        setActionError(
+          'The backend service is temporarily unavailable. Please try again shortly or contact support.'
+        );
+      } else {
+        setActionError(String((err as any)?.message || 'Failed to approve student'));
+      }
+      setTimeout(() => setActionError(null), 8000);
     },
   });
 
@@ -133,9 +153,15 @@ export default function AdminStudents() {
       setActionSuccess('Student rejected.');
       setTimeout(() => setActionSuccess(null), 3000);
     },
-    onError: (err: any) => {
-      setActionError(String(err?.message || 'Failed to reject student'));
-      setTimeout(() => setActionError(null), 5000);
+    onError: (err: unknown) => {
+      if (isIC0508Error(err)) {
+        setActionError(
+          'The backend service is temporarily unavailable. Please try again shortly or contact support.'
+        );
+      } else {
+        setActionError(String((err as any)?.message || 'Failed to reject student'));
+      }
+      setTimeout(() => setActionError(null), 8000);
     },
   });
 
@@ -233,8 +259,9 @@ export default function AdminStudents() {
 
       {/* Alerts */}
       {actionError && (
-        <div className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-4 py-3 text-sm">
-          {actionError}
+        <div className="mb-4 flex items-start gap-2 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-4 py-3 text-sm">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>{actionError}</span>
         </div>
       )}
       {actionSuccess && (
@@ -301,7 +328,11 @@ export default function AdminStudents() {
                         disabled={approveMutation.isPending}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
                       >
-                        <CheckCircle className="w-3.5 h-3.5" />
+                        {approveMutation.isPending ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        )}
                         {approveMutation.isPending ? 'Approving...' : 'Approve & Generate Code'}
                       </button>
 
@@ -320,7 +351,7 @@ export default function AdminStudents() {
                               disabled={rejectMutation.isPending}
                               className="flex-1 px-2 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
                             >
-                              Confirm Reject
+                              {rejectMutation.isPending ? 'Rejecting...' : 'Confirm Reject'}
                             </button>
                             <button
                               onClick={() => setShowRejectInput(prev => ({ ...prev, [student.id]: false }))}

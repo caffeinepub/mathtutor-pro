@@ -1,58 +1,76 @@
 {
   "kind": "build_request",
-  "title": "Fix hardcoded admin login credentials",
+  "title": "Fix IC0508 canister-stopped error with frontend error handling and health check",
+  "projectName": "The Rajat's Equation",
   "priority": "high",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Update the backend admin authentication logic so that the hardcoded admin account uses the email 'admin@mathtutor.com' and password 'Admin@123'. The login check must match against these exact credentials and return a valid admin session/token on success.",
-      "target": "backend",
+      "text": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-admin-credentials"
+          "msg-recent-1"
         ],
         "quotes": [
-          "admin credentials are username - admin@mathtutor.com and password is Admin@123",
-          "this is hardcoded default admin account"
+          "Add better error handling on the frontend for IC0508 errors"
         ]
       },
       "acceptanceCriteria": [
-        "Logging in with email 'admin@mathtutor.com' and password 'Admin@123' succeeds and returns a valid admin session.",
-        "Logging in with any other credentials correctly returns an authentication failure.",
-        "The admin credentials are hardcoded in the backend and do not require dynamic account creation."
+        "When approveUpiPayment or rejectUpiPayment returns an IC0508 rejection, no unhandled error is thrown in the UI",
+        "A user-friendly error message is displayed informing the admin the canister is temporarily unavailable",
+        "The error message distinguishes IC0508 from other generic errors"
       ]
     },
     {
       "id": "REQ-2",
-      "text": "Update the frontend Login page so that when the admin login form is submitted with email 'admin@mathtutor.com' and password 'Admin@123', it correctly authenticates against the backend (and/or localStorage fallback) using these exact credentials, stores the admin session, and redirects to the admin dashboard without showing 'invalid credentials'.",
+      "text": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-admin-credentials"
+          "msg-recent-1"
         ],
         "quotes": [
-          "admin login still showing invalid credentials",
-          "admin credentials are username - admin@mathtutor.com and password is Admin@123"
+          "Add a canister health check / status indicator so admins can see if the backend is reachable before attempting actions"
         ]
       },
       "acceptanceCriteria": [
-        "Submitting the admin login form with 'admin@mathtutor.com' / 'Admin@123' does not show an 'invalid credentials' error.",
-        "On successful admin login, the user is redirected to the admin dashboard.",
-        "The localStorage fallback admin check also uses the same credentials ('admin@mathtutor.com' / 'Admin@123').",
-        "The hardcoded admin user record in the local store (store.ts) has email 'admin@mathtutor.com' and password 'Admin@123'."
+        "Admin layout shows a health status badge (Online / Service Unavailable)",
+        "Status is checked on mount and every 60 seconds",
+        "IC0508 errors set the status to 'Service Unavailable' with a red indicator",
+        "Successful responses set the status to 'Online' with a green indicator"
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "Review the approveUpiPayment method in backend/main.mo and ensure it does not contain any logic that could cause the canister to stop or trap unexpectedly (e.g., unguarded assertions, out-of-memory conditions, or explicit stop calls). Add defensive checks: validate that input parameters are non-empty before processing, and wrap any mutable state updates in safe patterns to prevent partial state corruption. The method should return a structured Result type (e.g., Result<Text, Text>) so callers can distinguish success from error without relying on traps.",
+      "target": "backend",
+      "source": {
+        "messageIds": [
+          "msg-recent-1"
+        ],
+        "quotes": [
+          "Review the approveUpiPayment method for any logic that might trigger an unintended stop"
+        ]
+      },
+      "acceptanceCriteria": [
+        "approveUpiPayment returns a Result<Text, Text> or equivalent structured response instead of trapping",
+        "Empty or invalid input parameters are handled gracefully with an error result rather than an assertion trap",
+        "No explicit canister stop calls exist within the payment approval flow",
+        "The method compiles and deploys without errors"
       ]
     }
   ],
   "constraints": [
-    "Admin credentials must remain hardcoded — do not implement dynamic admin account creation or management.",
-    "Do not change the admin email: it must be 'admin@mathtutor.com'.",
-    "Do not change the admin password: it must be 'Admin@123'."
+    "Do not modify any files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
+    "Canister ID 32yku-taaaa-aaaan-q4swq-cai must remain unchanged",
+    "Do not alter existing localStorage-based data flows unrelated to the payment approval fix"
   ],
   "nonGoals": [
-    "Adding environment-variable-based credential configuration.",
-    "Implementing password hashing or salting for the hardcoded admin account.",
-    "Any changes to student login flow.",
-    "Any changes to the registration or approval workflow."
+    "Topping up or managing canister cycles (infrastructure concern)",
+    "Rewriting the entire payment flow or data model",
+    "Adding new payment methods or changing UPI logic",
+    "Modifying student-facing pages"
   ],
   "imageRequirements": {
     "required": [],

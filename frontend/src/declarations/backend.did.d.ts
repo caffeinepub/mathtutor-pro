@@ -13,6 +13,10 @@ import type { Principal } from '@icp-sdk/core/principal';
 export type ApprovalStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export type ApproveResult = {
+    'ok' : { 'accessCode' : string, 'fullName' : string, 'uniqueCode' : string }
+  } |
+  { 'err' : string };
 export interface Attendance {
   'id' : bigint,
   'status' : AttendanceStatus,
@@ -27,6 +31,8 @@ export interface AttendanceSummary {
   'totalSessions' : bigint,
   'absentCount' : bigint,
 }
+export type AuthResult = { 'ok' : boolean } |
+  { 'err' : string };
 export interface Material {
   'id' : bigint,
   'title' : string,
@@ -37,6 +43,10 @@ export interface Material {
   'relatedCourse' : string,
   'uploadedAt' : bigint,
 }
+export type PaymentResult = { 'ok' : bigint } |
+  { 'err' : string };
+export type RejectResult = { 'ok' : null } |
+  { 'err' : string };
 export interface Session {
   'id' : bigint,
   'topic' : [] | [string],
@@ -154,12 +164,9 @@ export interface _SERVICE {
     bigint
   >,
   'adminLogin' : ActorMethod<[string, string], boolean>,
-  'approveUpiPayment' : ActorMethod<
-    [bigint, string],
-    [] | [{ 'accessCode' : string, 'fullName' : string, 'uniqueCode' : string }]
-  >,
+  'approveUpiPayment' : ActorMethod<[bigint, string], ApproveResult>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'authenticateStudent' : ActorMethod<[string, string], boolean>,
+  'authenticateStudent' : ActorMethod<[string, string], AuthResult>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string
@@ -187,7 +194,7 @@ export interface _SERVICE {
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
   'markAttendance' : ActorMethod<[Principal, bigint, AttendanceStatus], bigint>,
-  'rejectUpiPayment' : ActorMethod<[bigint, [] | [string]], undefined>,
+  'rejectUpiPayment' : ActorMethod<[bigint, [] | [string]], RejectResult>,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
@@ -195,7 +202,7 @@ export interface _SERVICE {
   'studentFindByEmail' : ActorMethod<[string], [] | [UpiPayment]>,
   'submitUpiPayment' : ActorMethod<
     [string, string, bigint, bigint, bigint, string, string, string, string],
-    bigint
+    PaymentResult
   >,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateProduct' : ActorMethod<[ShoppingItem], undefined>,

@@ -1,16 +1,27 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "MathTutor admin portal with student approval flow and class creation features. Admin login uses hardcoded credentials (admin@mathtutor.com / Admin@123).",
+  "summary": "ICP-based project with a canister (32yku-taaaa-aaaan-q4swq-cai) handling UPI payment approval. Currently fixing IC0508 canister-stopped error affecting the approveUpiPayment method.",
   "architectural_notes": [
-    "Hardcoded default admin account: email=admin@mathtutor.com, password=Admin@123"
+    "Backend runs on Internet Computer (ICP) canister ID: 32yku-taaaa-aaaan-q4swq-cai",
+    "Payment approval handled via approveUpiPayment canister method"
   ],
-  "known_issues": [],
+  "known_issues": [
+    "IC0508: Canister 32yku-taaaa-aaaan-q4swq-cai is stopped — approveUpiPayment calls are being rejected; fix in progress (frontend error handling, health check, logic review)"
+  ],
   "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-update-the-frontend-login-page-so-that-when-the-admin-login-form-is-submitted-with-email-admin-mathtutor-com-and-password-admin-123-it-correctly-authenticates-against-the-backend-and-or-localstorage-fallback-using-these-exact-credentials-stores-the-admin-session-and-redirects-to-the-admin-dashboard-without-showing-invalid-credentials",
-      "title": "Update the frontend Login page so that when the admin login form is submitted with email 'admin@mathtutor.com' and password 'Admin@123', it correctly authenticates against the backend (and/or localStorage fallback) using these exact credentials, stores the admin session, and redirects to the admin dashboard without showing 'invalid credentials'.",
+      "id": "feature-in-the-admin-payments-page-frontend-src-pages-admin-payments-tsx-and-students-page-frontend-src-pages-admin-students-tsx-wrap-all-backend-actor-calls-approveupipayment-rejectupipayment-and-any-related-payment-approval-methods-in-try-catch-blocks-that-specifically-detect-ic0508-canister-is-stopped-rejection-errors-when-this-error-is-caught-display-a-clear-user-friendly-toast-or-inline-error-message-such-as-the-backend-service-is-temporarily-unavailable-please-try-again-shortly-or-contact-support",
+      "title": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-canister-health-check-indicator-to-the-adminlayout-frontend-src-layouts-adminlayout-tsx-on-mount-and-periodically-every-60-seconds-ping-the-backend-actor-with-a-lightweight-read-call-e-g-a-simple-query-to-fetch-a-count-or-status-display-a-small-status-badge-in-the-admin-sidebar-header-green-online-when-the-canister-is-reachable-and-red-service-unavailable-when-an-ic0508-or-network-error-is-returned-this-gives-admins-immediate-visibility-into-backend-availability-before-attempting-approval-actions",
+      "title": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
       "reqIds": [
         "REQ-2"
       ],
@@ -19,16 +30,16 @@
   ],
   "new_feature_requests": [
     {
-      "id": "AR-1",
-      "summary": "Update the backend admin authentication logic so that the hardcoded admin account uses the email 'admin@mathtutor.com' and password 'Admin@123'. The login check must match against these exact credentials and return a valid admin session/token on success.",
+      "id": "AR-3",
+      "summary": "Review the approveUpiPayment method in backend/main.mo and ensure it does not contain any logic that could cause the canister to stop or trap unexpectedly (e.g., unguarded assertions, out-of-memory conditions, or explicit stop calls). Add defensive checks: validate that input parameters are non-empty before processing, and wrap any mutable state updates in safe patterns to prevent partial state corruption. The method should return a structured Result type (e.g., Result<Text, Text>) so callers can distinguish success from error without relying on traps.",
       "reqIds": [
-        "REQ-1"
+        "REQ-3"
       ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "MathTutor",
+  "projectName": "The Rajat's Equation",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

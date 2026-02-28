@@ -2,11 +2,35 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-update-the-frontend-login-page-so-that-when-the-admin-login-form-is-submitted-with-email-admin-mathtutor-com-and-password-admin-123-it-correctly-authenticates-against-the-backend-and-or-localstorage-fallback-using-these-exact-credentials-stores-the-admin-session-and-redirects-to-the-admin-dashboard-without-showing-invalid-credentials",
-      "featureTitle": "Update the frontend Login page so that when the admin login form is submitted with email 'admin@mathtutor.com' and password 'Admin@123', it correctly authenticates against the backend (and/or localStorage fallback) using these exact credentials, stores the admin session, and redirects to the admin dashboard without showing 'invalid credentials'.",
+      "featureId": "feature-in-the-admin-payments-page-frontend-src-pages-admin-payments-tsx-and-students-page-frontend-src-pages-admin-students-tsx-wrap-all-backend-actor-calls-approveupipayment-rejectupipayment-and-any-related-payment-approval-methods-in-try-catch-blocks-that-specifically-detect-ic0508-canister-is-stopped-rejection-errors-when-this-error-is-caught-display-a-clear-user-friendly-toast-or-inline-error-message-such-as-the-backend-service-is-temporarily-unavailable-please-try-again-shortly-or-contact-support",
+      "featureTitle": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
       "files": [
-        "frontend/src/lib/store.ts",
-        "frontend/src/pages/Login.tsx"
+        "frontend/src/pages/admin/Payments.tsx",
+        "frontend/src/pages/admin/Students.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0"
+      ],
+      "testIds": [
+        "REQ-1"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-a-canister-health-check-indicator-to-the-adminlayout-frontend-src-layouts-adminlayout-tsx-on-mount-and-periodically-every-60-seconds-ping-the-backend-actor-with-a-lightweight-read-call-e-g-a-simple-query-to-fetch-a-count-or-status-display-a-small-status-badge-in-the-admin-sidebar-header-green-online-when-the-canister-is-reachable-and-red-service-unavailable-when-an-ic0508-or-network-error-is-returned-this-gives-admins-immediate-visibility-into-backend-availability-before-attempting-approval-actions",
+      "featureTitle": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
+      "files": [
+        "frontend/src/hooks/useCanisterHealth.ts",
+        "frontend/src/layouts/AdminLayout.tsx"
       ],
       "components": [
         "authorization@4.0.0",

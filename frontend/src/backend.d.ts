@@ -27,6 +27,13 @@ export interface TransformationOutput {
     body: Uint8Array;
     headers: Array<http_header>;
 }
+export type PaymentResult = {
+    __kind__: "ok";
+    ok: bigint;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface Attendance {
     id: bigint;
     status: AttendanceStatus;
@@ -34,6 +41,17 @@ export interface Attendance {
     markedAt: bigint;
     sessionId: bigint;
 }
+export type ApproveResult = {
+    __kind__: "ok";
+    ok: {
+        accessCode: string;
+        fullName: string;
+        uniqueCode: string;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
 export type UpiPaymentStatus = {
     __kind__: "pending";
     pending: null;
@@ -93,6 +111,13 @@ export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
 }
+export type RejectResult = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export type StripeSessionStatus = {
     __kind__: "completed";
     completed: {
@@ -109,6 +134,13 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
+export type AuthResult = {
+    __kind__: "ok";
+    ok: boolean;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface UserProfile {
     name: string;
     accessCode?: string;
@@ -135,13 +167,9 @@ export interface backendInterface {
     addProduct(product: ShoppingItem): Promise<void>;
     addSession(studentPrincipal: Principal, date: string, time: string, durationHours: bigint, meetLink: string, topic: string | null): Promise<bigint>;
     adminLogin(email: string, password: string): Promise<boolean>;
-    approveUpiPayment(paymentId: bigint, uniqueCode: string): Promise<{
-        accessCode: string;
-        fullName: string;
-        uniqueCode: string;
-    } | null>;
+    approveUpiPayment(paymentId: bigint, uniqueCode: string): Promise<ApproveResult>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    authenticateStudent(email: string, enteredUniqueCode: string): Promise<boolean>;
+    authenticateStudent(email: string, enteredUniqueCode: string): Promise<AuthResult>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     deleteMaterial(materialId: bigint): Promise<void>;
     deleteProduct(productName: string): Promise<void>;
@@ -166,13 +194,13 @@ export interface backendInterface {
     isStripeConfigured(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     markAttendance(studentPrincipal: Principal, sessionId: bigint, status: AttendanceStatus): Promise<bigint>;
-    rejectUpiPayment(paymentId: bigint, rejectionNote: string | null): Promise<void>;
+    rejectUpiPayment(paymentId: bigint, rejectionNote: string | null): Promise<RejectResult>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     studentFindByEmail(email: string): Promise<UpiPayment | null>;
-    submitUpiPayment(courseName: string, sessionType: string, pricePerHour: bigint, hours: bigint, totalAmount: bigint, upiTransactionId: string, fullName: string, email: string, phone: string): Promise<bigint>;
+    submitUpiPayment(courseName: string, sessionType: string, pricePerHour: bigint, hours: bigint, totalAmount: bigint, upiTransactionId: string, fullName: string, email: string, phone: string): Promise<PaymentResult>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateProduct(product: ShoppingItem): Promise<void>;
 }
