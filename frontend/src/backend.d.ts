@@ -159,7 +159,6 @@ export interface backendInterface {
     addMaterial(studentPrincipal: Principal, title: string, description: string | null, fileData: Uint8Array | null, fileLink: string | null, relatedCourse: string): Promise<bigint>;
     addProduct(product: ShoppingItem): Promise<void>;
     addSession(studentPrincipal: Principal, date: string, time: string, durationHours: bigint, meetLink: string, topic: string | null): Promise<bigint>;
-    adminLogin(email: string, password: string): Promise<boolean>;
     approveUpiPayment(paymentId: bigint, uniqueCode: string): Promise<ApproveResult>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;

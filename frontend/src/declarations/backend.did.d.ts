@@ -161,7 +161,6 @@ export interface _SERVICE {
     [Principal, string, string, bigint, string, [] | [string]],
     bigint
   >,
-  'adminLogin' : ActorMethod<[string, string], boolean>,
   'approveUpiPayment' : ActorMethod<[bigint, string], ApproveResult>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createCheckoutSession' : ActorMethod<

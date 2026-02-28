@@ -1,81 +1,81 @@
 {
   "kind": "build_request",
-  "title": "Replace custom student login with Internet Identity authentication",
-  "projectName": "The Rajat's Equation",
+  "title": "Improve UPI Payment QR Code Scannability with Fallback",
+  "projectName": "EduPay Portal",
   "priority": "normal",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
+      "text": "On the student-side payment page (frontend/src/pages/student/Book.tsx and any related payment QR rendering component), generate the QR code using a properly formatted UPI deep link in the format: `upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`. Ensure this format is used consistently so all UPI-compliant apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan and initiate payment without issues.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-latest"
+          "msg-recent-1"
         ],
         "quotes": [
-          "Remove custom login and use Internet Identity for students only."
+          "its a upi payment only but its not paytm or any other upi app not able to scan it",
+          "Proper UPI deep link format — encoding it as upi://pay?pa=YOUR_UPI_ID&pn=NAME&am=AMOUNT&cu=INR so all apps can scan it correctly"
         ]
       },
       "acceptanceCriteria": [
-        "The student login section shows only an Internet Identity login button — no email field, no unique code field, no password field",
-        "Clicking the Internet Identity button initiates the Internet Identity auth flow via useInternetIdentity hook",
-        "After successful Internet Identity login, an approved student is redirected to the student dashboard",
-        "After successful Internet Identity login, a non-approved student sees a pending approval message and is not redirected to the dashboard",
-        "Admin login section (email-only, mrjain950761@gmail.com) is completely unchanged"
+        "The QR code encodes a valid upi://pay?pa=...&pn=...&am=...&cu=INR URI",
+        "Scanning the QR with Google Pay opens a pre-filled payment screen",
+        "Scanning the QR with PhonePe opens a pre-filled payment screen",
+        "Scanning the QR with BHIM opens a pre-filled payment screen"
       ]
     },
     {
       "id": "REQ-2",
-      "text": "Remove all remaining custom credential authentication logic for students from the backend (main.mo). Any functions that validate email + unique code combinations for student login should be removed or disabled. Student identity verification must rely solely on the caller's Internet Identity principal. Do not change any admin-related logic, payment approval logic, session management, materials management, or attendance tracking.",
-      "target": "backend",
+      "text": "Upgrade the QR code rendering on the student payment page to use error correction level 'H' (highest, ~30% damage tolerance). Ensure the QR is rendered with sufficient quiet zone (at least 4 modules of white border), high contrast (black modules on white background), and at a resolution high enough for crisp display (minimum 256x256 logical pixels). If using a QR library like 'qrcode.react', set the appropriate props (errorCorrectionLevel='H', size, includeMargin=true).",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-latest"
+          "msg-recent-1"
         ],
         "quotes": [
-          "Remove custom login and use Internet Identity for students only.",
-          "Do not change other features."
+          "High error correction (level H) — makes the QR scannable even if slightly obscured",
+          "size is perfect i think some other issues is there"
         ]
       },
       "acceptanceCriteria": [
-        "No backend function accepts an email + unique code pair to authenticate a student",
-        "Student authorization checks use the caller's principal only",
-        "All other backend functions (payment approval, sessions, materials, attendance) remain unchanged"
+        "QR code uses error correction level H",
+        "QR is rendered with a white quiet zone border on all sides",
+        "QR modules are high contrast black on white",
+        "QR is rendered at minimum 256x256 pixels"
       ]
     },
     {
       "id": "REQ-3",
-      "text": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
+      "text": "Below the QR code on the student payment page, add a copyable fallback section that displays: (1) the UPI ID in a styled text field with a one-click copy-to-clipboard button, (2) the full UPI payment deep link as a tappable anchor that opens the user's default UPI app when clicked. Show a brief confirmation toast or inline feedback (e.g., 'Copied!') when the UPI ID is copied. Label this section clearly, e.g., 'Can't scan? Use these instead:'.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-latest"
+          "msg-recent-1"
         ],
         "quotes": [
-          "Remove custom login and use Internet Identity for students only.",
-          "Do not change other features."
+          "yes",
+          "Copyable fallback — a one-tap copy button for the UPI ID and a direct payment link students can open manually"
         ]
       },
       "acceptanceCriteria": [
-        "Student routes are protected by Internet Identity login state (isAuthenticated from useInternetIdentity)",
-        "Unauthenticated access to student routes redirects to the login page",
-        "Logout in StudentLayout calls the Internet Identity logout function and redirects to login",
-        "Admin routes and AdminLayout are completely unchanged"
+        "A clearly labeled fallback section appears below the QR code",
+        "The UPI ID is displayed with a copy button that copies it to clipboard",
+        "A 'Pay Now' or 'Open Payment App' link is shown that opens the upi:// deep link",
+        "Clicking copy shows a 'Copied!' confirmation message",
+        "The fallback section is visible on both mobile and desktop"
       ]
     }
   ],
   "constraints": [
-    "Do not change admin login logic — admin authenticates via hardcoded email mrjain950761@gmail.com only",
-    "Do not change UPI payment submission flow, admin approval/rejection, session management, materials management, or attendance tracking",
+    "Do not change the backend schema or any Motoko backend logic",
     "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
-    "Do not add new features beyond replacing the student custom login with Internet Identity"
+    "Preserve existing payment flow and form validation logic"
   ],
   "nonGoals": [
-    "Changing the admin authentication system",
-    "Modifying the UPI payment flow or registration form",
-    "Changing student dashboard content or layout",
-    "Adding new features to session, materials, or attendance management",
-    "Implementing Internet Identity for admin users"
+    "Changing the payment amount logic or course fee calculations",
+    "Adding new payment methods beyond UPI",
+    "Backend changes to payment records or storage",
+    "Redesigning the overall payment page layout"
   ],
   "imageRequirements": {
     "required": [],

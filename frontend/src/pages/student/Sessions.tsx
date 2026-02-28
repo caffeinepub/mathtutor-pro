@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Video, Calendar, Clock, ExternalLink, BookOpen } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { getStore, getAuthState, Session } from '../../lib/store';
+import { useState, useEffect } from 'react';
+import { Video, Calendar, Clock } from 'lucide-react';
+import { Card, CardContent } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { getStore } from '../../lib/store';
+import { getAuthState } from '../../lib/auth';
+import type { Session } from '../../lib/store';
 
 export default function StudentSessions() {
   const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
@@ -18,12 +19,12 @@ export default function StudentSessions() {
     setLoading(true);
     try {
       const auth = getAuthState();
-      if (!auth || !auth.userId) {
+      if (!auth || !auth.studentId) {
         setLoading(false);
         return;
       }
       const store = getStore();
-      const studentSessions = store.sessions.filter((s) => s.studentId === auth.userId);
+      const studentSessions = store.sessions.filter((s) => s.studentId === auth.studentId);
       const now = new Date();
 
       const upcoming = studentSessions
@@ -31,14 +32,22 @@ export default function StudentSessions() {
           const sessionDate = new Date(`${s.date}T${s.time}`);
           return sessionDate >= now && s.status !== 'cancelled';
         })
-        .sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime());
+        .sort(
+          (a, b) =>
+            new Date(`${a.date}T${a.time}`).getTime() -
+            new Date(`${b.date}T${b.time}`).getTime()
+        );
 
       const past = studentSessions
         .filter((s) => {
           const sessionDate = new Date(`${s.date}T${s.time}`);
           return sessionDate < now || s.status === 'completed';
         })
-        .sort((a, b) => new Date(`${b.date}T${b.time}`).getTime() - new Date(`${a.date}T${a.time}`).getTime());
+        .sort(
+          (a, b) =>
+            new Date(`${b.date}T${b.time}`).getTime() -
+            new Date(`${a.date}T${a.time}`).getTime()
+        );
 
       setUpcomingSessions(upcoming);
       setPastSessions(past);
@@ -64,7 +73,7 @@ export default function StudentSessions() {
           <div className="flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-foreground">
-                {session.topic || 'Class Session'}
+                {session.title || session.topic || 'Class Session'}
               </h3>
               <Badge
                 variant={isPast ? 'secondary' : 'default'}
@@ -87,81 +96,73 @@ export default function StudentSessions() {
                 <Clock className="w-3.5 h-3.5" />
                 {session.time}
               </span>
-              <span>{session.durationHours} hour{session.durationHours !== 1 ? 's' : ''}</span>
+              <span>{session.duration} hour{session.duration !== 1 ? 's' : ''}</span>
             </div>
+            {session.topic && session.title !== session.topic && (
+              <p className="text-xs text-muted-foreground mt-1">Topic: {session.topic}</p>
+            )}
           </div>
-          {!isPast && session.meetLink ? (
-            <a href={session.meetLink} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" className="shrink-0">
-                <Video className="w-3.5 h-3.5 mr-1" />
-                Join
-              </Button>
-            </a>
-          ) : session.meetLink ? (
+          {session.meetLink && !isPast && (
             <a
               href={session.meetLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
             >
-              <ExternalLink className="w-3 h-3" />
-              Link
+              <Video className="w-3.5 h-3.5" />
+              Join
             </a>
-          ) : null}
+          )}
         </div>
       </CardContent>
     </Card>
   );
 
+  const totalSessions = upcomingSessions.length + pastSessions.length;
+
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">My Classes</h1>
+    <div className="p-6 max-w-3xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">My Sessions</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Your scheduled and past Google Meet classes
+          {totalSessions} session{totalSessions !== 1 ? 's' : ''} total
         </p>
       </div>
 
-      {/* Upcoming */}
-      <section>
-        <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Video className="w-5 h-5 text-primary" />
-          Upcoming Classes
-          <span className="text-sm font-normal text-muted-foreground">({upcomingSessions.length})</span>
-        </h2>
-        {upcomingSessions.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center">
-              <Video className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-              <p className="text-muted-foreground text-sm">No upcoming classes scheduled.</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Your admin will schedule classes for you soon.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {upcomingSessions.map((s) => (
-              <SessionCard key={s.id} session={s} isPast={false} />
-            ))}
-          </div>
-        )}
-      </section>
+      {totalSessions === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">No sessions yet</p>
+          <p className="text-sm mt-1">Your sessions will appear here once scheduled.</p>
+        </div>
+      ) : (
+        <>
+          {upcomingSessions.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Upcoming ({upcomingSessions.length})
+              </h2>
+              <div className="space-y-3">
+                {upcomingSessions.map((s) => (
+                  <SessionCard key={s.id} session={s} isPast={false} />
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Past */}
-      {pastSessions.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-muted-foreground" />
-            Past Classes
-            <span className="text-sm font-normal text-muted-foreground">({pastSessions.length})</span>
-          </h2>
-          <div className="space-y-3">
-            {pastSessions.map((s) => (
-              <SessionCard key={s.id} session={s} isPast={true} />
-            ))}
-          </div>
-        </section>
+          {pastSessions.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Past ({pastSessions.length})
+              </h2>
+              <div className="space-y-3">
+                {pastSessions.map((s) => (
+                  <SessionCard key={s.id} session={s} isPast={true} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

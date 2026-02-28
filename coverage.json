@@ -1,62 +1,60 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T13:51:04.385Z",
+  "generatedAt": "2026-02-28T16:03:22.644Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
     "total": 3,
-    "implemented": 2,
+    "implemented": 3,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
+        "summary": "On the student-side payment page (frontend/src/pages/student/Book.tsx and any related payment QR rendering component), generate the QR code using a properly formatted UPI deep link in the format: `upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`. Ensure this format is used consistently so all UPI-compliant apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan and initiate payment without issues.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/Login.tsx"
+          "frontend/src/pages/student/Book.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/Login.tsx"
+          "frontend/src/pages/student/Book.tsx"
         ]
       },
       {
         "id": "REQ-2",
-        "summary": "Remove all remaining custom credential authentication logic for students from the backend (main.mo). Any functions that validate email + unique code combinations for student login should be removed or disabled. Student identity verification must rely solely on the caller's Internet Identity principal. Do not change any admin-related logic, payment approval logic, session management, materials management, or attendance tracking.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
+        "summary": "Upgrade the QR code rendering on the student payment page to use error correction level 'H' (highest, ~30% damage tolerance). Ensure the QR is rendered with sufficient quiet zone (at least 4 modules of white border), high contrast (black modules on white background), and at a resolution high enough for crisp display (minimum 256x256 logical pixels). If using a QR library like 'qrcode.react', set the appropriate props (errorCorrectionLevel='H', size, includeMargin=true).",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/student/Book.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/student/Book.tsx"
+        ]
       },
       {
         "id": "REQ-3",
-        "summary": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
+        "summary": "Below the QR code on the student payment page, add a copyable fallback section that displays: (1) the UPI ID in a styled text field with a one-click copy-to-clipboard button, (2) the full UPI payment deep link as a tappable anchor that opens the user's default UPI app when clicked. Show a brief confirmation toast or inline feedback (e.g., 'Copied!') when the UPI ID is copied. Label this section clearly, e.g., 'Can't scan? Use these instead:'.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/routeTree.ts",
-          "frontend/src/layouts/StudentLayout.tsx",
-          "frontend/src/lib/auth.ts"
+          "frontend/src/pages/student/Book.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/layouts/StudentLayout.tsx",
-          "frontend/src/lib/auth.ts"
+          "frontend/src/pages/student/Book.tsx"
         ]
       }
     ]
   },
   "changedFiles": [
-    "backend/main.mo",
     "build-request.json",
+    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/backend.d.ts",
-    "frontend/src/backend.ts",
-    "frontend/src/declarations/backend.did.d.ts",
-    "frontend/src/declarations/backend.did.js",
-    "frontend/src/layouts/StudentLayout.tsx",
-    "frontend/src/lib/auth.ts",
-    "frontend/src/pages/Login.tsx",
+    "frontend/src/camera/useCamera.ts",
+    "frontend/src/pages/student/Book.tsx",
+    "frontend/src/qr-code/useQRScanner.ts",
+    "frontend/src/utils/urlParams.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

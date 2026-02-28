@@ -259,7 +259,6 @@ export interface backendInterface {
     addMaterial(studentPrincipal: Principal, title: string, description: string | null, fileData: Uint8Array | null, fileLink: string | null, relatedCourse: string): Promise<bigint>;
     addProduct(product: ShoppingItem): Promise<void>;
     addSession(studentPrincipal: Principal, date: string, time: string, durationHours: bigint, meetLink: string, topic: string | null): Promise<bigint>;
-    adminLogin(email: string, password: string): Promise<boolean>;
     approveUpiPayment(paymentId: bigint, uniqueCode: string): Promise<ApproveResult>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
@@ -436,20 +435,6 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.addSession(arg0, arg1, arg2, arg3, arg4, to_candid_opt_n8(this._uploadFile, this._downloadFile, arg5));
-            return result;
-        }
-    }
-    async adminLogin(arg0: string, arg1: string): Promise<boolean> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminLogin(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminLogin(arg0, arg1);
             return result;
         }
     }

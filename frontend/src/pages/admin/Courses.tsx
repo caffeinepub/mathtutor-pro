@@ -1,299 +1,240 @@
 import { useState } from 'react';
-import { Plus, Edit, Trash2, ToggleLeft, ToggleRight, MessageCircle } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { getStore, addCourse, updateCourse, deleteCourse } from '../../lib/store';
+import type { Course } from '../../lib/store';
+import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, BookOpen } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent } from '../../components/ui/card';
 import {
-  getStore,
-  saveStore,
-  getCourses,
-  createCourse,
-  updateCourse,
-  deleteCourse,
-  type Course,
-} from '../../lib/store';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../../components/ui/dialog';
+import { SiWhatsapp } from 'react-icons/si';
 
 const WHATSAPP_NUMBER = '919424135055';
 
-type CourseForm = {
+interface CourseForm {
   name: string;
   description: string;
-  price: string;
-  groupPricePerHour: string;
-  oneOnOnePricePerHour: string;
-  duration: string;
-  level: string;
-  isActive: boolean;
-};
+  pricePerHour: string;
+}
 
-const emptyForm: CourseForm = {
-  name: '',
-  description: '',
-  price: '',
-  groupPricePerHour: '',
-  oneOnOnePricePerHour: '',
-  duration: '',
-  level: 'Intermediate',
-  isActive: true,
-};
+function emptyForm(): CourseForm {
+  return { name: '', description: '', pricePerHour: '' };
+}
+
+function courseToForm(course: Course): CourseForm {
+  return {
+    name: course.name,
+    description: course.description,
+    pricePerHour: String(course.pricePerHour),
+  };
+}
 
 export default function AdminCourses() {
-  const [courses, setCourses] = useState<Course[]>(() => getCourses());
+  const [courses, setCourses] = useState<Course[]>(() => getStore().courses);
   const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [form, setForm] = useState<CourseForm>(emptyForm);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [form, setForm] = useState<CourseForm>(emptyForm());
+  const [deleteConfirm, setDeleteConfirm] = useState<Course | null>(null);
 
-  const refresh = () => setCourses(getCourses());
+  const refreshCourses = () => setCourses(getStore().courses);
 
-  const openCreate = () => {
+  const handleOpenAdd = () => {
     setEditingCourse(null);
-    setForm(emptyForm);
+    setForm(emptyForm());
     setShowModal(true);
   };
 
-  const openEdit = (course: Course) => {
+  const handleOpenEdit = (course: Course) => {
     setEditingCourse(course);
-    setForm({
-      name: course.name || course.title || '',
-      description: course.description,
-      price: String(course.price),
-      groupPricePerHour: String(course.groupPricePerHour),
-      oneOnOnePricePerHour: String(course.oneOnOnePricePerHour),
-      duration: course.duration,
-      level: course.level,
-      isActive: course.active,
-    });
+    setForm(courseToForm(course));
     setShowModal(true);
   };
 
   const handleSave = () => {
-    const courseData = {
-      name: form.name,
-      title: form.name,
-      description: form.description,
-      price: Number(form.price) || 0,
-      pricePerHour: Number(form.oneOnOnePricePerHour) || 0,
-      groupPricePerHour: Number(form.groupPricePerHour) || 0,
-      oneOnOnePricePerHour: Number(form.oneOnOnePricePerHour) || 0,
-      duration: form.duration,
-      level: form.level,
-      active: form.isActive,
-      isActive: form.isActive,
-    };
+    if (!form.name.trim()) return;
+    const pricePerHour = Number(form.pricePerHour) || 0;
 
     if (editingCourse) {
-      updateCourse(editingCourse.id, courseData);
+      updateCourse(editingCourse.id, {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        pricePerHour,
+      });
     } else {
-      createCourse(courseData);
+      addCourse({
+        name: form.name.trim(),
+        description: form.description.trim(),
+        pricePerHour,
+        active: true,
+      });
     }
+    refreshCourses();
     setShowModal(false);
-    refresh();
   };
 
   const handleToggleActive = (course: Course) => {
-    updateCourse(course.id, { active: !course.active, isActive: !course.active });
-    refresh();
+    updateCourse(course.id, { active: !course.active });
+    refreshCourses();
   };
 
-  const handleDelete = (courseId: string) => {
-    deleteCourse(courseId);
+  const handleDelete = (course: Course) => {
+    deleteCourse(course.id);
+    refreshCourses();
     setDeleteConfirm(null);
-    refresh();
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Courses</h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage your course offerings</p>
+          <h2 className="text-2xl font-bold text-foreground">Courses</h2>
+          <p className="text-muted-foreground">Manage your course offerings</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
+        <Button onClick={handleOpenAdd}>
+          <Plus size={16} className="mr-2" />
           Add Course
-        </button>
+        </Button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        {courses.map((course) => (
-          <div key={course.id} className="bg-card border border-border rounded-xl p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-foreground truncate">{course.name || course.title}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{course.level} · {course.duration}</p>
-              </div>
-              <Badge
-                variant={course.active ? 'default' : 'outline'}
-                className={course.active ? 'bg-green-100 text-green-700 border-green-300' : 'text-slate-400'}
-              >
-                {course.active ? 'Active' : 'Inactive'}
-              </Badge>
-            </div>
-
-            <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{course.description}</p>
-
-            <div className="flex gap-3 mb-4">
-              <div className="flex-1 bg-sky-50 rounded-lg p-2 text-center">
-                <span className="text-xs text-sky-600 block">Group</span>
-                <span className="text-sm font-medium text-sky-700">₹{course.groupPricePerHour}/hr</span>
-              </div>
-              <div className="flex-1 bg-purple-50 rounded-lg p-2 text-center">
-                <span className="text-xs text-purple-600 block">1-on-1</span>
-                <span className="text-sm font-medium text-purple-700">₹{course.oneOnOnePricePerHour}/hr</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => openEdit(course)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                Edit
-              </button>
-              <button
-                onClick={() => handleToggleActive(course)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-muted transition-colors"
-              >
-                {course.active ? <ToggleRight className="w-3.5 h-3.5 text-green-600" /> : <ToggleLeft className="w-3.5 h-3.5" />}
-                {course.active ? 'Deactivate' : 'Activate'}
-              </button>
-              <button
-                onClick={() => setDeleteConfirm(course.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-destructive/30 text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete
-              </button>
-              <a
-                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hi! I'm interested in the ${course.name || course.title} course.`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#25D366] text-white rounded-lg hover:opacity-90 transition-opacity"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                WhatsApp
-              </a>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-border">
-              <h2 className="text-lg font-bold text-foreground">
-                {editingCourse ? 'Edit Course' : 'Add Course'}
-              </h2>
-            </div>
-            <div className="p-6 space-y-4">
-              {(['name', 'description', 'duration'] as const).map((field) => (
-                <div key={field}>
-                  <label className="block text-sm font-medium text-foreground mb-1 capitalize">{field}</label>
-                  <input
-                    value={form[field]}
-                    onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
+      {courses.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">No courses yet. Add your first course.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {courses.map((course) => (
+            <Card key={course.id} className={!course.active ? 'opacity-60' : ''}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <BookOpen size={16} className="text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-foreground truncate max-w-[160px]">{course.name}</h3>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${course.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {course.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Level</label>
-                <select
-                  value={form.level}
-                  onChange={(e) => setForm((f) => ({ ...f, level: e.target.value }))}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  {['Beginner', 'Intermediate', 'Advanced'].map((l) => (
-                    <option key={l} value={l}>{l}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Base Price</label>
-                  <input
-                    type="number"
-                    value={form.price}
-                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
+
+                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{course.description}</p>
+
+                <div className="mb-3">
+                  <span className="text-sm font-medium text-primary">₹{course.pricePerHour}/hr</span>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Group/hr</label>
-                  <input
-                    type="number"
-                    value={form.groupPricePerHour}
-                    onChange={(e) => setForm((f) => ({ ...f, groupPricePerHour: e.target.value }))}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
+
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => handleOpenEdit(course)}>
+                    <Edit2 size={13} className="mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleToggleActive(course)}
+                  >
+                    {course.active ? (
+                      <><ToggleRight size={13} className="mr-1 text-green-600" />Deactivate</>
+                    ) : (
+                      <><ToggleLeft size={13} className="mr-1" />Activate</>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setDeleteConfirm(course)}
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hi! I'm interested in the ${course.name} course.`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs bg-green-500 hover:bg-green-600 text-white transition-colors"
+                  >
+                    <SiWhatsapp size={12} />
+                    Demo
+                  </a>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">1-on-1/hr</label>
-                  <input
-                    type="number"
-                    value={form.oneOnOnePricePerHour}
-                    onChange={(e) => setForm((f) => ({ ...f, oneOnOnePricePerHour: e.target.value }))}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={form.isActive}
-                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
-                  className="w-4 h-4 accent-primary"
-                />
-                <label htmlFor="isActive" className="text-sm font-medium text-foreground">Active</label>
-              </div>
-            </div>
-            <div className="p-6 border-t border-border flex gap-3 justify-end">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                {editingCourse ? 'Save Changes' : 'Create Course'}
-              </button>
-            </div>
-          </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
+
+      {/* Add/Edit Modal */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCourse ? 'Edit Course' : 'Add Course'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Course Name</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. JEE Mathematics"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Course description"
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Price per Hour (₹)</label>
+              <input
+                type="number"
+                min={0}
+                value={form.pricePerHour}
+                onChange={(e) => setForm({ ...form, pricePerHour: e.target.value })}
+                placeholder="500"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!form.name.trim()}>
+              {editingCourse ? 'Save Changes' : 'Add Course'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirm */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="text-lg font-bold text-foreground mb-2">Delete Course?</h3>
-            <p className="text-sm text-muted-foreground mb-6">This action cannot be undone.</p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Course</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">
+            Are you sure you want to delete <strong>{deleteConfirm?.name}</strong>? This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

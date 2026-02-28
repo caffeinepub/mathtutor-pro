@@ -1,34 +1,7 @@
-import React from 'react';
-import { FileText, Link as LinkIcon, BookOpen, AlertCircle } from 'lucide-react';
+import { FileText, BookOpen, AlertCircle, ExternalLink } from 'lucide-react';
 import { getAuthState } from '../../lib/auth';
-
-interface LocalMaterial {
-  id: string;
-  studentId: string;
-  studentName: string;
-  studentEmail: string;
-  title: string;
-  description?: string;
-  fileLink: string;
-  relatedCourse?: string;
-  createdAt: string;
-}
-
-function getStudentMaterials(studentEmail: string, studentId: string): LocalMaterial[] {
-  try {
-    const raw = localStorage.getItem('rajats_equation_store');
-    if (!raw) return [];
-    const store = JSON.parse(raw);
-    const materials: LocalMaterial[] = store.adminMaterials || [];
-    return materials.filter(
-      m =>
-        m.studentEmail?.toLowerCase() === studentEmail?.toLowerCase() ||
-        m.studentId === studentId
-    );
-  } catch {
-    return [];
-  }
-}
+import { getStore } from '../../lib/store';
+import type { Material } from '../../lib/store';
 
 export default function MyMaterials() {
   const auth = getAuthState();
@@ -42,10 +15,12 @@ export default function MyMaterials() {
     );
   }
 
-  const materials = getStudentMaterials(auth.email || '', auth.userId || '');
+  const studentId = auth.studentId || '';
+  const store = getStore();
+  const materials: Material[] = store.materials.filter((m) => m.studentId === studentId);
 
   const sorted = [...materials].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
   );
 
   return (
@@ -65,7 +40,7 @@ export default function MyMaterials() {
         </div>
       ) : (
         <div className="space-y-3">
-          {sorted.map(material => (
+          {sorted.map((material) => (
             <div key={material.id} className="bg-card border border-border rounded-xl p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -74,9 +49,9 @@ export default function MyMaterials() {
                     <h3 className="font-semibold text-foreground">{material.title}</h3>
                   </div>
 
-                  {material.relatedCourse && (
+                  {material.course && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
-                      <BookOpen className="w-3 h-3" /> {material.relatedCourse}
+                      <BookOpen className="w-3 h-3" /> {material.course}
                     </p>
                   )}
 
@@ -85,20 +60,25 @@ export default function MyMaterials() {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    Added {new Date(material.createdAt).toLocaleDateString('en-IN', {
-                      day: 'numeric', month: 'short', year: 'numeric'
+                    Added{' '}
+                    {new Date(material.uploadedAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
                     })}
                   </p>
                 </div>
 
-                <a
-                  href={material.fileLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                  <LinkIcon className="w-3.5 h-3.5" /> View
-                </a>
+                {material.fileUrl && (
+                  <a
+                    href={material.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> View
+                  </a>
+                )}
               </div>
             </div>
           ))}

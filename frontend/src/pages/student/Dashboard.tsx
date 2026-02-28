@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { Calendar, FileText, Video, BookOpen, Clock, ArrowRight } from 'lucide-react';
 import { getAuthState } from '../../lib/auth';
@@ -6,12 +5,10 @@ import { getAuthState } from '../../lib/auth';
 interface LocalSession {
   id: string;
   studentId: string;
-  studentName: string;
-  studentEmail: string;
   date: string;
   time: string;
-  durationHours: number;
-  meetLink: string;
+  duration: number;
+  meetLink?: string;
   topic?: string;
   createdAt: string;
 }
@@ -19,31 +16,25 @@ interface LocalSession {
 interface LocalMaterial {
   id: string;
   studentId: string;
-  studentName: string;
-  studentEmail: string;
   title: string;
   description?: string;
-  fileLink: string;
-  relatedCourse?: string;
-  createdAt: string;
+  fileUrl?: string;
+  course: string;
+  uploadedAt: string;
 }
 
-function getStudentData(email: string, userId: string) {
+function getStudentData(studentId: string) {
   try {
     const raw = localStorage.getItem('rajats_equation_store');
     if (!raw) return { sessions: [], materials: [] };
     const store = JSON.parse(raw);
 
-    const sessions: LocalSession[] = (store.adminSessions || []).filter(
-      (s: LocalSession) =>
-        s.studentEmail?.toLowerCase() === email?.toLowerCase() ||
-        s.studentId === userId
+    const sessions: LocalSession[] = (store.sessions || []).filter(
+      (s: LocalSession) => s.studentId === studentId
     );
 
-    const materials: LocalMaterial[] = (store.adminMaterials || []).filter(
-      (m: LocalMaterial) =>
-        m.studentEmail?.toLowerCase() === email?.toLowerCase() ||
-        m.studentId === userId
+    const materials: LocalMaterial[] = (store.materials || []).filter(
+      (m: LocalMaterial) => m.studentId === studentId
     );
 
     return { sessions, materials };
@@ -63,16 +54,21 @@ export default function StudentDashboard() {
     );
   }
 
-  const { sessions, materials } = getStudentData(auth.email || '', auth.userId || '');
+  const studentId = auth.studentId || '';
+  const { sessions, materials } = getStudentData(studentId);
   const now = new Date();
 
   const upcomingSessions = sessions
-    .filter(s => new Date(`${s.date}T${s.time}`) >= now)
-    .sort((a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime())
+    .filter((s) => new Date(`${s.date}T${s.time}`) >= now)
+    .sort(
+      (a, b) =>
+        new Date(`${a.date}T${a.time}`).getTime() -
+        new Date(`${b.date}T${b.time}`).getTime()
+    )
     .slice(0, 3);
 
   const recentMaterials = [...materials]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
     .slice(0, 3);
 
   return (
@@ -105,7 +101,7 @@ export default function StudentDashboard() {
         <div className="bg-card border border-border rounded-xl p-4 text-center">
           <BookOpen className="w-6 h-6 text-purple-500 mx-auto mb-1" />
           <p className="text-2xl font-bold text-foreground">
-            {sessions.filter(s => new Date(`${s.date}T${s.time}`) < now).length}
+            {sessions.filter((s) => new Date(`${s.date}T${s.time}`) < now).length}
           </p>
           <p className="text-xs text-muted-foreground">Completed</p>
         </div>
@@ -118,7 +114,10 @@ export default function StudentDashboard() {
             <h2 className="font-semibold text-foreground flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" /> Upcoming Classes
             </h2>
-            <Link to="/student/my-sessions" className="text-xs text-primary hover:underline flex items-center gap-1">
+            <Link
+              to="/student/my-sessions"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -130,14 +129,21 @@ export default function StudentDashboard() {
             </div>
           ) : (
             <div className="space-y-3">
-              {upcomingSessions.map(session => (
-                <div key={session.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
+              {upcomingSessions.map((session) => (
+                <div
+                  key={session.id}
+                  className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50"
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
                       {session.topic || 'Class'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(session.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} at {session.time} · {session.durationHours}h
+                      {new Date(session.date).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}{' '}
+                      at {session.time} · {session.duration}h
                     </p>
                   </div>
                   {session.meetLink && (
@@ -162,7 +168,10 @@ export default function StudentDashboard() {
             <h2 className="font-semibold text-foreground flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary" /> Recent Materials
             </h2>
-            <Link to="/student/my-materials" className="text-xs text-primary hover:underline flex items-center gap-1">
+            <Link
+              to="/student/my-materials"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -174,22 +183,27 @@ export default function StudentDashboard() {
             </div>
           ) : (
             <div className="space-y-3">
-              {recentMaterials.map(material => (
-                <div key={material.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50">
+              {recentMaterials.map((material) => (
+                <div
+                  key={material.id}
+                  className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50"
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{material.title}</p>
-                    {material.relatedCourse && (
-                      <p className="text-xs text-muted-foreground">{material.relatedCourse}</p>
+                    {material.course && (
+                      <p className="text-xs text-muted-foreground">{material.course}</p>
                     )}
                   </div>
-                  <a
-                    href={material.fileLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-xs text-primary hover:underline"
-                  >
-                    View
-                  </a>
+                  {material.fileUrl && (
+                    <a
+                      href={material.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-primary hover:underline"
+                    >
+                      View
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

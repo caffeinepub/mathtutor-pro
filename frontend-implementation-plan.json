@@ -1,50 +1,57 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Replace custom student login with Internet Identity authentication",
+  "title": "Improve UPI Payment QR Code Scannability with Fallback",
   "requirements": [
     {
       "id": "REQ-1",
-      "summary": "Replace custom student login form with Internet Identity button and implement approval-based access control",
+      "summary": "Generate QR code using properly formatted UPI deep link for universal UPI app compatibility",
       "acceptanceCriteria": [
-        "The student login section shows only an Internet Identity login button — no email field, no unique code field, no password field",
-        "Clicking the Internet Identity button initiates the Internet Identity auth flow via useInternetIdentity hook",
-        "After successful Internet Identity login, an approved student is redirected to the student dashboard",
-        "After successful Internet Identity login, a non-approved student sees a pending approval message and is not redirected to the dashboard",
-        "Admin login section (email-only, mrjain950761@gmail.com) is completely unchanged"
+        "The QR code encodes a valid upi://pay?pa=...&pn=...&am=...&cu=INR URI",
+        "Scanning the QR with Google Pay opens a pre-filled payment screen",
+        "Scanning the QR with PhonePe opens a pre-filled payment screen",
+        "Scanning the QR with BHIM opens a pre-filled payment screen"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/Login.tsx",
+          "path": "frontend/src/pages/student/Book.tsx",
           "operation": "modify",
-          "description": "Remove the custom student login form (email + unique code fields). Replace with an Internet Identity login button that uses the useInternetIdentity hook to trigger authentication. After successful login, call the backend's isCallerApproved() method to check approval status. If approved, redirect to /student/dashboard. If not approved, display a message stating 'Your account is pending admin approval. Please wait for confirmation.' Keep the admin login section (email-only for mrjain950761@gmail.com) completely unchanged. Use the authorization component to support the approval check."
+          "description": "Update the QR code generation to encode a properly formatted UPI deep link in the format: upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR. Replace any existing QR code data with this standardized format. Ensure the UPI ID, payee name, and amount are correctly URL-encoded and that the currency is set to INR. The QR library (likely qrcode.react or similar) should encode this string directly as the value prop."
+        }
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "summary": "Upgrade QR code rendering with high error correction, quiet zone, and optimal resolution for crisp scanning",
+      "acceptanceCriteria": [
+        "QR code uses error correction level H",
+        "QR is rendered with a white quiet zone border on all sides",
+        "QR modules are high contrast black on white",
+        "QR is rendered at minimum 256x256 pixels"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/student/Book.tsx",
+          "operation": "modify",
+          "description": "Upgrade the QR code component props to set errorCorrectionLevel='H' (highest damage tolerance), size to at least 256 pixels (e.g., 300 or 320 for better clarity), includeMargin={true} for automatic quiet zone border, and ensure the QR uses high contrast (default black on white). If using qrcode.react, apply these props directly to the QRCodeSVG or QRCodeCanvas component. Ensure the rendered QR has crisp, clear module separation suitable for mobile scanning."
         }
       ]
     },
     {
       "id": "REQ-3",
-      "summary": "Update student route guards and layout to use Internet Identity principal instead of localStorage custom auth",
+      "summary": "Add copyable UPI ID and tappable payment link fallback section below QR code with confirmation feedback",
       "acceptanceCriteria": [
-        "Student routes are protected by Internet Identity login state (isAuthenticated from useInternetIdentity)",
-        "Unauthenticated access to student routes redirects to the login page",
-        "Logout in StudentLayout calls the Internet Identity logout function and redirects to login",
-        "Admin routes and AdminLayout are completely unchanged"
+        "A clearly labeled fallback section appears below the QR code",
+        "The UPI ID is displayed with a copy button that copies it to clipboard",
+        "A 'Pay Now' or 'Open Payment App' link is shown that opens the upi:// deep link",
+        "Clicking copy shows a 'Copied!' confirmation message",
+        "The fallback section is visible on both mobile and desktop"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/routeTree.ts",
+          "path": "frontend/src/pages/student/Book.tsx",
           "operation": "modify",
-          "description": "Update student route guards to check Internet Identity authentication state (isAuthenticated from useInternetIdentity hook) instead of localStorage-based custom auth tokens. For all student routes under /student/, add a beforeLoad guard that redirects unauthenticated users to /login. Do not modify admin route guards or any routes under /admin/."
-        },
-        {
-          "path": "frontend/src/layouts/StudentLayout.tsx",
-          "operation": "modify",
-          "description": "Replace the sidebar logout button's onClick handler to call the Internet Identity logout function from useInternetIdentity hook (clear() method), then redirect to /login. Remove any references to localStorage-based auth tokens or unique codes. Do not modify the navigation links or notification bell. Verify the component's usage instructions for the authorization component before implementing."
-        },
-        {
-          "path": "frontend/src/lib/auth.ts",
-          "operation": "modify",
-          "description": "Remove or deprecate any helper functions that retrieve student authentication state from localStorage (e.g., getCurrentStudentId if it relies on custom tokens). Keep the isAdmin helper unchanged as it is used for admin authentication. Add a comment indicating that student authentication now relies on Internet Identity principal from useInternetIdentity hook."
+          "description": "Below the QR code rendering section, add a new fallback UI labeled 'Can't scan? Use these instead:'. Display the UPI ID (e.g., extracted from the deep link) in a styled input or text field with a copy-to-clipboard button (use navigator.clipboard.writeText and show a brief 'Copied!' toast or inline message on success). Include a tappable anchor (<a> with href set to the full upi://pay?... deep link) labeled 'Pay Now' or 'Open Payment App' that triggers the user's default UPI app when clicked. Ensure the section is responsive and clearly visible on both mobile and desktop layouts."
         }
       ]
     }

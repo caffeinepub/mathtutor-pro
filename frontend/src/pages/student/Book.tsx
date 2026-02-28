@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { getStore, saveStore, type Payment } from '../../lib/store';
-import { CheckCircle, Clock, BookOpen } from 'lucide-react';
+import { useState } from 'react';
+import { getStore, addPayment } from '../../lib/store';
+import { getAuthState } from '../../lib/auth';
+import { CheckCircle, Clock, BookOpen, Copy, Check, ExternalLink, Smartphone } from 'lucide-react';
 
 const SESSION_TYPES = [
   { value: 'online', label: 'Online (Google Meet)', price: 800 },
@@ -8,9 +9,34 @@ const SESSION_TYPES = [
   { value: 'hybrid', label: 'Hybrid', price: 900 },
 ];
 
+// UPI payment details
+const UPI_ID = 'rajatsequation@upi';
+const PAYEE_NAME = "Rajat's Equation";
+
+function buildUpiDeepLink(amount: number): string {
+  const params = new URLSearchParams({
+    pa: UPI_ID,
+    pn: PAYEE_NAME,
+    am: amount > 0 ? amount.toFixed(2) : '',
+    cu: 'INR',
+    tn: 'Session Booking - Rajats Equation',
+  });
+  // Remove 'am' if amount is 0 (no course selected yet)
+  if (amount <= 0) {
+    params.delete('am');
+  }
+  return `upi://pay?${params.toString()}`;
+}
+
+function buildQrImageUrl(upiLink: string): string {
+  // Use api.qrserver.com with high error correction (H), 300x300, quiet zone
+  const encoded = encodeURIComponent(upiLink);
+  return `https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=300x300&ecc=H&margin=10&color=000000&bgcolor=ffffff`;
+}
+
 export default function Book() {
   const store = getStore();
-  const courses = store.courses || [];
+  const courses = store.courses.filter((c) => c.active);
 
   const [form, setForm] = useState({
     courseId: '',
@@ -25,20 +51,37 @@ export default function Book() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentId, setPaymentId] = useState('');
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  const auth = (() => {
-    try {
-      const raw = localStorage.getItem('rajats_equation_auth');
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  })();
-
-  const selectedCourse = courses.find((c: { id: string }) => c.id === form.courseId);
-  const selectedSessionType = SESSION_TYPES.find(s => s.value === form.sessionType);
-  const pricePerHour = selectedSessionType?.price || 800;
+  const auth = getAuthState();
+  const selectedCourse = courses.find((c) => c.id === form.courseId);
+  const selectedSessionType = SESSION_TYPES.find((s) => s.value === form.sessionType);
+  const pricePerHour = selectedSessionType?.price ?? 800;
   const totalAmount = pricePerHour * form.hours;
+
+  const upiDeepLink = buildUpiDeepLink(form.courseId ? totalAmount : 0);
+  const qrImageUrl = buildQrImageUrl(upiDeepLink);
+
+  const handleCopyUpiId = async () => {
+    try {
+      await navigator.clipboard.writeText(UPI_ID);
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(upiDeepLink);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -57,14 +100,12 @@ export default function Book() {
     }
     setSubmitting(true);
     try {
+      const studentId = auth?.studentId || '';
       const freshStore = getStore();
-      const id = `PAY-${Date.now()}`;
-      const studentId = auth?.userId || '';
-      const student = freshStore.students?.find((s: { id: string }) => s.id === studentId);
-      const courseName = selectedCourse?.name || selectedCourse?.title || '';
+      const student = freshStore.students.find((s) => s.id === studentId);
+      const courseName = selectedCourse?.name || '';
 
-      const payment: Payment = {
-        id,
+      const payment = addPayment({
         studentId,
         studentName: student?.name || auth?.name || 'Student',
         courseName,
@@ -72,19 +113,13 @@ export default function Book() {
         hours: form.hours,
         pricePerHour,
         amount: totalAmount,
-        totalAmount,
         upiTransactionId: form.upiTransactionId,
         status: 'pending',
-        createdAt: new Date().toISOString(),
-      };
+      });
 
-      freshStore.payments = [...(freshStore.payments || []), payment];
-      saveStore(freshStore);
-
-      setPaymentId(id);
+      setPaymentId(payment.id);
       setSuccess(true);
-    } catch (err) {
-      console.error('Booking error:', err);
+    } catch {
       setErrors({ submit: 'Booking failed. Please try again.' });
     } finally {
       setSubmitting(false);
@@ -109,7 +144,7 @@ export default function Book() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Course</span>
-              <span className="font-medium text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+              <span className="font-medium text-foreground">{selectedCourse?.name}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Hours</span>
@@ -123,7 +158,15 @@ export default function Book() {
           <button
             onClick={() => {
               setSuccess(false);
-              setForm({ courseId: '', sessionType: 'online', hours: 1, preferredDate: '', preferredTime: '', upiTransactionId: '', notes: '' });
+              setForm({
+                courseId: '',
+                sessionType: 'online',
+                hours: 1,
+                preferredDate: '',
+                preferredTime: '',
+                upiTransactionId: '',
+                notes: '',
+              });
               setErrors({});
             }}
             className="w-full py-2 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
@@ -151,22 +194,24 @@ export default function Book() {
           <label className="block text-sm font-medium text-foreground mb-1">Select Course *</label>
           <select
             value={form.courseId}
-            onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, courseId: e.target.value }))}
             className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">-- Select a course --</option>
-            {courses.map((c: { id: string; name?: string; title?: string }) => (
-              <option key={c.id} value={c.id}>{c.name || c.title}</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} — ₹{c.pricePerHour}/hr
+              </option>
             ))}
           </select>
-          {errors.courseId && <p className="text-red-500 text-xs mt-1">{errors.courseId}</p>}
+          {errors.courseId && <p className="text-destructive text-xs mt-1">{errors.courseId}</p>}
         </div>
 
         {/* Session Type */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">Session Type *</label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {SESSION_TYPES.map(st => (
+            {SESSION_TYPES.map((st) => (
               <label
                 key={st.value}
                 className={`flex flex-col p-3 rounded-lg border-2 cursor-pointer transition-colors ${
@@ -180,7 +225,7 @@ export default function Book() {
                   name="sessionType"
                   value={st.value}
                   checked={form.sessionType === st.value}
-                  onChange={e => setForm(f => ({ ...f, sessionType: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, sessionType: e.target.value }))}
                   className="sr-only"
                 />
                 <span className="font-medium text-sm text-foreground">{st.label}</span>
@@ -201,16 +246,16 @@ export default function Book() {
               min={1}
               max={1000}
               value={form.hours}
-              onChange={e => {
+              onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
-                setForm(f => ({ ...f, hours: isNaN(val) ? 1 : Math.min(1000, Math.max(1, val)) }));
+                setForm((f) => ({ ...f, hours: isNaN(val) ? 1 : Math.min(1000, Math.max(1, val)) }));
               }}
               className="w-32 border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <Clock className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">hours</span>
           </div>
-          {errors.hours && <p className="text-red-500 text-xs mt-1">{errors.hours}</p>}
+          {errors.hours && <p className="text-destructive text-xs mt-1">{errors.hours}</p>}
         </div>
 
         {/* Preferred Date & Time */}
@@ -220,7 +265,7 @@ export default function Book() {
             <input
               type="date"
               value={form.preferredDate}
-              onChange={e => setForm(f => ({ ...f, preferredDate: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, preferredDate: e.target.value }))}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -229,7 +274,7 @@ export default function Book() {
             <input
               type="time"
               value={form.preferredTime}
-              onChange={e => setForm(f => ({ ...f, preferredTime: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, preferredTime: e.target.value }))}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -240,7 +285,7 @@ export default function Book() {
           <label className="block text-sm font-medium text-foreground mb-1">Additional Notes</label>
           <textarea
             value={form.notes}
-            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             placeholder="Any specific topics or requirements..."
             rows={3}
             className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
@@ -254,7 +299,7 @@ export default function Book() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Course</span>
-                <span className="text-foreground">{selectedCourse?.name || selectedCourse?.title}</span>
+                <span className="text-foreground">{selectedCourse?.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Session Type</span>
@@ -275,30 +320,132 @@ export default function Book() {
         {/* UPI Payment */}
         <div>
           <h2 className="text-base font-semibold text-foreground mb-3">UPI Payment</h2>
-          <div className="flex flex-col items-center mb-4">
-            <img
-              src="/assets/generated/upi-qr-code.dim_300x300.png"
-              alt="UPI QR Code"
-              className="w-40 h-40 rounded-xl border border-border object-contain bg-white p-2"
-            />
-            <p className="text-sm text-muted-foreground mt-2">Scan to pay via UPI</p>
-            <p className="text-sm font-medium text-foreground mt-1">UPI ID: rajatsequation@upi</p>
+
+          {/* QR Code Section */}
+          <div className="bg-white rounded-2xl border-2 border-border p-4 flex flex-col items-center mb-4">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+              Scan with any UPI app
+            </p>
+
+            {/* Dynamic QR Code via API */}
+            <div className="relative">
+              <img
+                key={qrImageUrl}
+                src={qrImageUrl}
+                alt="UPI Payment QR Code"
+                width={260}
+                height={260}
+                className="rounded-xl border border-gray-200"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            </div>
+
+            {/* Amount badge */}
+            {form.courseId && (
+              <div className="mt-3 px-4 py-1.5 bg-primary/10 rounded-full">
+                <span className="text-primary font-bold text-lg">₹{totalAmount.toLocaleString()}</span>
+              </div>
+            )}
+
+            {/* Supported apps */}
+            <div className="flex items-center gap-2 mt-3">
+              <Smartphone className="w-3.5 h-3.5 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                Works with Google Pay, PhonePe, BHIM, Paytm & all UPI apps
+              </p>
+            </div>
           </div>
-          <div>
+
+          {/* Fallback Section */}
+          <div className="bg-muted/40 rounded-xl border border-border p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Can't scan? Use these instead:
+            </p>
+
+            {/* Copy UPI ID */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground select-all">
+                {UPI_ID}
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyUpiId}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                  copiedUpi
+                    ? 'bg-green-50 border-green-300 text-green-700'
+                    : 'bg-background border-border text-foreground hover:bg-muted'
+                }`}
+              >
+                {copiedUpi ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy UPI ID
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Open in UPI App */}
+            <div className="flex items-center gap-2">
+              <a
+                href={upiDeepLink}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open Payment App
+              </a>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                  copiedLink
+                    ? 'bg-green-50 border-green-300 text-green-700'
+                    : 'bg-background border-border text-foreground hover:bg-muted'
+                }`}
+                title="Copy payment link"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    Copy Link
+                  </>
+                )}
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Tap "Open Payment App" on your mobile to launch your UPI app directly with payment details pre-filled.
+            </p>
+          </div>
+
+          {/* Transaction ID Input */}
+          <div className="mt-4">
             <label className="block text-sm font-medium text-foreground mb-1">UPI Transaction ID *</label>
             <input
               type="text"
               value={form.upiTransactionId}
-              onChange={e => setForm(f => ({ ...f, upiTransactionId: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, upiTransactionId: e.target.value }))}
               placeholder="Enter your UPI transaction ID after payment"
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {errors.upiTransactionId && <p className="text-red-500 text-xs mt-1">{errors.upiTransactionId}</p>}
+            {errors.upiTransactionId && (
+              <p className="text-destructive text-xs mt-1">{errors.upiTransactionId}</p>
+            )}
           </div>
         </div>
 
         {errors.submit && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-destructive text-sm">
             {errors.submit}
           </div>
         )}

@@ -1,237 +1,425 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from '@tanstack/react-router';
 import { useInternetIdentity } from '../hooks/useInternetIdentity';
 import { useActor } from '../hooks/useActor';
-import { storeAuthState } from '../lib/auth';
-import { Shield, Loader2, CheckCircle, Clock } from 'lucide-react';
+import { storeAuthState, getAuthState } from '../lib/auth';
+import { useQueryClient } from '@tanstack/react-query';
+import { Shield, User, Copy, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Button } from '../components/ui/button';
+
+type LoginMode = 'select' | 'student' | 'admin';
+type AdminStep = 'login' | 'bootstrap' | 'access-denied';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, clear, loginStatus, identity, isInitializing } = useInternetIdentity();
-  const { actor, isFetching: actorFetching } = useActor();
+  const { login, clear, identity, isLoggingIn } = useInternetIdentity();
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
 
-  // Admin login state
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminError, setAdminError] = useState('');
-  const [adminLoading, setAdminLoading] = useState(false);
+  const [mode, setMode] = useState<LoginMode>('select');
+  const [adminStep, setAdminStep] = useState<AdminStep>('login');
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Student II state
-  const [approvalStatus, setApprovalStatus] = useState<'idle' | 'checking' | 'approved' | 'pending' | 'error'>('idle');
-  const [approvalError, setApprovalError] = useState('');
+  // Student login state
+  const [studentEmail, setStudentEmail] = useState('');
+  const [studentCode, setStudentCode] = useState('');
+  const [studentError, setStudentError] = useState('');
+  const [studentLoading, setStudentLoading] = useState(false);
 
-  const isAuthenticated = !!identity;
-  const isLoggingIn = loginStatus === 'logging-in';
-
-  // When II identity is available and actor is ready, check approval
+  // Redirect if already logged in
   useEffect(() => {
-    if (!isAuthenticated || actorFetching || !actor) return;
-    if (approvalStatus !== 'idle') return;
+    const auth = getAuthState();
+    if (auth?.role === 'admin') {
+      navigate({ to: '/admin' });
+    } else if (auth?.role === 'student') {
+      navigate({ to: '/student' });
+    }
+  }, [navigate]);
 
-    setApprovalStatus('checking');
-    actor.isCallerApproved()
-      .then((approved) => {
-        if (approved) {
-          setApprovalStatus('approved');
-          storeAuthState({
-            userId: identity!.getPrincipal().toString(),
-            role: 'student',
-            name: 'Student',
-          });
-          navigate({ to: '/student' });
-        } else {
-          setApprovalStatus('pending');
+  // Handle admin II login result
+  useEffect(() => {
+    if (mode !== 'admin' || !identity || !actor) return;
+    if (isProcessing) return;
+
+    const handleAdminLogin = async () => {
+      setIsProcessing(true);
+      setError('');
+      try {
+        const isAdmin = await actor.isCallerAdmin();
+        if (isAdmin) {
+          storeAuthState({ role: 'admin', principalId: identity.getPrincipal().toString() });
+          queryClient.clear();
+          navigate({ to: '/admin' });
+          return;
         }
-      })
-      .catch((err) => {
-        console.error('Approval check failed:', err);
-        setApprovalStatus('error');
-        setApprovalError('Failed to check approval status. Please try again.');
-      });
-  }, [isAuthenticated, actorFetching, actor, approvalStatus, identity, navigate]);
-
-  const handleStudentLogin = async () => {
-    if (isAuthenticated) {
-      // Already logged in but not approved — log out and try again
-      await clear();
-      setApprovalStatus('idle');
-      setApprovalError('');
-      return;
-    }
-    try {
-      setApprovalStatus('idle');
-      setApprovalError('');
-      await login();
-    } catch (err: any) {
-      console.error('II login error:', err);
-      setApprovalError('Login failed. Please try again.');
-    }
-  };
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAdminError('');
-    setAdminLoading(true);
-    try {
-      const ADMIN_EMAIL = 'mrjain950761@gmail.com';
-      const ADMIN_PASSWORD = 'Admin@123';
-      if (adminEmail === ADMIN_EMAIL && adminPassword === ADMIN_PASSWORD) {
-        storeAuthState({ userId: 'admin', role: 'admin', name: 'Admin' });
-        navigate({ to: '/admin' });
-      } else {
-        setAdminError('Invalid email or password.');
+        setAdminStep('bootstrap');
+      } catch (err) {
+        const msg = String(err);
+        if (msg.includes('Unauthorized') || msg.includes('trap')) {
+          setAdminStep('bootstrap');
+        } else {
+          setError('Failed to verify admin status. Please try again.');
+        }
+      } finally {
+        setIsProcessing(false);
       }
-    } catch {
-      setAdminError('Login failed. Please try again.');
-    } finally {
-      setAdminLoading(false);
+    };
+
+    handleAdminLogin();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity, actor, mode]);
+
+  const handleAdminIILogin = async () => {
+    setError('');
+    try {
+      if (identity) {
+        await clear();
+        queryClient.clear();
+      }
+      await login();
+    } catch (err) {
+      const msg = String(err);
+      if (msg.includes('already authenticated')) {
+        // Already logged in, the effect will handle it
+      } else {
+        setError('Login failed. Please try again.');
+      }
     }
   };
 
+  const handleCopyPrincipal = () => {
+    if (!identity) return;
+    navigator.clipboard.writeText(identity.getPrincipal().toString()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleStudentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStudentError('');
+    setStudentLoading(true);
+
+    try {
+      if (!actor) {
+        setStudentError('Backend not available. Please try again.');
+        return;
+      }
+
+      const email = studentEmail.trim().toLowerCase();
+      const code = studentCode.trim();
+
+      if (!email || !code) {
+        setStudentError('Please enter both email and access code.');
+        return;
+      }
+
+      // Look up payment by access code
+      const payment = await actor.findUpiPaymentByAccessCode(code);
+      if (!payment) {
+        setStudentError('Invalid access code. Please check and try again.');
+        return;
+      }
+
+      if (payment.email.toLowerCase() !== email) {
+        setStudentError('Email does not match the access code.');
+        return;
+      }
+
+      // Check payment status
+      const status = payment.status;
+      if (status.__kind__ !== 'approved') {
+        setStudentError('Your payment has not been approved yet. Please contact support.');
+        return;
+      }
+
+      // Store auth state
+      storeAuthState({
+        role: 'student',
+        studentId: String(payment.id),
+        email: payment.email,
+        name: payment.fullName,
+      });
+      queryClient.clear();
+      navigate({ to: '/student' });
+    } catch {
+      setStudentError('Login failed. Please try again.');
+    } finally {
+      setStudentLoading(false);
+    }
+  };
+
+  // ─── Mode: Select ──────────────────────────────────────────────────────────
+
+  if (mode === 'select') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <img
+              src="/assets/generated/logo-mark.dim_128x128.png"
+              alt="Logo"
+              className="w-16 h-16 mx-auto mb-4 rounded-xl"
+            />
+            <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
+            <p className="text-muted-foreground mt-1">Choose how you'd like to sign in</p>
+          </div>
+
+          <div className="grid gap-4">
+            <button
+              onClick={() => setMode('student')}
+              className="flex items-center gap-4 p-5 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-left group"
+            >
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <User size={24} className="text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Student Login</p>
+                <p className="text-sm text-muted-foreground">Sign in with your email & access code</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setMode('admin')}
+              className="flex items-center gap-4 p-5 rounded-xl border-2 border-border hover:border-gold hover:bg-gold/5 transition-all text-left group"
+            >
+              <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
+                <Shield size={24} className="text-gold" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Admin Login</p>
+                <p className="text-sm text-muted-foreground">Sign in with Internet Identity</p>
+              </div>
+            </button>
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground">
+            New student?{' '}
+            <Link to="/register" className="text-primary hover:underline font-medium">
+              Register here
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Mode: Student ─────────────────────────────────────────────────────────
+
+  if (mode === 'student') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <User size={28} className="text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Student Login</h1>
+            <p className="text-muted-foreground mt-1">Enter your email and access code</p>
+          </div>
+
+          <form onSubmit={handleStudentLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Email Address</label>
+              <input
+                type="email"
+                value={studentEmail}
+                onChange={(e) => setStudentEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Access Code</label>
+              <input
+                type="text"
+                value={studentCode}
+                onChange={(e) => setStudentCode(e.target.value)}
+                placeholder="RJMATH-001"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+            </div>
+
+            {studentError && (
+              <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 px-3 py-2 rounded-lg">
+                <AlertCircle size={16} />
+                <span>{studentError}</span>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={studentLoading}>
+              {studentLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+          </form>
+
+          <button
+            onClick={() => setMode('select')}
+            className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Back to login options
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Mode: Admin ───────────────────────────────────────────────────────────
+
+  // Admin: Bootstrap step
+  if (adminStep === 'bootstrap' && identity) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <div className="w-14 h-14 rounded-full bg-gold/10 flex items-center justify-center mx-auto mb-4">
+              <Shield size={28} className="text-gold" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Register as Admin</h1>
+            <p className="text-muted-foreground mt-1">
+              Your principal ID is not yet registered as admin.
+            </p>
+          </div>
+
+          <div className="bg-muted rounded-xl p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Your Principal ID:</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-background rounded-lg px-3 py-2 border border-border break-all font-mono text-foreground">
+                {identity.getPrincipal().toString()}
+              </code>
+              <button
+                onClick={handleCopyPrincipal}
+                className="p-2 rounded-lg border border-border hover:bg-background transition-colors flex-shrink-0"
+                title="Copy principal ID"
+              >
+                {copied ? (
+                  <CheckCircle size={16} className="text-green-500" />
+                ) : (
+                  <Copy size={16} className="text-muted-foreground" />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Copy this principal ID and use it to register as the first admin via the canister
+              management interface, or share it with an existing admin.
+            </p>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 px-3 py-2 rounded-lg">
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <Button
+              onClick={handleAdminIILogin}
+              variant="outline"
+              className="w-full"
+              disabled={isLoggingIn || isProcessing}
+            >
+              {isLoggingIn || isProcessing ? (
+                <>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Checking...
+                </>
+              ) : (
+                'Try Again with Different Account'
+              )}
+            </Button>
+            <button
+              onClick={() => {
+                setMode('select');
+                setAdminStep('login');
+              }}
+              className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ← Back to login options
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin: Access denied
+  if (adminStep === 'access-denied') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6 text-center">
+          <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+            <AlertCircle size={28} className="text-destructive" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Access Denied</h1>
+          <p className="text-muted-foreground">
+            Your principal is not registered as an admin. Please contact the system administrator.
+          </p>
+          <Button
+            onClick={() => {
+              setMode('select');
+              setAdminStep('login');
+            }}
+            variant="outline"
+            className="w-full"
+          >
+            Back to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin: Login step
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
-        {/* Header */}
         <div className="text-center">
-          <div className="flex justify-center mb-3">
-            <img src="/assets/generated/logo-mark.dim_128x128.png" alt="Logo" className="h-14 w-14 rounded-xl" />
+          <div className="w-14 h-14 rounded-full bg-gold/10 flex items-center justify-center mx-auto mb-4">
+            <Shield size={28} className="text-gold" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">The Rajat's Equation</h1>
-          <p className="text-muted-foreground text-sm mt-1">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-foreground">Admin Login</h1>
+          <p className="text-muted-foreground mt-1">Sign in with Internet Identity</p>
         </div>
 
-        {/* Student Login */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Shield className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Student Login</h2>
+        {error && (
+          <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 px-3 py-2 rounded-lg">
+            <AlertCircle size={16} />
+            <span>{error}</span>
           </div>
+        )}
 
-          {!isAuthenticated && approvalStatus === 'idle' && (
+        <Button
+          onClick={handleAdminIILogin}
+          className="w-full bg-gold text-navy hover:bg-gold/90"
+          disabled={isLoggingIn || isProcessing}
+        >
+          {isLoggingIn || isProcessing ? (
             <>
-              <p className="text-sm text-muted-foreground mb-4">
-                Students log in securely using Internet Identity — no password required.
-              </p>
-              <button
-                onClick={handleStudentLogin}
-                disabled={isLoggingIn || isInitializing}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-3 px-4 font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoggingIn ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="h-4 w-4" />
-                    Login with Internet Identity
-                  </>
-                )}
-              </button>
+              <Loader2 size={16} className="animate-spin mr-2" />
+              {isLoggingIn ? 'Opening Internet Identity...' : 'Verifying...'}
             </>
+          ) : (
+            'Login with Internet Identity'
           )}
+        </Button>
 
-          {(approvalStatus === 'checking' || (isAuthenticated && actorFetching)) && (
-            <div className="flex flex-col items-center gap-3 py-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Checking your approval status…</p>
-            </div>
-          )}
-
-          {approvalStatus === 'approved' && (
-            <div className="flex flex-col items-center gap-3 py-4">
-              <CheckCircle className="h-8 w-8 text-green-500" />
-              <p className="text-sm text-muted-foreground">Approved! Redirecting to dashboard…</p>
-            </div>
-          )}
-
-          {approvalStatus === 'pending' && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Account Pending Approval</p>
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                    Your account is pending admin approval. Please wait for confirmation after your payment is verified.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={async () => {
-                  await clear();
-                  setApprovalStatus('idle');
-                  setApprovalError('');
-                }}
-                className="w-full text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-              >
-                Sign out and try a different account
-              </button>
-            </div>
-          )}
-
-          {approvalStatus === 'error' && (
-            <div className="space-y-4">
-              <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4">
-                <p className="text-sm text-destructive">{approvalError}</p>
-              </div>
-              <button
-                onClick={async () => {
-                  await clear();
-                  setApprovalStatus('idle');
-                  setApprovalError('');
-                }}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-3 px-4 font-medium hover:bg-primary/90 transition-colors"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Admin Login */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Admin Login</h2>
-          <form onSubmit={handleAdminLogin} className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-              <input
-                type="email"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="admin@example.com"
-                required
-                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Password</label>
-              <input
-                type="password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </div>
-            {adminError && (
-              <p className="text-xs text-destructive">{adminError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={adminLoading}
-              className="w-full flex items-center justify-center gap-2 bg-secondary text-secondary-foreground rounded-xl py-2.5 px-4 font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
-            >
-              {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {adminLoading ? 'Signing in…' : 'Sign In as Admin'}
-            </button>
-          </form>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          <a href="/" className="hover:underline">← Back to Home</a>
-        </p>
+        <button
+          onClick={() => setMode('select')}
+          className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Back to login options
+        </button>
       </div>
     </div>
   );

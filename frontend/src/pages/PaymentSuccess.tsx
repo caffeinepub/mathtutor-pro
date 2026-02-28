@@ -1,61 +1,80 @@
-import { useEffect } from 'react';
-import { Link, useSearch } from '@tanstack/react-router';
-import { CheckCircle } from 'lucide-react';
-import { getStore, saveStore } from '../lib/store';
+import { useEffect, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { CheckCircle, Home, BookOpen } from 'lucide-react';
+import { getStore, addNotification } from '../lib/store';
+import { getAuthState } from '../lib/auth';
 
 export default function PaymentSuccess() {
-  const search = useSearch({ strict: false }) as { session_id?: string; payment_id?: string };
+  const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
+    if (processed) return;
+    setProcessed(true);
+
     try {
-      const paymentId = search?.payment_id;
-      if (!paymentId) return;
-
+      const auth = getAuthState();
       const store = getStore();
-      const paymentIndex = store.payments.findIndex((p) => p.id === paymentId);
-      if (paymentIndex !== -1) {
-        store.payments[paymentIndex].status = 'approved';
+      const studentId = auth?.studentId;
 
-        const payment = store.payments[paymentIndex];
-        const totalAmount = payment.amount ?? payment.totalAmount ?? (payment.hours * payment.pricePerHour);
-        store.notifications.push({
-          id: `notif_${Date.now()}`,
-          title: 'Payment Approved',
-          message: `Your payment of ₹${totalAmount} for ${payment.courseName} has been approved.`,
-          type: 'success',
-          readBy: [],
-          createdAt: new Date().toISOString(),
-        });
+      if (studentId) {
+        // Find the most recent pending payment for this student
+        const payment = [...store.payments]
+          .filter((p) => p.studentId === studentId && p.status === 'pending')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
-        saveStore(store);
+        if (payment) {
+          addNotification({
+            title: 'Payment Submitted',
+            message: `Your payment of ₹${payment.amount.toLocaleString()} for ${payment.courseName} has been submitted and is pending approval.`,
+            type: 'success',
+            targetStudentId: studentId,
+            readBy: [],
+          });
+        }
       }
     } catch {
-      // Silently ignore
+      // ignore notification errors
     }
-  }, [search?.payment_id]);
+  }, [processed]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="text-center max-w-md">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="w-10 h-10 text-green-600" />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="max-w-md w-full text-center space-y-6">
+        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+          <CheckCircle size={40} className="text-green-600" />
         </div>
-        <h1 className="text-3xl font-bold text-foreground mb-3">Payment Successful!</h1>
-        <p className="text-muted-foreground mb-8">
-          Your payment has been processed successfully. You will receive a confirmation shortly.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Payment Submitted!</h1>
+          <p className="text-muted-foreground mt-2">
+            Your payment has been submitted successfully. Please wait for admin approval.
+            You'll receive your access code once approved.
+          </p>
+        </div>
+
+        <div className="bg-muted rounded-xl p-4 text-sm text-left space-y-2">
+          <p className="font-medium text-foreground">What happens next?</p>
+          <ul className="space-y-1 text-muted-foreground list-disc list-inside">
+            <li>Admin will verify your UPI transaction</li>
+            <li>You'll receive an access code via email</li>
+            <li>Use the access code to log in to your student portal</li>
+          </ul>
+        </div>
+
+        <div className="flex gap-3 justify-center">
           <Link
-            to="/student"
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
+            to="/"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors text-sm"
           >
-            Go to Dashboard
+            <Home size={16} />
+            Home
           </Link>
           <Link
-            to="/student/payments"
-            className="px-6 py-3 border border-border text-foreground rounded-lg font-medium hover:bg-muted transition-colors"
+            to="/register"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm"
           >
-            View Payments
+            <BookOpen size={16} />
+            Register Another
           </Link>
         </div>
       </div>

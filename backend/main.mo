@@ -14,6 +14,8 @@ import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import UserApproval "user-approval/approval";
 
+
+
 actor {
   include MixinStorage();
   let accessControlState = AccessControl.initState();
@@ -686,17 +688,5 @@ actor {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
     userProfiles.add(caller, profile);
-  };
-
-  // Admin login functionality — no ICP auth guard needed as it validates its own credentials
-  public query func adminLogin(email : Text, password : Text) : async Bool {
-    let adminEmail = "admin@mathtutor.com";
-    let adminPassword = "Admin@123";
-
-    if (Text.equal(email, adminEmail) and Text.equal(password, adminPassword)) {
-      true;
-    } else {
-      false;
-    };
   };
 };

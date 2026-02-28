@@ -1,392 +1,256 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, Clock, Link2, BookOpen, User, Video, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getStore, saveStore, getApprovedStudents, Student, Session } from '../../lib/store';
+import { useState } from 'react';
+import { getStore, saveStore, getApprovedStudents } from '../../lib/store';
+import type { Student, Session } from '../../lib/store';
+import { Plus, Trash2, Calendar, Clock, Video, ChevronDown } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../../components/ui/dialog';
 
-export default function ManageStudentSessions() {
-  const [approvedStudents, setApprovedStudents] = useState<Student[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-
+export default function AdminManageStudentSessions() {
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [showAddSession, setShowAddSession] = useState(false);
   const [form, setForm] = useState({
+    title: '',
     date: '',
     time: '',
-    durationHours: '1',
+    duration: 1,
     meetLink: '',
     topic: '',
   });
 
-  const loadData = () => {
-    const students = getApprovedStudents();
-    setApprovedStudents(students);
-    if (selectedStudentId) {
-      loadSessionsForStudent(selectedStudentId);
-    }
+  const approvedStudents = getApprovedStudents();
+
+  const getStudentSessions = (studentId: string): Session[] => {
+    return getStore().sessions.filter((s) => s.studentId === studentId);
   };
 
-  const loadSessionsForStudent = (studentId: string) => {
+  const handleAddSession = () => {
+    if (!selectedStudent || !form.title || !form.date || !form.time) return;
+
     const store = getStore();
-    const studentSessions = store.sessions.filter((s) => s.studentId === studentId);
-    studentSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setSessions(studentSessions);
+    const newSession: Session = {
+      id: `session-${Date.now()}`,
+      studentId: selectedStudent.id,
+      title: form.title,
+      date: form.date,
+      time: form.time,
+      duration: form.duration,
+      meetLink: form.meetLink || undefined,
+      topic: form.topic || undefined,
+      status: 'scheduled',
+      createdAt: new Date().toISOString(),
+    };
+    store.sessions.push(newSession);
+    saveStore(store);
+
+    setShowAddSession(false);
+    setForm({ title: '', date: '', time: '', duration: 1, meetLink: '', topic: '' });
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedStudentId) {
-      loadSessionsForStudent(selectedStudentId);
-    } else {
-      setSessions([]);
-    }
-  }, [selectedStudentId]);
-
-  const handleStudentChange = (value: string) => {
-    setSelectedStudentId(value);
-    setShowForm(false);
-    setSuccessMsg('');
-    setErrorMsg('');
-  };
-
-  const handleFormChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    if (!selectedStudentId) {
-      setErrorMsg('Please select a student first.');
-      return;
-    }
-    if (!form.date || !form.time || !form.meetLink) {
-      setErrorMsg('Date, time, and Google Meet link are required.');
-      return;
-    }
-
-    const durationNum = parseInt(form.durationHours, 10);
-    if (isNaN(durationNum) || durationNum < 1) {
-      setErrorMsg('Duration must be at least 1 hour.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const store = getStore();
-      const selectedStudent = approvedStudents.find((s) => s.id === selectedStudentId);
-
-      const newSession: Session = {
-        id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        studentId: selectedStudentId,
-        studentEmail: selectedStudent?.email,
-        studentName: selectedStudent?.name,
-        date: form.date,
-        time: form.time,
-        durationHours: durationNum,
-        meetLink: form.meetLink,
-        topic: form.topic.trim() || undefined,
-        status: 'scheduled',
-        createdAt: new Date().toISOString(),
-      };
-
-      store.sessions.push(newSession);
-      saveStore(store);
-
-      // Reset form
-      setForm({ date: '', time: '', durationHours: '1', meetLink: '', topic: '' });
-      setShowForm(false);
-      setSuccessMsg(`Class added successfully for ${selectedStudent?.name}!`);
-      loadSessionsForStudent(selectedStudentId);
-    } catch (err) {
-      setErrorMsg('Failed to save session. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = (sessionId: string) => {
+  const handleDeleteSession = (sessionId: string) => {
     const store = getStore();
     store.sessions = store.sessions.filter((s) => s.id !== sessionId);
     saveStore(store);
-    loadSessionsForStudent(selectedStudentId);
   };
 
-  const selectedStudent = approvedStudents.find((s) => s.id === selectedStudentId);
+  const sessions = selectedStudent ? getStudentSessions(selectedStudent.id) : [];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Sessions (Classes)</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Assign Google Meet classes to individual students
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadData}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">Manage Student Classes</h2>
+        <p className="text-muted-foreground">Assign and manage classes for individual students</p>
       </div>
 
-      {/* Step 1: Select Student */}
+      {/* Student Selector */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <User className="w-4 h-4 text-primary" />
-            Step 1: Select Student
-          </CardTitle>
+        <CardHeader>
+          <CardTitle className="text-base">Select Student</CardTitle>
         </CardHeader>
         <CardContent>
           {approvedStudents.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No approved students yet.</p>
-              <p className="text-xs mt-1">Approve students from the Students section first.</p>
-            </div>
+            <p className="text-sm text-muted-foreground">No approved students yet.</p>
           ) : (
-            <Select value={selectedStudentId} onValueChange={handleStudentChange}>
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Choose a student..." />
-              </SelectTrigger>
-              <SelectContent>
-                {approvedStudents.map((student) => (
-                  <SelectItem key={student.id} value={student.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{student.name}</span>
-                      <span className="text-xs text-muted-foreground">{student.email} · {student.course}</span>
-                    </div>
-                  </SelectItem>
+            <div className="relative">
+              <select
+                value={selectedStudent?.id ?? ''}
+                onChange={(e) => {
+                  const s = approvedStudents.find((st) => st.id === e.target.value) ?? null;
+                  setSelectedStudent(s);
+                }}
+                className="w-full px-3 py-2 pr-8 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm appearance-none"
+              >
+                <option value="">Choose a student...</option>
+                {approvedStudents.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} — {s.email}
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Step 2: Add Class */}
-      {selectedStudentId && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Video className="w-4 h-4 text-primary" />
-                Step 2: Add Class for {selectedStudent?.name}
-              </CardTitle>
-              {!showForm && (
-                <Button size="sm" onClick={() => setShowForm(true)}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Class
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          {showForm && (
-            <CardContent>
-              {successMsg && (
-                <div className="mb-4 bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-                  {successMsg}
-                </div>
-              )}
-              {errorMsg && (
-                <div className="mb-4 bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded-lg p-3">
-                  {errorMsg}
-                </div>
-              )}
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="session-date">
-                      <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                      Date <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="session-date"
-                      type="date"
-                      value={form.date}
-                      onChange={(e) => handleFormChange('date', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="session-time">
-                      <Clock className="w-3.5 h-3.5 inline mr-1" />
-                      Time <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="session-time"
-                      type="time"
-                      value={form.time}
-                      onChange={(e) => handleFormChange('time', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="session-duration">
-                      Duration (hours) <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="session-duration"
-                      type="number"
-                      min="1"
-                      max="8"
-                      value={form.durationHours}
-                      onChange={(e) => handleFormChange('durationHours', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="session-meet">
-                      <Link2 className="w-3.5 h-3.5 inline mr-1" />
-                      Google Meet Link <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="session-meet"
-                      type="url"
-                      placeholder="https://meet.google.com/xxx-xxxx-xxx"
-                      value={form.meetLink}
-                      onChange={(e) => handleFormChange('meetLink', e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="session-topic">
-                    <BookOpen className="w-3.5 h-3.5 inline mr-1" />
-                    Class Topic (optional)
-                  </Label>
-                  <Input
-                    id="session-topic"
-                    type="text"
-                    placeholder="e.g. Quadratic Equations, Calculus Introduction..."
-                    value={form.topic}
-                    onChange={(e) => handleFormChange('topic', e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <Button type="submit" disabled={saving}>
-                    {saving ? 'Saving...' : 'Save Class'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setShowForm(false);
-                      setErrorMsg('');
-                      setForm({ date: '', time: '', durationHours: '1', meetLink: '', topic: '' });
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          )}
-        </Card>
-      )}
+      {/* Sessions for selected student */}
+      {selectedStudent && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-foreground">
+              Classes for {selectedStudent.name}
+            </h3>
+            <Button size="sm" onClick={() => setShowAddSession(true)}>
+              <Plus size={14} className="mr-1" />
+              Add Class
+            </Button>
+          </div>
 
-      {/* Success message outside form */}
-      {!showForm && successMsg && (
-        <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg p-3">
-          {successMsg}
+          {sessions.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-sm text-muted-foreground">No classes assigned yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {sessions.map((session) => (
+                <Card key={session.id}>
+                  <CardContent className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground text-sm">{session.title}</p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Calendar size={11} />
+                            {session.date}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock size={11} />
+                            {session.time}
+                          </span>
+                          <span>{session.duration}h</span>
+                        </div>
+                        {session.meetLink && (
+                          <a
+                            href={session.meetLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                          >
+                            <Video size={11} />
+                            Join Meeting
+                          </a>
+                        )}
+                        {session.topic && (
+                          <p className="text-xs text-muted-foreground mt-0.5">Topic: {session.topic}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          handleDeleteSession(session.id);
+                          setSelectedStudent({ ...selectedStudent });
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Sessions List */}
-      {selectedStudentId && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Classes for {selectedStudent?.name}
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({sessions.length} total)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sessions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Video className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No classes assigned yet.</p>
-                <p className="text-xs mt-1">Click "Add Class" above to schedule a class.</p>
+      {/* Add Session Dialog */}
+      <Dialog open={showAddSession} onOpenChange={setShowAddSession}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Class for {selectedStudent?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="e.g. Calculus - Derivatives"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Date</label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
               </div>
-            ) : (
-              <div className="space-y-3">
-                {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="flex items-start justify-between p-4 bg-muted/30 rounded-lg border border-border/50"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm">
-                          {session.topic || 'Class Session'}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${
-                            session.status === 'scheduled'
-                              ? 'bg-blue-100 text-blue-700'
-                              : session.status === 'completed'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {session.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(session.date).toLocaleDateString('en-IN', {
-                            weekday: 'short',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {session.time}
-                        </span>
-                        <span>{session.durationHours}h</span>
-                      </div>
-                      <a
-                        href={session.meetLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline mt-1 flex items-center gap-1"
-                      >
-                        <Link2 className="w-3 h-3" />
-                        {session.meetLink}
-                      </a>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(session.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Time</label>
+                <input
+                  type="time"
+                  value={form.time}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Duration (hours)</label>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={form.duration}
+                onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Google Meet Link (optional)</label>
+              <input
+                type="url"
+                value={form.meetLink}
+                onChange={(e) => setForm({ ...form, meetLink: e.target.value })}
+                placeholder="https://meet.google.com/..."
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Topic (optional)</label>
+              <input
+                type="text"
+                value={form.topic}
+                onChange={(e) => setForm({ ...form, topic: e.target.value })}
+                placeholder="Session topic"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddSession(false)}>Cancel</Button>
+            <Button
+              onClick={handleAddSession}
+              disabled={!form.title || !form.date || !form.time}
+            >
+              Add Class
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

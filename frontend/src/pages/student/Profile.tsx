@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { User, Mail, Phone, BookOpen, Copy, Check, Shield } from 'lucide-react';
-import { getStore, getAuthState } from '../../lib/store';
+import { getStore } from '../../lib/store';
+import { getAuthState } from '../../lib/auth';
 
 export default function StudentProfile() {
   const auth = getAuthState();
   const store = getStore();
-  const student = auth ? store.students.find((s) => s.id === auth.userId || s.userId === auth.userId) : null;
+
+  const student = auth?.studentId
+    ? store.students.find((s) => s.id === auth.studentId)
+    : null;
 
   const [copied, setCopied] = useState(false);
 
@@ -25,7 +29,8 @@ export default function StudentProfile() {
     );
   }
 
-  const enrolledCourses = store.courses.filter((c) => student.enrolledCourses?.includes(c.id));
+  // Find the course matching the student's enrolled course name
+  const enrolledCourse = store.courses.find((c) => c.name === student.course);
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -44,11 +49,15 @@ export default function StudentProfile() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-foreground">{student.name}</h2>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              student.status === 'approved' ? 'bg-green-100 text-green-700' :
-              student.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-              'bg-red-100 text-red-700'
-            }`}>
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                student.status === 'approved'
+                  ? 'bg-green-100 text-green-700'
+                  : student.status === 'pending'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-red-100 text-red-700'
+              }`}
+            >
               {student.status}
             </span>
           </div>
@@ -87,7 +96,11 @@ export default function StudentProfile() {
               onClick={handleCopy}
               className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"
             >
-              {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-muted-foreground" />}
+              {copied ? (
+                <Check className="w-4 h-4 text-green-600" />
+              ) : (
+                <Copy className="w-4 h-4 text-muted-foreground" />
+              )}
             </button>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
@@ -96,21 +109,18 @@ export default function StudentProfile() {
         </div>
       )}
 
-      {/* Enrolled Courses */}
-      {enrolledCourses.length > 0 && (
+      {/* Enrolled Course */}
+      {enrolledCourse && (
         <div className="bg-card border border-border rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <BookOpen className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">Enrolled Courses</h3>
+            <h3 className="font-bold text-foreground">Enrolled Course</h3>
           </div>
-          <div className="space-y-2">
-            {enrolledCourses.map((course) => (
-              <div key={course.id} className="flex items-center justify-between text-sm">
-                <span className="text-foreground">{course.name}</span>
-                <span className="text-xs text-muted-foreground">{course.level}</span>
-              </div>
-            ))}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-foreground">{enrolledCourse.name}</span>
+            <span className="text-xs text-muted-foreground">₹{enrolledCourse.pricePerHour}/hr</span>
           </div>
+          <p className="text-xs text-muted-foreground mt-1">{enrolledCourse.description}</p>
         </div>
       )}
     </div>

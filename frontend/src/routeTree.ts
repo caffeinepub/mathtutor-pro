@@ -1,28 +1,28 @@
 import {
-  createRootRoute,
-  createRoute,
   createRouter,
+  createRoute,
+  createRootRoute,
   redirect,
 } from '@tanstack/react-router';
+
 import RootLayout from './layouts/RootLayout';
 import AdminLayout from './layouts/AdminLayout';
 import StudentLayout from './layouts/StudentLayout';
 
-// Pages - lazy imports replaced with direct imports to avoid chunk loading issues
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminStudents from './pages/admin/Students';
-import AdminCourses from './pages/admin/Courses';
-import AdminSessions from './pages/admin/Sessions';
-import AdminMaterials from './pages/admin/Materials';
 import AdminPayments from './pages/admin/Payments';
+import AdminSessions from './pages/admin/Sessions';
+import AdminCourses from './pages/admin/Courses';
+import AdminMaterials from './pages/admin/Materials';
 import AdminNotifications from './pages/admin/Notifications';
-import ManageStudentSessions from './pages/admin/ManageStudentSessions';
-import ManageStudentMaterials from './pages/admin/ManageStudentMaterials';
-import AttendanceManagement from './pages/admin/AttendanceManagement';
+import AdminManageStudentSessions from './pages/admin/ManageStudentSessions';
+import AdminManageStudentMaterials from './pages/admin/ManageStudentMaterials';
+import AdminAttendance from './pages/admin/AttendanceManagement';
 
 import StudentDashboard from './pages/student/Dashboard';
 import StudentCourses from './pages/student/Courses';
@@ -31,32 +31,35 @@ import StudentMaterials from './pages/student/Materials';
 import StudentPayments from './pages/student/Payments';
 import StudentBook from './pages/student/Book';
 import StudentProfile from './pages/student/Profile';
-import MySessions from './pages/student/MySessions';
-import MyMaterials from './pages/student/MyMaterials';
+import StudentMySessions from './pages/student/MySessions';
+import StudentMyMaterials from './pages/student/MyMaterials';
 
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailure from './pages/PaymentFailure';
 
-// Auth helpers — must match the key used in store.ts / auth.ts
 const AUTH_KEY = 'rajats_equation_auth';
 
-function getAuthState(): { role?: string; userId?: string } {
+function getAuthRole(): 'admin' | 'student' | null {
   try {
     const raw = localStorage.getItem(AUTH_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { role?: string };
+    if (parsed.role === 'admin' || parsed.role === 'student') return parsed.role;
+    return null;
   } catch {
-    return {};
+    return null;
   }
 }
 
-// Root route
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
 const rootRoute = createRootRoute({
   component: RootLayout,
 });
 
-// Public routes
-const landingRoute = createRoute({
+// ─── Public Routes ────────────────────────────────────────────────────────────
+
+const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: Landing,
@@ -86,19 +89,15 @@ const paymentFailureRoute = createRoute({
   component: PaymentFailure,
 });
 
-// Admin layout route with guard
+// ─── Admin Layout Route ───────────────────────────────────────────────────────
+
 const adminLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
   component: AdminLayout,
   beforeLoad: () => {
-    try {
-      const auth = getAuthState();
-      if (!auth.role || auth.role !== 'admin') {
-        throw redirect({ to: '/login' });
-      }
-    } catch (e) {
-      if ((e as any)?.isRedirect) throw e;
+    const role = getAuthRole();
+    if (role !== 'admin') {
       throw redirect({ to: '/login' });
     }
   },
@@ -116,10 +115,10 @@ const adminStudentsRoute = createRoute({
   component: AdminStudents,
 });
 
-const adminCoursesRoute = createRoute({
+const adminPaymentsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
-  path: '/courses',
-  component: AdminCourses,
+  path: '/payments',
+  component: AdminPayments,
 });
 
 const adminSessionsRoute = createRoute({
@@ -128,16 +127,16 @@ const adminSessionsRoute = createRoute({
   component: AdminSessions,
 });
 
+const adminCoursesRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/courses',
+  component: AdminCourses,
+});
+
 const adminMaterialsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/materials',
   component: AdminMaterials,
-});
-
-const adminPaymentsRoute = createRoute({
-  getParentRoute: () => adminLayoutRoute,
-  path: '/payments',
-  component: AdminPayments,
 });
 
 const adminNotificationsRoute = createRoute({
@@ -146,37 +145,33 @@ const adminNotificationsRoute = createRoute({
   component: AdminNotifications,
 });
 
-const manageStudentSessionsRoute = createRoute({
+const adminManageStudentSessionsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/manage-sessions',
-  component: ManageStudentSessions,
+  component: AdminManageStudentSessions,
 });
 
-const manageStudentMaterialsRoute = createRoute({
+const adminManageStudentMaterialsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/manage-materials',
-  component: ManageStudentMaterials,
+  component: AdminManageStudentMaterials,
 });
 
-const attendanceManagementRoute = createRoute({
+const adminAttendanceRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/attendance',
-  component: AttendanceManagement,
+  component: AdminAttendance,
 });
 
-// Student layout route with guard
+// ─── Student Layout Route ─────────────────────────────────────────────────────
+
 const studentLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/student',
   component: StudentLayout,
   beforeLoad: () => {
-    try {
-      const auth = getAuthState();
-      if (!auth.role || auth.role !== 'student') {
-        throw redirect({ to: '/login' });
-      }
-    } catch (e) {
-      if ((e as any)?.isRedirect) throw e;
+    const role = getAuthRole();
+    if (role !== 'student') {
       throw redirect({ to: '/login' });
     }
   },
@@ -224,21 +219,22 @@ const studentProfileRoute = createRoute({
   component: StudentProfile,
 });
 
-const mySessionsRoute = createRoute({
+const studentMySessionsRoute = createRoute({
   getParentRoute: () => studentLayoutRoute,
   path: '/my-sessions',
-  component: MySessions,
+  component: StudentMySessions,
 });
 
-const myMaterialsRoute = createRoute({
+const studentMyMaterialsRoute = createRoute({
   getParentRoute: () => studentLayoutRoute,
   path: '/my-materials',
-  component: MyMaterials,
+  component: StudentMyMaterials,
 });
 
-// Build route tree
-export const routeTree = rootRoute.addChildren([
-  landingRoute,
+// ─── Route Tree ───────────────────────────────────────────────────────────────
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
   loginRoute,
   registerRoute,
   paymentSuccessRoute,
@@ -246,14 +242,14 @@ export const routeTree = rootRoute.addChildren([
   adminLayoutRoute.addChildren([
     adminDashboardRoute,
     adminStudentsRoute,
-    adminCoursesRoute,
-    adminSessionsRoute,
-    adminMaterialsRoute,
     adminPaymentsRoute,
+    adminSessionsRoute,
+    adminCoursesRoute,
+    adminMaterialsRoute,
     adminNotificationsRoute,
-    manageStudentSessionsRoute,
-    manageStudentMaterialsRoute,
-    attendanceManagementRoute,
+    adminManageStudentSessionsRoute,
+    adminManageStudentMaterialsRoute,
+    adminAttendanceRoute,
   ]),
   studentLayoutRoute.addChildren([
     studentDashboardRoute,
@@ -263,7 +259,15 @@ export const routeTree = rootRoute.addChildren([
     studentPaymentsRoute,
     studentBookRoute,
     studentProfileRoute,
-    mySessionsRoute,
-    myMaterialsRoute,
+    studentMySessionsRoute,
+    studentMyMaterialsRoute,
   ]),
 ]);
+
+export const router = createRouter({ routeTree });
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}

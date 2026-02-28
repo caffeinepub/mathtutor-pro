@@ -189,7 +189,6 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
-  'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
   'approveUpiPayment' : IDL.Func([IDL.Nat, IDL.Text], [ApproveResult], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'createCheckoutSession' : IDL.Func(
@@ -477,7 +476,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
-    'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
     'approveUpiPayment' : IDL.Func([IDL.Nat, IDL.Text], [ApproveResult], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'createCheckoutSession' : IDL.Func(

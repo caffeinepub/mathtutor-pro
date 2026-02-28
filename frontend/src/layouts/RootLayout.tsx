@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
 import { Outlet } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { initializeStore } from '../lib/store';
 
 export default function RootLayout() {
@@ -7,7 +7,7 @@ export default function RootLayout() {
     try {
       initializeStore();
     } catch {
-      // silently fail
+      // ignore store initialization errors
     }
   }, []);
 

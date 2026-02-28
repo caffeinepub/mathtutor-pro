@@ -1,14 +1,11 @@
 # Specification
 
 ## Summary
-**Goal:** Replace the custom student login (email + unique code) with Internet Identity authentication, while leaving all admin and other features untouched.
+**Goal:** Improve the scannability and usability of the UPI payment QR code on the student payment page by fixing the QR encoding format, upgrading quality settings, and adding a copyable fallback section.
 
 **Planned changes:**
-- Remove the email and unique code fields from the student login section on the Login page; replace with a single Internet Identity login button that triggers the `useInternetIdentity` hook.
-- After successful Internet Identity login, check if the student's principal is approved in the backend — redirect approved students to the dashboard, show a pending approval message for unapproved ones.
-- Remove backend functions that validate email + unique code pairs for student authentication; student identity checks must rely solely on the caller's Internet Identity principal.
-- Update student route guards to protect routes using `isAuthenticated` from the `useInternetIdentity` hook instead of any localStorage-based custom token.
-- Update the StudentLayout logout button to call the Internet Identity logout function.
-- Admin login, admin route guards, AdminLayout, and all other backend features remain completely unchanged.
+- Generate the QR code using a properly formatted UPI deep link (`upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`) so all UPI apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan it correctly
+- Render the QR code with error correction level H, a white quiet zone border, high-contrast black-on-white modules, and a minimum size of 256x256 pixels
+- Add a fallback section below the QR code labeled "Can't scan? Use these instead:" with a copyable UPI ID (copy button with "Copied!" toast feedback) and a tappable UPI deep link that opens the user's default UPI app
 
-**User-visible outcome:** Students log in exclusively via Internet Identity instead of email and unique code. Approved students are directed to their dashboard; unapproved students see a pending approval message. Admins continue to log in with the existing email-based flow without any changes.
+**User-visible outcome:** Students can reliably scan the QR code with any UPI app, and if scanning fails, they can copy the UPI ID or tap a direct payment link to complete the payment manually.

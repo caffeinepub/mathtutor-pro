@@ -1,28 +1,34 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "Student Course Management Platform where students browse courses, pay via UPI (9424135055@ptyes), submit transaction ID, wait for admin approval, then log in via Internet Identity. Admin logs in with hardcoded email (mrjain950761@gmail.com) to approve/reject payments, manage per-student Google Meet sessions, materials, and attendance tracking.",
+  "summary": "A student fee payment app with UPI QR code integration. The student side has a payment QR feature being improved for better UPI compatibility and scannability.",
   "architectural_notes": [
-    "Authentication: Students use Internet Identity (blockchain-based, no passwords). Admin uses hardcoded email login (mrjain950761@gmail.com only, no public registration).",
-    "UPI payment flow is fully manual: student pays externally, submits transaction ID as proof, admin manually verifies and approves.",
-    "All sessions and materials are assigned per individual student by admin — no shared/public content."
+    "UPI QR codes must use the format upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&cu=INR for broad app compatibility (Google Pay, PhonePe, BHIM, etc.)"
   ],
   "known_issues": [
-    "Build has failed twice when attempting to implement Internet Identity + full system together; user now requests scoped change only (remove custom login, add Internet Identity for students)."
+    "Student-side UPI payment QR code is not scannable by most UPI apps (e.g., Paytm, Google Pay) — likely due to incorrect QR format or encoding"
   ],
-  "isFixRequest": false,
+  "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-remove-the-custom-student-login-form-email-unique-code-fields-from-the-login-page-replace-it-with-an-internet-identity-login-button-for-students-when-a-student-clicks-the-button-trigger-the-internet-identity-authentication-flow-using-the-existing-useinternetidentity-hook-after-successful-authentication-check-if-the-student-s-principal-is-approved-in-the-backend-if-approved-redirect-to-the-student-dashboard-if-not-yet-approved-show-a-message-that-their-account-is-pending-admin-approval",
-      "title": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
+      "id": "feature-on-the-student-side-payment-page-frontend-src-pages-student-book-tsx-and-any-related-payment-qr-rendering-component-generate-the-qr-code-using-a-properly-formatted-upi-deep-link-in-the-format-upi-pay-pa-upi-id-pn-payee-name-am-amount-cu-inr-ensure-this-format-is-used-consistently-so-all-upi-compliant-apps-google-pay-phonepe-bhim-paytm-etc-can-scan-and-initiate-payment-without-issues",
+      "title": "On the student-side payment page (frontend/src/pages/student/Book.tsx and any related payment QR rendering component), generate the QR code using a properly formatted UPI deep link in the format: `upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`. Ensure this format is used consistently so all UPI-compliant apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan and initiate payment without issues.",
       "reqIds": [
         "REQ-1"
       ],
       "version": 1
     },
     {
-      "id": "feature-update-the-student-facing-layouts-and-route-guards-to-use-the-internet-identity-principal-from-useinternetidentity-hook-instead-of-any-localstorage-based-custom-auth-token-or-unique-code-for-determining-if-a-student-is-logged-in-the-studentlayout-sidebar-logout-button-should-call-the-internet-identity-logout-function-do-not-change-the-adminlayout-or-any-admin-route-guards",
-      "title": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
+      "id": "feature-upgrade-the-qr-code-rendering-on-the-student-payment-page-to-use-error-correction-level-h-highest-30-damage-tolerance-ensure-the-qr-is-rendered-with-sufficient-quiet-zone-at-least-4-modules-of-white-border-high-contrast-black-modules-on-white-background-and-at-a-resolution-high-enough-for-crisp-display-minimum-256x256-logical-pixels-if-using-a-qr-library-like-qrcode-react-set-the-appropriate-props-errorcorrectionlevel-h-size-includemargin-true",
+      "title": "Upgrade the QR code rendering on the student payment page to use error correction level 'H' (highest, ~30% damage tolerance). Ensure the QR is rendered with sufficient quiet zone (at least 4 modules of white border), high contrast (black modules on white background), and at a resolution high enough for crisp display (minimum 256x256 logical pixels). If using a QR library like 'qrcode.react', set the appropriate props (errorCorrectionLevel='H', size, includeMargin=true).",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-below-the-qr-code-on-the-student-payment-page-add-a-copyable-fallback-section-that-displays-1-the-upi-id-in-a-styled-text-field-with-a-one-click-copy-to-clipboard-button-2-the-full-upi-payment-deep-link-as-a-tappable-anchor-that-opens-the-user-s-default-upi-app-when-clicked-show-a-brief-confirmation-toast-or-inline-feedback-e-g-copied-when-the-upi-id-is-copied-label-this-section-clearly-e-g-can-t-scan-use-these-instead",
+      "title": "Below the QR code on the student payment page, add a copyable fallback section that displays: (1) the UPI ID in a styled text field with a one-click copy-to-clipboard button, (2) the full UPI payment deep link as a tappable anchor that opens the user's default UPI app when clicked. Show a brief confirmation toast or inline feedback (e.g., 'Copied!') when the UPI ID is copied. Label this section clearly, e.g., 'Can't scan? Use these instead:'.",
       "reqIds": [
         "REQ-3"
       ],
@@ -32,45 +38,13 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "Student Course Management Platform with Internet Identity auth for students and hardcoded email auth for admin",
+      "summary": "Improve UPI payment QR code on student side: proper upi:// deep link format, high error correction (level H), and copyable UPI ID fallback",
       "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-2",
-      "summary": "Pre-login flow: browse courses with hourly pricing, select course, enter hours, see total, pay via UPI, submit transaction ID",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-3",
-      "summary": "Admin panel: approve/reject payments, generate access, add Google Meet sessions per student, add materials per student, track attendance, view student list with counts",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-4",
-      "summary": "Student dashboard (post-approval): My Course, My Classes (Google Meet), My Materials, Attendance status, Payment status",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-5",
-      "summary": "Remove all custom login logic; students authenticate exclusively via Internet Identity; admin authenticates via hardcoded email mrjain950761@gmail.com",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-7",
-      "summary": "Remove all remaining custom credential authentication logic for students from the backend (main.mo). Any functions that validate email + unique code combinations for student login should be removed or disabled. Student identity verification must rely solely on the caller's Internet Identity principal. Do not change any admin-related logic, payment approval logic, session management, materials management, or attendance tracking.",
-      "reqIds": [
-        "REQ-2"
-      ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "Student Course Management Platform",
+  "projectName": "EduPay Portal",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

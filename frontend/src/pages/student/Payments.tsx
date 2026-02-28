@@ -1,47 +1,39 @@
-import React, { useState } from 'react';
-import { CreditCard, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { getStore, getAuthState, type Payment } from '../../lib/store';
+import { useState } from 'react';
+import { getStore } from '../../lib/store';
+import { getAuthState } from '../../lib/auth';
+import type { Payment } from '../../lib/store';
 import ReceiptModal from '../../components/ReceiptModal';
+import { CreditCard, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 export default function StudentPayments() {
   const auth = getAuthState();
   const store = getStore();
-  const student = auth ? store.students.find((s) => s.id === auth.userId || s.userId === auth.userId) : null;
 
+  const studentId = auth?.studentId || '';
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   const payments = store.payments
-    .filter((p) => p.studentId === student?.id)
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    .filter((p) => p.studentId === studentId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const approvedPayments = payments.filter(
-    (p) => p.status === 'approved' || p.status === 'completed'
-  );
+  const approvedPayments = payments.filter((p) => p.status === 'approved');
   const pendingPayments = payments.filter((p) => p.status === 'pending');
-  const totalSpent = approvedPayments.reduce((sum, p) => {
-    const amt = p.amount ?? p.totalAmount ?? (p.hours * p.pricePerHour);
-    return sum + amt;
-  }, 0);
+  const totalSpent = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
 
   const statusIcon = (status: Payment['status']) => {
-    if (status === 'approved' || status === 'completed')
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
-    if (status === 'rejected')
-      return <XCircle className="w-4 h-4 text-red-600" />;
+    if (status === 'approved') return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (status === 'rejected') return <XCircle className="w-4 h-4 text-red-600" />;
     return <Clock className="w-4 h-4 text-amber-600" />;
   };
 
   const statusLabel = (status: Payment['status']) => {
-    if (status === 'approved' || status === 'completed') return 'Approved';
+    if (status === 'approved') return 'Approved';
     if (status === 'rejected') return 'Rejected';
     return 'Pending';
   };
 
   const statusClass = (status: Payment['status']) => {
-    if (status === 'approved' || status === 'completed') return 'bg-green-100 text-green-700';
+    if (status === 'approved') return 'bg-green-100 text-green-700';
     if (status === 'rejected') return 'bg-red-100 text-red-700';
     return 'bg-amber-100 text-amber-700';
   };
@@ -78,44 +70,49 @@ export default function StudentPayments() {
         </div>
       ) : (
         <div className="space-y-3">
-          {payments.map((payment) => {
-            const totalAmount = payment.amount ?? payment.totalAmount ?? (payment.hours * payment.pricePerHour);
-            return (
-              <div key={payment.id} className="bg-card border border-border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-semibold text-foreground truncate">{payment.courseName}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-1 ${statusClass(payment.status)}`}>
-                        {statusIcon(payment.status)}
-                        {statusLabel(payment.status)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground capitalize">{payment.sessionType} · {payment.hours}h</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      UPI: {payment.upiTransactionId}
+          {payments.map((payment) => (
+            <div key={payment.id} className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {payment.courseName}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(payment.createdAt).toLocaleDateString('en-IN', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-lg font-bold text-foreground">₹{totalAmount}</div>
-                    <button
-                      onClick={() => setSelectedPayment(payment)}
-                      className="text-xs text-primary hover:underline mt-1"
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 flex items-center gap-1 ${statusClass(payment.status)}`}
                     >
-                      View Receipt
-                    </button>
+                      {statusIcon(payment.status)}
+                      {statusLabel(payment.status)}
+                    </span>
                   </div>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {payment.sessionType} · {payment.hours}h
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    UPI: {payment.upiTransactionId}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(payment.createdAt).toLocaleDateString('en-IN', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-bold text-foreground">
+                    ₹{payment.amount.toLocaleString()}
+                  </div>
+                  <button
+                    onClick={() => setSelectedPayment(payment)}
+                    className="text-xs text-primary hover:underline mt-1"
+                  >
+                    View Receipt
+                  </button>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 

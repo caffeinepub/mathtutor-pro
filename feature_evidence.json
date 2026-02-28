@@ -2,10 +2,10 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-remove-the-custom-student-login-form-email-unique-code-fields-from-the-login-page-replace-it-with-an-internet-identity-login-button-for-students-when-a-student-clicks-the-button-trigger-the-internet-identity-authentication-flow-using-the-existing-useinternetidentity-hook-after-successful-authentication-check-if-the-student-s-principal-is-approved-in-the-backend-if-approved-redirect-to-the-student-dashboard-if-not-yet-approved-show-a-message-that-their-account-is-pending-admin-approval",
-      "featureTitle": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
+      "featureId": "feature-on-the-student-side-payment-page-frontend-src-pages-student-book-tsx-and-any-related-payment-qr-rendering-component-generate-the-qr-code-using-a-properly-formatted-upi-deep-link-in-the-format-upi-pay-pa-upi-id-pn-payee-name-am-amount-cu-inr-ensure-this-format-is-used-consistently-so-all-upi-compliant-apps-google-pay-phonepe-bhim-paytm-etc-can-scan-and-initiate-payment-without-issues",
+      "featureTitle": "On the student-side payment page (frontend/src/pages/student/Book.tsx and any related payment QR rendering component), generate the QR code using a properly formatted UPI deep link in the format: `upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`. Ensure this format is used consistently so all UPI-compliant apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan and initiate payment without issues.",
       "files": [
-        "frontend/src/pages/Login.tsx"
+        "frontend/src/pages/student/Book.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -17,7 +17,9 @@
         "github-export-icp-cli@1.0.0",
         "http-outcalls@3.0.0",
         "user-approval@3.0.0",
-        "blob-storage@4.0.0"
+        "blob-storage@4.0.0",
+        "qr-code@1.0.0",
+        "camera@1.0.0"
       ],
       "testIds": [
         "REQ-1"
@@ -25,11 +27,10 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-update-the-student-facing-layouts-and-route-guards-to-use-the-internet-identity-principal-from-useinternetidentity-hook-instead-of-any-localstorage-based-custom-auth-token-or-unique-code-for-determining-if-a-student-is-logged-in-the-studentlayout-sidebar-logout-button-should-call-the-internet-identity-logout-function-do-not-change-the-adminlayout-or-any-admin-route-guards",
-      "featureTitle": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
+      "featureId": "feature-upgrade-the-qr-code-rendering-on-the-student-payment-page-to-use-error-correction-level-h-highest-30-damage-tolerance-ensure-the-qr-is-rendered-with-sufficient-quiet-zone-at-least-4-modules-of-white-border-high-contrast-black-modules-on-white-background-and-at-a-resolution-high-enough-for-crisp-display-minimum-256x256-logical-pixels-if-using-a-qr-library-like-qrcode-react-set-the-appropriate-props-errorcorrectionlevel-h-size-includemargin-true",
+      "featureTitle": "Upgrade the QR code rendering on the student payment page to use error correction level 'H' (highest, ~30% damage tolerance). Ensure the QR is rendered with sufficient quiet zone (at least 4 modules of white border), high contrast (black modules on white background), and at a resolution high enough for crisp display (minimum 256x256 logical pixels). If using a QR library like 'qrcode.react', set the appropriate props (errorCorrectionLevel='H', size, includeMargin=true).",
       "files": [
-        "frontend/src/layouts/StudentLayout.tsx",
-        "frontend/src/lib/auth.ts"
+        "frontend/src/pages/student/Book.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -41,7 +42,34 @@
         "github-export-icp-cli@1.0.0",
         "http-outcalls@3.0.0",
         "user-approval@3.0.0",
-        "blob-storage@4.0.0"
+        "blob-storage@4.0.0",
+        "qr-code@1.0.0",
+        "camera@1.0.0"
+      ],
+      "testIds": [
+        "REQ-2"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-below-the-qr-code-on-the-student-payment-page-add-a-copyable-fallback-section-that-displays-1-the-upi-id-in-a-styled-text-field-with-a-one-click-copy-to-clipboard-button-2-the-full-upi-payment-deep-link-as-a-tappable-anchor-that-opens-the-user-s-default-upi-app-when-clicked-show-a-brief-confirmation-toast-or-inline-feedback-e-g-copied-when-the-upi-id-is-copied-label-this-section-clearly-e-g-can-t-scan-use-these-instead",
+      "featureTitle": "Below the QR code on the student payment page, add a copyable fallback section that displays: (1) the UPI ID in a styled text field with a one-click copy-to-clipboard button, (2) the full UPI payment deep link as a tappable anchor that opens the user's default UPI app when clicked. Show a brief confirmation toast or inline feedback (e.g., 'Copied!') when the UPI ID is copied. Label this section clearly, e.g., 'Can't scan? Use these instead:'.",
+      "files": [
+        "frontend/src/pages/student/Book.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0",
+        "qr-code@1.0.0",
+        "camera@1.0.0"
       ],
       "testIds": [
         "REQ-3"
