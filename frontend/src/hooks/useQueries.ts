@@ -1,9 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
-import type { UserProfile, UpiPayment, ApprovalStatus, Session, Material, Attendance, AttendanceSummary, AttendanceStatus, UserApprovalInfo } from '../backend';
+import {
+  ApprovalStatus,
+  UserApprovalInfo,
+  UpiPayment,
+  UserProfile,
+  Session,
+  Material,
+  Attendance,
+  AttendanceSummary,
+  AttendanceStatus,
+} from '../backend';
 import { Principal } from '@dfinity/principal';
 
-// ─── User Profile ────────────────────────────────────────────────────────────
+// ── User Profile ──────────────────────────────────────────────────────────────
 
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
@@ -40,46 +50,18 @@ export function useSaveCallerUserProfile() {
   });
 }
 
-// ─── Approval ────────────────────────────────────────────────────────────────
-
-export function useIsCallerApproved() {
-  const { actor, isFetching } = useActor();
-
-  return useQuery<boolean>({
-    queryKey: ['isCallerApproved'],
-    queryFn: async () => {
-      if (!actor) return false;
-      return actor.isCallerApproved();
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useRequestApproval() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.requestApproval();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['isCallerApproved'] });
-    },
-  });
-}
+// ── Approvals ─────────────────────────────────────────────────────────────────
 
 export function useListApprovals() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<UserApprovalInfo[]>({
-    queryKey: ['listApprovals'],
+    queryKey: ['approvals'],
     queryFn: async () => {
       if (!actor) return [];
       return actor.listApprovals();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -93,15 +75,28 @@ export function useSetApproval() {
       return actor.setApproval(user, status);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['listApprovals'] });
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
     },
   });
 }
 
-// ─── UPI Payments ────────────────────────────────────────────────────────────
+export function useIsCallerApproved() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<boolean>({
+    queryKey: ['isCallerApproved'],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.isCallerApproved();
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
 
 export function useGetAllPayments() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<UpiPayment[]>({
     queryKey: ['allPayments'],
@@ -109,12 +104,12 @@ export function useGetAllPayments() {
       if (!actor) return [];
       return actor.getAllPayments();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
 export function useGetPendingPayments() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<UpiPayment[]>({
     queryKey: ['pendingPayments'],
@@ -122,7 +117,7 @@ export function useGetPendingPayments() {
       if (!actor) return [];
       return actor.getPendingPayments();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -162,7 +157,8 @@ export function useSubmitUpiPayment() {
   });
 }
 
-export function useApproveUpiPayment() {
+/** Approve a UPI payment (canonical name) */
+export function useApprovePayment() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
@@ -178,7 +174,11 @@ export function useApproveUpiPayment() {
   });
 }
 
-export function useRejectUpiPayment() {
+/** Alias kept for backward compatibility */
+export const useApproveUpiPayment = useApprovePayment;
+
+/** Reject a UPI payment (canonical name) */
+export function useRejectPayment() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
@@ -194,18 +194,21 @@ export function useRejectUpiPayment() {
   });
 }
 
-// ─── Sessions ─────────────────────────────────────────────────────────────────
+/** Alias kept for backward compatibility */
+export const useRejectUpiPayment = useRejectPayment;
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
 
 export function useGetSessionsForStudent(studentPrincipal: Principal | null) {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<Session[]>({
-    queryKey: ['sessions', studentPrincipal?.toString()],
+    queryKey: ['sessions', studentPrincipal?.toString() ?? 'none'],
     queryFn: async () => {
       if (!actor || !studentPrincipal) return [];
       return actor.getSessionsForStudent(studentPrincipal);
     },
-    enabled: !!actor && !isFetching && !!studentPrincipal,
+    enabled: !!actor && !actorFetching && !!studentPrincipal,
   });
 }
 
@@ -232,8 +235,10 @@ export function useAddSession() {
         params.topic
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['sessions', variables.studentPrincipal.toString()],
+      });
     },
   });
 }
@@ -253,18 +258,18 @@ export function useDeleteSession() {
   });
 }
 
-// ─── Materials ────────────────────────────────────────────────────────────────
+// ── Materials ─────────────────────────────────────────────────────────────────
 
 export function useGetMaterialsForStudent(studentPrincipal: Principal | null) {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<Material[]>({
-    queryKey: ['materials', studentPrincipal?.toString()],
+    queryKey: ['materials', studentPrincipal?.toString() ?? 'none'],
     queryFn: async () => {
       if (!actor || !studentPrincipal) return [];
       return actor.getMaterialsForStudent(studentPrincipal);
     },
-    enabled: !!actor && !isFetching && !!studentPrincipal,
+    enabled: !!actor && !actorFetching && !!studentPrincipal,
   });
 }
 
@@ -291,8 +296,10 @@ export function useAddMaterial() {
         params.relatedCourse
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['materials'] });
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['materials', variables.studentPrincipal.toString()],
+      });
     },
   });
 }
@@ -312,31 +319,31 @@ export function useDeleteMaterial() {
   });
 }
 
-// ─── Attendance ───────────────────────────────────────────────────────────────
+// ── Attendance ────────────────────────────────────────────────────────────────
 
 export function useGetAttendanceForStudent(studentPrincipal: Principal | null) {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<Attendance[]>({
-    queryKey: ['attendance', studentPrincipal?.toString()],
+    queryKey: ['attendance', studentPrincipal?.toString() ?? 'none'],
     queryFn: async () => {
       if (!actor || !studentPrincipal) return [];
       return actor.getAttendanceForStudent(studentPrincipal);
     },
-    enabled: !!actor && !isFetching && !!studentPrincipal,
+    enabled: !!actor && !actorFetching && !!studentPrincipal,
   });
 }
 
 export function useGetAttendanceSummary(studentPrincipal: Principal | null) {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<AttendanceSummary>({
-    queryKey: ['attendanceSummary', studentPrincipal?.toString()],
+    queryKey: ['attendanceSummary', studentPrincipal?.toString() ?? 'none'],
     queryFn: async () => {
       if (!actor || !studentPrincipal) throw new Error('No principal');
       return actor.getAttendanceSummary(studentPrincipal);
     },
-    enabled: !!actor && !isFetching && !!studentPrincipal,
+    enabled: !!actor && !actorFetching && !!studentPrincipal,
   });
 }
 
@@ -360,10 +367,10 @@ export function useMarkAttendance() {
   });
 }
 
-// ─── Admin check ──────────────────────────────────────────────────────────────
+// ── Admin check ───────────────────────────────────────────────────────────────
 
 export function useIsCallerAdmin() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<boolean>({
     queryKey: ['isCallerAdmin'],
@@ -371,14 +378,14 @@ export function useIsCallerAdmin() {
       if (!actor) return false;
       return actor.isCallerAdmin();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
-// ─── Products (used for health check) ────────────────────────────────────────
+// ── Products (used for health check) ─────────────────────────────────────────
 
 export function useGetProducts() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery({
     queryKey: ['products'],
@@ -386,6 +393,6 @@ export function useGetProducts() {
       if (!actor) return [];
       return actor.getProducts();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }

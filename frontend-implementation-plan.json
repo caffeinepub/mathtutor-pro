@@ -1,57 +1,91 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Improve UPI Payment QR Code Scannability with Fallback",
+  "title": "Remove payment gate from student sign-in and fix admin dropdown for sessions/materials",
   "requirements": [
     {
       "id": "REQ-1",
-      "summary": "Generate QR code using properly formatted UPI deep link for universal UPI app compatibility",
+      "summary": "Remove all payment gate and access code checks from the student sign-in flow so any student who logs in via Internet Identity can immediately access the student portal",
       "acceptanceCriteria": [
-        "The QR code encodes a valid upi://pay?pa=...&pn=...&am=...&cu=INR URI",
-        "Scanning the QR with Google Pay opens a pre-filled payment screen",
-        "Scanning the QR with PhonePe opens a pre-filled payment screen",
-        "Scanning the QR with BHIM opens a pre-filled payment screen"
+        "A student who logs in via Internet Identity is never shown a 'payment pending' or 'access code required' error screen",
+        "Active students, pending students, and newly registered students can all log in and reach the student dashboard without interruption",
+        "The existing student registration flow and Internet Identity authentication mechanism remain unchanged"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/student/Book.tsx",
+          "path": "frontend/src/pages/Login.tsx",
           "operation": "modify",
-          "description": "Update the QR code generation to encode a properly formatted UPI deep link in the format: upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR. Replace any existing QR code data with this standardized format. Ensure the UPI ID, payee name, and amount are correctly URL-encoded and that the currency is set to INR. The QR library (likely qrcode.react or similar) should encode this string directly as the value prop."
+          "description": "Remove access code requirement and payment status checks from student login flow. After Internet Identity authentication succeeds, allow immediate navigation to /student/dashboard without validating payment status, approval status, or access code. Keep admin login flow unchanged."
+        },
+        {
+          "path": "frontend/src/routeTree.ts",
+          "operation": "modify",
+          "description": "Update the student route beforeLoad guard to remove any payment status or approval checks that block authenticated students from accessing the student portal. Only verify that the user has a valid Internet Identity authentication; do not check payment or approval status."
+        },
+        {
+          "path": "frontend/src/lib/auth.ts",
+          "operation": "modify",
+          "description": "Remove any payment status validation or access code checks from the authentication helper functions. Ensure offline credential validation no longer blocks students based on payment or approval status."
         }
       ]
     },
     {
       "id": "REQ-2",
-      "summary": "Upgrade QR code rendering with high error correction, quiet zone, and optimal resolution for crisp scanning",
+      "summary": "Display all registered students on the admin dashboard Students page with their payment and active status clearly shown for each student",
       "acceptanceCriteria": [
-        "QR code uses error correction level H",
-        "QR is rendered with a white quiet zone border on all sides",
-        "QR modules are high contrast black on white",
-        "QR is rendered at minimum 256x256 pixels"
+        "Admin dashboard Students page lists every registered student",
+        "Each student row shows their payment status (e.g., pending, paid/active) and active status badge",
+        "Students who have paid and are active are visually distinguished from pending students"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/student/Book.tsx",
+          "path": "frontend/src/pages/admin/Students.tsx",
           "operation": "modify",
-          "description": "Upgrade the QR code component props to set errorCorrectionLevel='H' (highest damage tolerance), size to at least 256 pixels (e.g., 300 or 320 for better clarity), includeMargin={true} for automatic quiet zone border, and ensure the QR uses high contrast (default black on white). If using qrcode.react, apply these props directly to the QRCodeSVG or QRCodeCanvas component. Ensure the rendered QR has crisp, clear module separation suitable for mobile scanning."
+          "description": "Update the students list to display all registered students fetched from the backend using listApprovals and getAllPayments queries. For each student row, show their payment status using the StatusBadge component (pending, approved, rejected) and display their active/pending state clearly. Ensure the table includes columns for student name, email, payment status badge, approval status badge, and action buttons. Use the backend interface methods listApprovals() and getAllPayments() to gather complete student data."
         }
       ]
     },
     {
       "id": "REQ-3",
-      "summary": "Add copyable UPI ID and tappable payment link fallback section below QR code with confirmation feedback",
+      "summary": "Fix the student selector dropdown in admin ManageStudentSessions to populate with all enrolled/booked/active students so admin can select and add sessions for them",
       "acceptanceCriteria": [
-        "A clearly labeled fallback section appears below the QR code",
-        "The UPI ID is displayed with a copy button that copies it to clipboard",
-        "A 'Pay Now' or 'Open Payment App' link is shown that opens the upi:// deep link",
-        "Clicking copy shows a 'Copied!' confirmation message",
-        "The fallback section is visible on both mobile and desktop"
+        "The student dropdown in ManageStudentSessions shows all enrolled/booked/active students",
+        "Admin can select a student from the dropdown and add a session for that specific student",
+        "Sessions added for a student are saved and visible under that student's record",
+        "No existing session structure or fields are changed"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/student/Book.tsx",
+          "path": "frontend/src/pages/admin/ManageStudentSessions.tsx",
           "operation": "modify",
-          "description": "Below the QR code rendering section, add a new fallback UI labeled 'Can't scan? Use these instead:'. Display the UPI ID (e.g., extracted from the deep link) in a styled input or text field with a copy-to-clipboard button (use navigator.clipboard.writeText and show a brief 'Copied!' toast or inline message on success). Include a tappable anchor (<a> with href set to the full upi://pay?... deep link) labeled 'Pay Now' or 'Open Payment App' that triggers the user's default UPI app when clicked. Ensure the section is responsive and clearly visible on both mobile and desktop layouts."
+          "description": "Fix the student selector dropdown to query listApprovals() from the backend and filter for approved students (status === 'approved'). Populate the dropdown with all approved/enrolled students showing their name and email. When a student is selected, use their Principal from the UserApprovalInfo to pass to addSession mutation. Ensure the dropdown is never empty when approved students exist in the system."
+        },
+        {
+          "path": "frontend/src/hooks/useSessions.ts",
+          "operation": "modify",
+          "description": "Ensure the addSession mutation and getSessionsForStudent query properly handle Principal objects. Add helper functions if needed to convert between principal string representations and Principal objects for the dropdown selection flow."
+        }
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "summary": "Fix the student selector dropdown in admin ManageStudentMaterials to populate with all enrolled/registered students so admin can select and add materials for them",
+      "acceptanceCriteria": [
+        "The student dropdown in ManageStudentMaterials shows all enrolled/registered/active students",
+        "Admin can select a student from the dropdown and add materials for that specific student",
+        "Materials added for a student are saved and visible under that student's record",
+        "No existing materials structure or fields are changed"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/admin/ManageStudentMaterials.tsx",
+          "operation": "modify",
+          "description": "Fix the student selector dropdown to query listApprovals() from the backend and filter for approved students (status === 'approved'). Populate the dropdown with all approved/enrolled students showing their name and email. When a student is selected, use their Principal from the UserApprovalInfo to pass to addMaterial mutation. Ensure the dropdown is never empty when approved students exist in the system."
+        },
+        {
+          "path": "frontend/src/hooks/useMaterials.ts",
+          "operation": "modify",
+          "description": "Ensure the addMaterial mutation and getMaterialsForStudent query properly handle Principal objects. Add helper functions if needed to convert between principal string representations and Principal objects for the dropdown selection flow."
         }
       ]
     }

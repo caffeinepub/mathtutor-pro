@@ -2,10 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-on-the-student-side-payment-page-frontend-src-pages-student-book-tsx-and-any-related-payment-qr-rendering-component-generate-the-qr-code-using-a-properly-formatted-upi-deep-link-in-the-format-upi-pay-pa-upi-id-pn-payee-name-am-amount-cu-inr-ensure-this-format-is-used-consistently-so-all-upi-compliant-apps-google-pay-phonepe-bhim-paytm-etc-can-scan-and-initiate-payment-without-issues",
-      "featureTitle": "On the student-side payment page (frontend/src/pages/student/Book.tsx and any related payment QR rendering component), generate the QR code using a properly formatted UPI deep link in the format: `upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`. Ensure this format is used consistently so all UPI-compliant apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan and initiate payment without issues.",
+      "featureId": "feature-remove-all-payment-gate-and-access-code-checks-from-the-student-sign-in-flow-any-student-who-logs-in-via-internet-identity-must-be-granted-immediate-access-to-the-student-portal-regardless-of-payment-status-active-pending-approved-flag-or-access-code-the-payment-is-still-pending-approval-block-and-any-similar-payment-based-login-interruption-must-be-fully-removed",
+      "featureTitle": "Remove all payment gate and access code checks from the student sign-in flow. Any student who logs in via Internet Identity must be granted immediate access to the student portal regardless of payment status, active/pending/approved flag, or access code. The 'payment is still pending approval' block and any similar payment-based login interruption must be fully removed.",
       "files": [
-        "frontend/src/pages/student/Book.tsx"
+        "frontend/src/pages/Login.tsx",
+        "frontend/src/routeTree.ts"
       ],
       "components": [
         "authorization@4.0.0",
@@ -27,10 +28,10 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-upgrade-the-qr-code-rendering-on-the-student-payment-page-to-use-error-correction-level-h-highest-30-damage-tolerance-ensure-the-qr-is-rendered-with-sufficient-quiet-zone-at-least-4-modules-of-white-border-high-contrast-black-modules-on-white-background-and-at-a-resolution-high-enough-for-crisp-display-minimum-256x256-logical-pixels-if-using-a-qr-library-like-qrcode-react-set-the-appropriate-props-errorcorrectionlevel-h-size-includemargin-true",
-      "featureTitle": "Upgrade the QR code rendering on the student payment page to use error correction level 'H' (highest, ~30% damage tolerance). Ensure the QR is rendered with sufficient quiet zone (at least 4 modules of white border), high contrast (black modules on white background), and at a resolution high enough for crisp display (minimum 256x256 logical pixels). If using a QR library like 'qrcode.react', set the appropriate props (errorCorrectionLevel='H', size, includeMargin=true).",
+      "featureId": "feature-the-admin-dashboard-students-section-must-display-all-registered-students-regardless-of-payment-status-with-their-payment-and-active-status-clearly-shown-for-each-student",
+      "featureTitle": "The admin dashboard Students section must display all registered students (regardless of payment status) with their payment and active status clearly shown for each student.",
       "files": [
-        "frontend/src/pages/student/Book.tsx"
+        "frontend/src/pages/admin/Students.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -52,10 +53,11 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-below-the-qr-code-on-the-student-payment-page-add-a-copyable-fallback-section-that-displays-1-the-upi-id-in-a-styled-text-field-with-a-one-click-copy-to-clipboard-button-2-the-full-upi-payment-deep-link-as-a-tappable-anchor-that-opens-the-user-s-default-upi-app-when-clicked-show-a-brief-confirmation-toast-or-inline-feedback-e-g-copied-when-the-upi-id-is-copied-label-this-section-clearly-e-g-can-t-scan-use-these-instead",
-      "featureTitle": "Below the QR code on the student payment page, add a copyable fallback section that displays: (1) the UPI ID in a styled text field with a one-click copy-to-clipboard button, (2) the full UPI payment deep link as a tappable anchor that opens the user's default UPI app when clicked. Show a brief confirmation toast or inline feedback (e.g., 'Copied!') when the UPI ID is copied. Label this section clearly, e.g., 'Can't scan? Use these instead:'.",
+      "featureId": "feature-in-the-admin-managestudentsessions-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-have-booked-or-registered-for-a-session-enrolled-active-students-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-sessions-specifically-for-that-student-currently-there-is-no-option-to-add-a-student-even-if-they-have-booked-this-must-be-fixed-so-enrolled-booked-students-always-appear-in-the-dropdown",
+      "featureTitle": "In the admin ManageStudentSessions page, the student selector dropdown must be populated with all students who have booked or registered for a session (enrolled/active students). The admin must be able to select any such student from the dropdown and add sessions specifically for that student. Currently there is no option to add a student even if they have booked — this must be fixed so enrolled/booked students always appear in the dropdown.",
       "files": [
-        "frontend/src/pages/student/Book.tsx"
+        "frontend/src/hooks/useSessions.ts",
+        "frontend/src/pages/admin/ManageStudentSessions.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -73,6 +75,32 @@
       ],
       "testIds": [
         "REQ-3"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-in-the-admin-managestudentmaterials-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-are-enrolled-or-registered-same-logic-as-sessions-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-materials-specifically-for-that-student-this-mirrors-the-sessions-fix-enrolled-students-must-always-appear-in-the-materials-dropdown",
+      "featureTitle": "In the admin ManageStudentMaterials page, the student selector dropdown must be populated with all students who are enrolled or registered (same logic as sessions). The admin must be able to select any such student from the dropdown and add materials specifically for that student. This mirrors the sessions fix: enrolled students must always appear in the materials dropdown.",
+      "files": [
+        "frontend/src/hooks/useMaterials.ts",
+        "frontend/src/pages/admin/ManageStudentMaterials.tsx"
+      ],
+      "components": [
+        "authorization@4.0.0",
+        "stripe@3.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "github-export-icp-cli@1.0.0",
+        "http-outcalls@3.0.0",
+        "user-approval@3.0.0",
+        "blob-storage@4.0.0",
+        "qr-code@1.0.0",
+        "camera@1.0.0"
+      ],
+      "testIds": [
+        "REQ-4"
       ],
       "confidence": "high"
     }

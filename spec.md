@@ -1,11 +1,13 @@
 # Specification
 
 ## Summary
-**Goal:** Improve the scannability and usability of the UPI payment QR code on the student payment page by fixing the QR encoding format, upgrading quality settings, and adding a copyable fallback section.
+**Goal:** Remove the payment gate from student sign-in so all registered students can access the portal freely, and fix the student selector dropdowns in the admin sessions and materials management pages so enrolled/registered students always appear.
 
 **Planned changes:**
-- Generate the QR code using a properly formatted UPI deep link (`upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`) so all UPI apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan it correctly
-- Render the QR code with error correction level H, a white quiet zone border, high-contrast black-on-white modules, and a minimum size of 256x256 pixels
-- Add a fallback section below the QR code labeled "Can't scan? Use these instead:" with a copyable UPI ID (copy button with "Copied!" toast feedback) and a tappable UPI deep link that opens the user's default UPI app
+- Remove all payment status, access code, and approval checks from the student sign-in flow on the frontend so any student authenticated via Internet Identity reaches the student dashboard without interruption
+- Remove backend payment gate / access-denied guards that block authenticated student principals from accessing their sessions, materials, or profile data
+- Update the admin Students section to list all registered students with their payment and active status visually displayed
+- Fix the ManageStudentSessions admin page so the student selector dropdown is populated with all enrolled/booked/active students, allowing the admin to add sessions for any listed student
+- Fix the ManageStudentMaterials admin page so the student selector dropdown is populated with all enrolled/registered/active students, allowing the admin to add materials for any listed student
 
-**User-visible outcome:** Students can reliably scan the QR code with any UPI app, and if scanning fails, they can copy the UPI ID or tap a direct payment link to complete the payment manually.
+**User-visible outcome:** Students can log in via Internet Identity and immediately access the student portal with no payment or access code prompts. Admins can view all registered students with their statuses, and can select any enrolled student from the dropdowns in both the sessions and materials management pages to add records for them.

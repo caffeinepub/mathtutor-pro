@@ -1,65 +1,99 @@
-import { Outlet, useNavigate, Link, useRouterState } from '@tanstack/react-router';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import {
   LayoutDashboard,
   Users,
-  CreditCard,
   BookOpen,
+  Calendar,
   FileText,
   Bell,
+  CreditCard,
   LogOut,
   Menu,
   X,
   GraduationCap,
-  Calendar,
   ClipboardList,
   BookMarked,
-  Activity,
 } from 'lucide-react';
 import { useInternetIdentity } from '../hooks/useInternetIdentity';
-import { clearAuthState } from '../lib/auth';
+import { clearAuthState, clearCachedCredentials } from '../lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCanisterHealth } from '../hooks/useCanisterHealth';
-import { useGetPendingPayments } from '../hooks/useQueries';
+import { useReconnectionToast } from '../hooks/useReconnectionToast';
+import BackendUnavailableScreen from '../components/BackendUnavailableScreen';
+import { getStore } from '../lib/store';
 
 const navItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/admin/students', label: 'Students', icon: Users },
-  { path: '/admin/payments', label: 'Payments', icon: CreditCard },
-  { path: '/admin/sessions', label: 'Sessions', icon: Calendar },
   { path: '/admin/courses', label: 'Courses', icon: BookOpen },
+  { path: '/admin/sessions', label: 'Sessions', icon: Calendar },
   { path: '/admin/materials', label: 'Materials', icon: FileText },
   { path: '/admin/notifications', label: 'Notifications', icon: Bell },
+  { path: '/admin/payments', label: 'Payments', icon: CreditCard },
   { path: '/admin/manage-sessions', label: 'Manage Classes', icon: ClipboardList },
   { path: '/admin/manage-materials', label: 'Manage Materials', icon: BookMarked },
-  { path: '/admin/attendance', label: 'Attendance', icon: GraduationCap },
+  { path: '/admin/attendance', label: 'Attendance', icon: ClipboardList },
 ];
 
 export default function AdminLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const routerState = useRouterState();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { clear } = useInternetIdentity();
   const queryClient = useQueryClient();
-  const { isOnline } = useCanisterHealth();
-  const { data: pendingPayments } = useGetPendingPayments();
+  const { isOnline, isChecking, isPending, checkHealth } = useCanisterHealth();
 
-  const pendingCount = pendingPayments?.length ?? 0;
+  // Show reconnection toast when backend recovers
+  useReconnectionToast();
+
   const currentPath = routerState.location.pathname;
 
   const handleLogout = async () => {
     try {
       await clear();
     } catch {
-      // ignore II errors
+      // ignore
     }
     clearAuthState();
+    clearCachedCredentials();
     queryClient.clear();
     navigate({ to: '/login' });
   };
 
+  // Count pending payments for badge
+  let pendingCount = 0;
+  try {
+    const store = getStore();
+    pendingCount = store.payments.filter(p => p.status === 'pending').length;
+  } catch {
+    // ignore
+  }
+
+  // Show loading screen while initial health check is pending
+  // Show backend unavailable screen only after health check definitively returns offline
+  if (isPending || (!isOnline && isChecking)) {
+    return (
+      <BackendUnavailableScreen
+        onCheckAgain={checkHealth}
+        isChecking={isChecking}
+        isPending={true}
+      />
+    );
+  }
+
+  if (!isOnline) {
+    return (
+      <BackendUnavailableScreen
+        onCheckAgain={checkHealth}
+        isChecking={isChecking}
+        isPending={false}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -70,38 +104,24 @@ export default function AdminLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-navy text-white z-30 transform transition-transform duration-300 lg:translate-x-0 lg:static lg:z-auto ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-card border-r border-border flex flex-col transform transition-transform duration-200 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <img src="/assets/generated/logo-mark.dim_128x128.png" alt="Logo" className="w-8 h-8 rounded" />
-            <div>
-              <p className="font-bold text-sm leading-tight">Rajat's Equation</p>
-              <p className="text-xs text-white/60">Admin Portal</p>
-            </div>
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
+          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
+            <GraduationCap className="h-5 w-5 text-primary-foreground" />
           </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-white/60 hover:text-white"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Health indicator */}
-        <div className="px-4 py-2 border-b border-white/10">
-          <div className="flex items-center gap-2 text-xs">
-            <Activity size={12} className={isOnline ? 'text-green-400' : 'text-red-400'} />
-            <span className={isOnline ? 'text-green-400' : 'text-red-400'}>
-              {isOnline ? 'Backend Online' : 'Backend Offline'}
-            </span>
+          <div>
+            <p className="font-bold text-sm text-foreground leading-tight">Rajat's Equation</p>
+            <p className="text-xs text-muted-foreground">Admin Portal</p>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3">
+          {navItems.map(item => {
             const Icon = item.icon;
             const isActive =
               item.path === '/admin'
@@ -112,16 +132,16 @@ export default function AdminLayout() {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors relative ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-sm font-medium transition-colors relative ${
                   isActive
-                    ? 'bg-gold text-navy font-semibold'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
-                <Icon size={18} />
-                <span>{item.label}</span>
-                {item.label === 'Payments' && pendingCount > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <Icon className="h-4 w-4 shrink-0" />
+                {item.label}
+                {item.path === '/admin/payments' && pendingCount > 0 && (
+                  <span className="ml-auto bg-destructive text-destructive-foreground text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
                     {pendingCount}
                   </span>
                 )}
@@ -130,40 +150,37 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
+        {/* Footer */}
+        <div className="px-3 py-4 border-t border-border">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/80 hover:bg-white/10 hover:text-white w-full transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
           >
-            <LogOut size={18} />
-            <span>Logout</span>
+            <LogOut className="h-4 w-4" />
+            Logout
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="bg-card border-b border-border px-4 py-3 flex items-center gap-4 sticky top-0 z-10">
+        <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4 shrink-0">
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-muted-foreground hover:text-foreground"
+            className="lg:hidden p-2 rounded-md hover:bg-accent"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
           >
-            <Menu size={22} />
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <h1 className="font-semibold text-foreground text-sm">
-            {navItems.find((n) =>
-              n.path === '/admin'
-                ? currentPath === '/admin' || currentPath === '/admin/'
-                : currentPath.startsWith(n.path)
-            )?.label ?? 'Admin Portal'}
-          </h1>
-          <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Admin</span>
+          <div className="flex-1" />
+          {/* Health indicator */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            Online
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
+        <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

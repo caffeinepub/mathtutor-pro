@@ -1,165 +1,119 @@
-import { useState, useEffect } from 'react';
-import { Video, Calendar, Clock } from 'lucide-react';
-import { Card, CardContent } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
-import { getStore } from '../../lib/store';
+import React from 'react';
+import { Calendar, Clock, Video, WifiOff } from 'lucide-react';
 import { getAuthState } from '../../lib/auth';
-import type { Session } from '../../lib/store';
+import { getStore } from '../../lib/store';
+import { useCanisterHealth } from '../../hooks/useCanisterHealth';
 
 export default function StudentSessions() {
-  const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
-  const [pastSessions, setPastSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
+  const auth = getAuthState();
+  const { isOnline } = useCanisterHealth();
 
-  useEffect(() => {
-    loadSessions();
-  }, []);
+  let sessions: Array<{
+    id: string;
+    date: string;
+    time: string;
+    duration: number;
+    title: string;
+    meetLink?: string;
+    topic?: string;
+  }> = [];
 
-  const loadSessions = () => {
-    setLoading(true);
-    try {
-      const auth = getAuthState();
-      if (!auth || !auth.studentId) {
-        setLoading(false);
-        return;
-      }
-      const store = getStore();
-      const studentSessions = store.sessions.filter((s) => s.studentId === auth.studentId);
-      const now = new Date();
-
-      const upcoming = studentSessions
-        .filter((s) => {
-          const sessionDate = new Date(`${s.date}T${s.time}`);
-          return sessionDate >= now && s.status !== 'cancelled';
-        })
-        .sort(
-          (a, b) =>
-            new Date(`${a.date}T${a.time}`).getTime() -
-            new Date(`${b.date}T${b.time}`).getTime()
-        );
-
-      const past = studentSessions
-        .filter((s) => {
-          const sessionDate = new Date(`${s.date}T${s.time}`);
-          return sessionDate < now || s.status === 'completed';
-        })
-        .sort(
-          (a, b) =>
-            new Date(`${b.date}T${b.time}`).getTime() -
-            new Date(`${a.date}T${a.time}`).getTime()
-        );
-
-      setUpcomingSessions(upcoming);
-      setPastSessions(past);
-    } catch {
-      // silently fail
-    } finally {
-      setLoading(false);
+  try {
+    const store = getStore();
+    const studentId = auth?.studentId;
+    if (studentId) {
+      sessions = store.sessions
+        .filter(s => s.studentId === studentId)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .map(s => ({
+          id: s.id,
+          date: s.date,
+          time: s.time || '',
+          duration: s.duration || 1,
+          title: s.title || s.topic || 'Class',
+          meetLink: s.meetLink,
+          topic: s.topic,
+        }));
     }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-64">
-        <div className="text-muted-foreground">Loading sessions...</div>
-      </div>
-    );
+  } catch {
+    // ignore
   }
 
-  const SessionCard = ({ session, isPast }: { session: Session; isPast: boolean }) => (
-    <Card className="border-border/50">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold text-foreground">
-                {session.title || session.topic || 'Class Session'}
-              </h3>
-              <Badge
-                variant={isPast ? 'secondary' : 'default'}
-                className={isPast ? '' : 'bg-blue-100 text-blue-700 border-blue-200'}
-              >
-                {isPast ? 'Completed' : 'Upcoming'}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                {new Date(session.date).toLocaleDateString('en-IN', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                {session.time}
-              </span>
-              <span>{session.duration} hour{session.duration !== 1 ? 's' : ''}</span>
-            </div>
-            {session.topic && session.title !== session.topic && (
-              <p className="text-xs text-muted-foreground mt-1">Topic: {session.topic}</p>
-            )}
-          </div>
-          {session.meetLink && !isPast && (
-            <a
-              href={session.meetLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              <Video className="w-3.5 h-3.5" />
-              Join
-            </a>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+  const upcoming = sessions.filter(
+    s => new Date(`${s.date}T${s.time || '00:00'}`) >= new Date()
+  );
+  const past = sessions.filter(
+    s => new Date(`${s.date}T${s.time || '00:00'}`) < new Date()
   );
 
-  const totalSessions = upcomingSessions.length + pastSessions.length;
+  const SessionCard = ({ session }: { session: typeof sessions[0] }) => (
+    <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-4">
+      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+        <Calendar className="h-6 w-6 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-foreground">{session.title}</p>
+        {session.topic && session.topic !== session.title && (
+          <p className="text-sm text-muted-foreground">{session.topic}</p>
+        )}
+        <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {session.date}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {session.time} · {session.duration}h
+          </span>
+        </div>
+      </div>
+      {session.meetLink && (
+        <a
+          href={session.meetLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+        >
+          <Video className="h-3 w-3" />
+          Join
+        </a>
+      )}
+    </div>
+  );
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">My Sessions</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {totalSessions} session{totalSessions !== 1 ? 's' : ''} total
-        </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-foreground">Sessions</h1>
+        {!isOnline && (
+          <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-full">
+            <WifiOff className="h-3 w-3" />
+            Cached
+          </span>
+        )}
       </div>
 
-      {totalSessions === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No sessions yet</p>
-          <p className="text-sm mt-1">Your sessions will appear here once scheduled.</p>
+      {sessions.length === 0 ? (
+        <div className="rounded-xl border border-border bg-card p-8 text-center">
+          <Calendar className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">No sessions scheduled yet.</p>
         </div>
       ) : (
         <>
-          {upcomingSessions.length > 0 && (
-            <div className="mb-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Upcoming ({upcomingSessions.length})
+          {upcoming.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Upcoming ({upcoming.length})
               </h2>
-              <div className="space-y-3">
-                {upcomingSessions.map((s) => (
-                  <SessionCard key={s.id} session={s} isPast={false} />
-                ))}
-              </div>
+              {upcoming.map(s => <SessionCard key={s.id} session={s} />)}
             </div>
           )}
-
-          {pastSessions.length > 0 && (
-            <div>
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Past ({pastSessions.length})
+          {past.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Past ({past.length})
               </h2>
-              <div className="space-y-3">
-                {pastSessions.map((s) => (
-                  <SessionCard key={s.id} session={s} isPast={true} />
-                ))}
-              </div>
+              {past.map(s => <SessionCard key={s.id} session={s} />)}
             </div>
           )}
         </>

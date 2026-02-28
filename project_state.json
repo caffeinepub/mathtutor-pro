@@ -1,36 +1,45 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "A student fee payment app with UPI QR code integration. The student side has a payment QR feature being improved for better UPI compatibility and scannability.",
+  "summary": "Student learning portal with admin dashboard. Students can register and sign in via Internet Identity with no access code or payment gate. All registered students are visible in the admin dashboard with payment/active status. Admin can add sessions and materials for specific booked/enrolled students via dropdown menus.",
   "architectural_notes": [
-    "UPI QR codes must use the format upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&cu=INR for broad app compatibility (Google Pay, PhonePe, BHIM, etc.)"
+    "Student registration system remains unchanged; only sign-in flow is modified to remove payment/access-code gate",
+    "Student portal access is open to all registered users regardless of payment status; payment info is informational only in admin dashboard"
   ],
   "known_issues": [
-    "Student-side UPI payment QR code is not scannable by most UPI apps (e.g., Paytm, Google Pay) — likely due to incorrect QR format or encoding"
+    "Active students were incorrectly blocked by payment pending message during sign-in"
   ],
   "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-on-the-student-side-payment-page-frontend-src-pages-student-book-tsx-and-any-related-payment-qr-rendering-component-generate-the-qr-code-using-a-properly-formatted-upi-deep-link-in-the-format-upi-pay-pa-upi-id-pn-payee-name-am-amount-cu-inr-ensure-this-format-is-used-consistently-so-all-upi-compliant-apps-google-pay-phonepe-bhim-paytm-etc-can-scan-and-initiate-payment-without-issues",
-      "title": "On the student-side payment page (frontend/src/pages/student/Book.tsx and any related payment QR rendering component), generate the QR code using a properly formatted UPI deep link in the format: `upi://pay?pa=<UPI_ID>&pn=<PAYEE_NAME>&am=<AMOUNT>&cu=INR`. Ensure this format is used consistently so all UPI-compliant apps (Google Pay, PhonePe, BHIM, Paytm, etc.) can scan and initiate payment without issues.",
+      "id": "feature-remove-all-payment-gate-and-access-code-checks-from-the-student-sign-in-flow-any-student-who-logs-in-via-internet-identity-must-be-granted-immediate-access-to-the-student-portal-regardless-of-payment-status-active-pending-approved-flag-or-access-code-the-payment-is-still-pending-approval-block-and-any-similar-payment-based-login-interruption-must-be-fully-removed",
+      "title": "Remove all payment gate and access code checks from the student sign-in flow. Any student who logs in via Internet Identity must be granted immediate access to the student portal regardless of payment status, active/pending/approved flag, or access code. The 'payment is still pending approval' block and any similar payment-based login interruption must be fully removed.",
       "reqIds": [
         "REQ-1"
       ],
       "version": 1
     },
     {
-      "id": "feature-upgrade-the-qr-code-rendering-on-the-student-payment-page-to-use-error-correction-level-h-highest-30-damage-tolerance-ensure-the-qr-is-rendered-with-sufficient-quiet-zone-at-least-4-modules-of-white-border-high-contrast-black-modules-on-white-background-and-at-a-resolution-high-enough-for-crisp-display-minimum-256x256-logical-pixels-if-using-a-qr-library-like-qrcode-react-set-the-appropriate-props-errorcorrectionlevel-h-size-includemargin-true",
-      "title": "Upgrade the QR code rendering on the student payment page to use error correction level 'H' (highest, ~30% damage tolerance). Ensure the QR is rendered with sufficient quiet zone (at least 4 modules of white border), high contrast (black modules on white background), and at a resolution high enough for crisp display (minimum 256x256 logical pixels). If using a QR library like 'qrcode.react', set the appropriate props (errorCorrectionLevel='H', size, includeMargin=true).",
+      "id": "feature-the-admin-dashboard-students-section-must-display-all-registered-students-regardless-of-payment-status-with-their-payment-and-active-status-clearly-shown-for-each-student",
+      "title": "The admin dashboard Students section must display all registered students (regardless of payment status) with their payment and active status clearly shown for each student.",
       "reqIds": [
         "REQ-2"
       ],
       "version": 1
     },
     {
-      "id": "feature-below-the-qr-code-on-the-student-payment-page-add-a-copyable-fallback-section-that-displays-1-the-upi-id-in-a-styled-text-field-with-a-one-click-copy-to-clipboard-button-2-the-full-upi-payment-deep-link-as-a-tappable-anchor-that-opens-the-user-s-default-upi-app-when-clicked-show-a-brief-confirmation-toast-or-inline-feedback-e-g-copied-when-the-upi-id-is-copied-label-this-section-clearly-e-g-can-t-scan-use-these-instead",
-      "title": "Below the QR code on the student payment page, add a copyable fallback section that displays: (1) the UPI ID in a styled text field with a one-click copy-to-clipboard button, (2) the full UPI payment deep link as a tappable anchor that opens the user's default UPI app when clicked. Show a brief confirmation toast or inline feedback (e.g., 'Copied!') when the UPI ID is copied. Label this section clearly, e.g., 'Can't scan? Use these instead:'.",
+      "id": "feature-in-the-admin-managestudentsessions-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-have-booked-or-registered-for-a-session-enrolled-active-students-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-sessions-specifically-for-that-student-currently-there-is-no-option-to-add-a-student-even-if-they-have-booked-this-must-be-fixed-so-enrolled-booked-students-always-appear-in-the-dropdown",
+      "title": "In the admin ManageStudentSessions page, the student selector dropdown must be populated with all students who have booked or registered for a session (enrolled/active students). The admin must be able to select any such student from the dropdown and add sessions specifically for that student. Currently there is no option to add a student even if they have booked — this must be fixed so enrolled/booked students always appear in the dropdown.",
       "reqIds": [
         "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-in-the-admin-managestudentmaterials-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-are-enrolled-or-registered-same-logic-as-sessions-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-materials-specifically-for-that-student-this-mirrors-the-sessions-fix-enrolled-students-must-always-appear-in-the-materials-dropdown",
+      "title": "In the admin ManageStudentMaterials page, the student selector dropdown must be populated with all students who are enrolled or registered (same logic as sessions). The admin must be able to select any such student from the dropdown and add materials specifically for that student. This mirrors the sessions fix: enrolled students must always appear in the materials dropdown.",
+      "reqIds": [
+        "REQ-4"
       ],
       "version": 1
     }
@@ -38,13 +47,39 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "Improve UPI payment QR code on student side: proper upi:// deep link format, high error correction (level H), and copyable UPI ID fallback",
+      "summary": "Remove payment gate and access code from student sign-in — any student can log in via Internet Identity",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Admin dashboard shows all registered students with payment/active status",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Sessions section: booked/enrolled students appear in dropdown so admin can add sessions per student",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Materials section: enrolled students appear in dropdown so admin can add materials per student",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Update the backend actor to remove any payment status or access code validation that blocks student login or portal access. Student authentication via Internet Identity should only verify that the principal exists; no payment gate, approval status check, or access code check should prevent a logged-in student from accessing their data.",
+      "reqIds": [
+        "REQ-5"
+      ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "EduPay Portal",
+  "projectName": "Student Learning Portal",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

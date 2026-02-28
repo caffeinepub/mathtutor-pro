@@ -1,54 +1,83 @@
 import { useState, useEffect, useRef } from 'react';
 import { useActor } from './useActor';
 
-interface CanisterHealth {
+interface CanisterHealthState {
   isOnline: boolean;
   isChecking: boolean;
+  isPending: boolean; // true until the first health check completes
   lastChecked: Date | null;
+  wasOffline: boolean; // true when backend just recovered (offline -> online transition)
 }
 
-const IC0508_ERROR = 'IC0508';
+export function useCanisterHealth() {
+  const { actor, isFetching: actorFetching } = useActor();
+  const [state, setState] = useState<CanisterHealthState>({
+    isOnline: true,
+    isChecking: false,
+    isPending: true, // start as pending until first check completes
+    lastChecked: null,
+    wasOffline: false,
+  });
 
-function isCanisterStoppedError(error: unknown): boolean {
-  if (!error) return false;
-  const msg = String(error);
-  return msg.includes(IC0508_ERROR) || msg.toLowerCase().includes('canister stopped');
-}
-
-export function useCanisterHealth(): CanisterHealth {
-  const { actor } = useActor();
-  const [isOnline, setIsOnline] = useState(true);
-  const [isChecking, setIsChecking] = useState(false);
-  const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevOnlineRef = useRef<boolean | null>(null);
+  const hasCheckedRef = useRef(false);
 
   const checkHealth = async () => {
     if (!actor) return;
-    setIsChecking(true);
+
+    setState(prev => ({ ...prev, isChecking: true, wasOffline: false }));
+
     try {
       await actor.getProducts();
-      setIsOnline(true);
-    } catch (err) {
-      if (isCanisterStoppedError(err)) {
-        setIsOnline(false);
-      } else {
-        setIsOnline(true);
-      }
-    } finally {
-      setIsChecking(false);
-      setLastChecked(new Date());
+      hasCheckedRef.current = true;
+      setState(prev => {
+        const wasOffline = prevOnlineRef.current === false;
+        prevOnlineRef.current = true;
+        return {
+          isOnline: true,
+          isChecking: false,
+          isPending: false,
+          lastChecked: new Date(),
+          wasOffline,
+        };
+      });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isOffline =
+        errMsg.includes('IC0508') ||
+        errMsg.includes('canister stopped') ||
+        errMsg.includes('Failed to fetch') ||
+        errMsg.includes('NetworkError') ||
+        errMsg.includes('network error');
+
+      hasCheckedRef.current = true;
+      setState(prev => {
+        prevOnlineRef.current = isOffline ? false : true;
+        return {
+          ...prev,
+          isOnline: !isOffline,
+          isChecking: false,
+          isPending: false,
+          lastChecked: new Date(),
+          wasOffline: false,
+        };
+      });
     }
   };
 
   useEffect(() => {
-    if (!actor) return;
-    checkHealth();
-    intervalRef.current = setInterval(checkHealth, 60_000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actor]);
+    // While actor is still being fetched, keep isPending true
+    if (actorFetching) {
+      setState(prev => ({ ...prev, isPending: true }));
+      return;
+    }
 
-  return { isOnline, isChecking, lastChecked };
+    if (!actor) return;
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
+  }, [actor, actorFetching]);
+
+  return { ...state, checkHealth };
 }

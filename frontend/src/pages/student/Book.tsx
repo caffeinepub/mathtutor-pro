@@ -10,26 +10,23 @@ const SESSION_TYPES = [
 ];
 
 // UPI payment details
-const UPI_ID = 'rajatsequation@upi';
+const UPI_ID = '9424135055@ptyes';
 const PAYEE_NAME = "Rajat's Equation";
 
 function buildUpiDeepLink(amount: number): string {
   const params = new URLSearchParams({
     pa: UPI_ID,
     pn: PAYEE_NAME,
-    am: amount > 0 ? amount.toFixed(2) : '',
     cu: 'INR',
     tn: 'Session Booking - Rajats Equation',
   });
-  // Remove 'am' if amount is 0 (no course selected yet)
-  if (amount <= 0) {
-    params.delete('am');
+  if (amount > 0) {
+    params.set('am', amount.toFixed(2));
   }
   return `upi://pay?${params.toString()}`;
 }
 
 function buildQrImageUrl(upiLink: string): string {
-  // Use api.qrserver.com with high error correction (H), 300x300, quiet zone
   const encoded = encodeURIComponent(upiLink);
   return `https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=300x300&ecc=H&margin=10&color=000000&bgcolor=ffffff`;
 }
@@ -327,7 +324,7 @@ export default function Book() {
               Scan with any UPI app
             </p>
 
-            {/* Dynamic QR Code via API */}
+            {/* Dynamic QR Code via API — encodes proper UPI deep link */}
             <div className="relative">
               <img
                 key={qrImageUrl}
@@ -453,15 +450,15 @@ export default function Book() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {submitting ? (
             <>
-              <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
               Submitting...
             </>
           ) : (
-            'Submit Booking & Payment'
+            'Submit Booking'
           )}
         </button>
       </form>

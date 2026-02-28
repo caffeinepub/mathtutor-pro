@@ -1,127 +1,169 @@
-import { useState } from 'react';
-import { User, Mail, Phone, BookOpen, Copy, Check, Shield } from 'lucide-react';
-import { getStore } from '../../lib/store';
+import React from 'react';
+import { User, Mail, Phone, BookOpen, Key, WifiOff } from 'lucide-react';
 import { getAuthState } from '../../lib/auth';
+import { getStore } from '../../lib/store';
+import { useCanisterHealth } from '../../hooks/useCanisterHealth';
 
 export default function StudentProfile() {
   const auth = getAuthState();
-  const store = getStore();
+  const { isOnline } = useCanisterHealth();
 
-  const student = auth?.studentId
-    ? store.students.find((s) => s.id === auth.studentId)
-    : null;
+  let student: {
+    name: string;
+    email: string;
+    phone: string;
+    course: string;
+    sessionType: string;
+    hours: number;
+    accessCode?: string;
+    uniqueCode?: string;
+    createdAt: string;
+  } | null = null;
 
-  const [copied, setCopied] = useState(false);
+  let pricePerHour = 0;
 
-  const handleCopy = () => {
-    if (!student?.accessCode) return;
-    navigator.clipboard.writeText(student.accessCode).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
-
-  if (!student) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        <p>Student profile not found.</p>
-      </div>
-    );
+  try {
+    const store = getStore();
+    const studentId = auth?.studentId;
+    if (studentId) {
+      const found = store.students.find(s => s.id === studentId);
+      if (found) {
+        student = {
+          name: found.name,
+          email: found.email,
+          phone: found.phone || '',
+          course: found.course || '',
+          sessionType: found.sessionType || '',
+          hours: found.hours || 0,
+          accessCode: found.accessCode,
+          uniqueCode: found.uniqueCode,
+          createdAt: found.createdAt || '',
+        };
+        // Look up price from the matching course
+        const matchedCourse = store.courses.find(c => c.name === found.course);
+        if (matchedCourse) {
+          pricePerHour = matchedCourse.pricePerHour;
+        }
+      }
+    }
+  } catch {
+    // ignore
   }
 
-  // Find the course matching the student's enrolled course name
-  const enrolledCourse = store.courses.find((c) => c.name === student.course);
+  // Fallback to auth state if store doesn't have the student
+  if (!student && auth) {
+    student = {
+      name: auth.name || 'Student',
+      email: auth.email || '',
+      phone: '',
+      course: '',
+      sessionType: '',
+      hours: 0,
+      accessCode: auth.accessCode,
+      uniqueCode: auth.uniqueCode,
+      createdAt: '',
+    };
+  }
+
+  const InfoRow = ({
+    icon: Icon,
+    label,
+    value,
+  }: {
+    icon: React.ElementType;
+    label: string;
+    value: string;
+  }) => (
+    <div className="flex items-start gap-3 py-3 border-b border-border last:border-0">
+      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <div>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-foreground">{value || '—'}</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
-        <p className="text-muted-foreground text-sm mt-1">Your account information</p>
+    <div className="space-y-6 max-w-lg">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-foreground">My Profile</h1>
+        {!isOnline && (
+          <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-full">
+            <WifiOff className="h-3 w-3" />
+            Cached
+          </span>
+        )}
       </div>
 
-      {/* Avatar + Name */}
-      <div className="bg-card border border-border rounded-2xl p-6 mb-4">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-            <span className="text-2xl font-bold text-primary">
+      {!student ? (
+        <div className="rounded-xl border border-border bg-card p-8 text-center">
+          <User className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">Profile not found.</p>
+        </div>
+      ) : (
+        <>
+          {/* Avatar */}
+          <div className="rounded-xl border border-border bg-card p-6 flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold">
               {student.name.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">{student.name}</h2>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                student.status === 'approved'
-                  ? 'bg-green-100 text-green-700'
-                  : student.status === 'pending'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-red-100 text-red-700'
-              }`}
-            >
-              {student.status}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Info */}
-      <div className="bg-card border border-border rounded-2xl p-6 mb-4 space-y-4">
-        <h3 className="font-bold text-foreground">Contact Information</h3>
-        <div className="flex items-center gap-3 text-sm">
-          <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="text-foreground">{student.email}</span>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="text-foreground">{student.phone}</span>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <User className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="text-foreground capitalize">{student.sessionType} sessions</span>
-        </div>
-      </div>
-
-      {/* Access Code */}
-      {student.status === 'approved' && student.accessCode && (
-        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">Access Code</h3>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-xl font-bold text-primary bg-primary/10 px-4 py-2 rounded-lg flex-1 text-center">
-              {student.accessCode}
-            </span>
-            <button
-              onClick={handleCopy}
-              className="p-2 border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-green-600" />
-              ) : (
-                <Copy className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">{student.name}</h2>
+              <p className="text-sm text-muted-foreground">{student.course || 'Student'}</p>
+              {student.createdAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Joined {new Date(student.createdAt).toLocaleDateString()}
+                </p>
               )}
-            </button>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Use this code to log in to your account.
-          </p>
-        </div>
-      )}
 
-      {/* Enrolled Course */}
-      {enrolledCourse && (
-        <div className="bg-card border border-border rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BookOpen className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">Enrolled Course</h3>
+          {/* Details */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Personal Info
+            </h3>
+            <InfoRow icon={User} label="Full Name" value={student.name} />
+            <InfoRow icon={Mail} label="Email" value={student.email} />
+            <InfoRow icon={Phone} label="Phone" value={student.phone} />
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-foreground">{enrolledCourse.name}</span>
-            <span className="text-xs text-muted-foreground">₹{enrolledCourse.pricePerHour}/hr</span>
+
+          {/* Course info */}
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Enrollment
+            </h3>
+            <InfoRow icon={BookOpen} label="Course" value={student.course} />
+            <InfoRow icon={BookOpen} label="Session Type" value={student.sessionType} />
+            {student.hours > 0 && (
+              <InfoRow icon={BookOpen} label="Hours" value={`${student.hours}h`} />
+            )}
+            {pricePerHour > 0 && (
+              <InfoRow
+                icon={BookOpen}
+                label="Rate"
+                value={`₹${pricePerHour}/hr`}
+              />
+            )}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{enrolledCourse.description}</p>
-        </div>
+
+          {/* Access codes */}
+          {(student.accessCode || student.uniqueCode) && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Access Credentials
+              </h3>
+              {student.accessCode && (
+                <InfoRow icon={Key} label="Access Code" value={student.accessCode} />
+              )}
+              {student.uniqueCode && (
+                <InfoRow icon={Key} label="Unique Code" value={student.uniqueCode} />
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

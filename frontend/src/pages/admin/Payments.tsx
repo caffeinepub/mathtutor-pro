@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useGetAllPayments, useApproveUpiPayment, useRejectUpiPayment } from '../../hooks/useQueries';
+import { useGetAllPayments, useApprovePayment, useRejectPayment } from '../../hooks/useQueries';
 import type { UpiPayment } from '../../backend';
-import { CheckCircle, XCircle, Clock, AlertCircle, Loader2, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Loader2, Eye } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Card, CardContent } from '../../components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -41,8 +41,8 @@ function getStatusLabel(status: UpiPayment['status']): { label: string; color: s
 
 export default function AdminPayments() {
   const { data: payments = [], isLoading, refetch } = useGetAllPayments();
-  const approvePayment = useApproveUpiPayment();
-  const rejectPayment = useRejectUpiPayment();
+  const approvePayment = useApprovePayment();
+  const rejectPayment = useRejectPayment();
 
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [selectedPayment, setSelectedPayment] = useState<UpiPayment | null>(null);

@@ -14,24 +14,19 @@ import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import UserApproval "user-approval/approval";
 
-
-
-actor {
+(actor {
   include MixinStorage();
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
   let approvalState = UserApproval.initState(accessControlState);
 
+  // Use approval state for administrative tasks
   public query ({ caller }) func isCallerApproved() : async Bool {
     AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
   };
 
-  // Only authenticated users (not guests/anonymous) can request approval
   public shared ({ caller }) func requestApproval() : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can request approval");
-    };
     UserApproval.requestApproval(approvalState, caller);
   };
 
@@ -689,4 +684,4 @@ actor {
     };
     userProfiles.add(caller, profile);
   };
-};
+});

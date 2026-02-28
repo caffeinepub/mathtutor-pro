@@ -1,13 +1,34 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { getStore, addStudent, addPayment } from '../lib/store';
-import { CheckCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { CheckCircle, ArrowLeft, Loader2, Copy, Check, ExternalLink, Smartphone } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 const SESSION_TYPES = [
   { value: 'group', label: 'Group Session', description: 'Learn with peers, cost-effective' },
   { value: '1-on-1', label: '1-on-1 Session', description: 'Personalized attention' },
 ];
+
+const UPI_ID = '9424135055@ptyes';
+const PAYEE_NAME = "Rajat's Equation";
+
+function buildUpiDeepLink(amount: number): string {
+  const params = new URLSearchParams({
+    pa: UPI_ID,
+    pn: PAYEE_NAME,
+    cu: 'INR',
+    tn: 'Registration - Rajats Equation',
+  });
+  if (amount > 0) {
+    params.set('am', amount.toFixed(2));
+  }
+  return `upi://pay?${params.toString()}`;
+}
+
+function buildQrImageUrl(upiLink: string): string {
+  const encoded = encodeURIComponent(upiLink);
+  return `https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=300x300&ecc=H&margin=10&color=000000&bgcolor=ffffff`;
+}
 
 export default function Register() {
   const navigate = useNavigate();
@@ -17,6 +38,8 @@ export default function Register() {
   const [step, setStep] = useState<'form' | 'payment' | 'success'>('form');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -32,6 +55,29 @@ export default function Register() {
   const courseName = selectedCourse?.name || '';
   const pricePerHour = selectedCourse?.pricePerHour ?? 0;
   const totalAmount = pricePerHour * form.hours;
+
+  const upiDeepLink = buildUpiDeepLink(totalAmount);
+  const qrImageUrl = buildQrImageUrl(upiDeepLink);
+
+  const handleCopyUpiId = async () => {
+    try {
+      await navigator.clipboard.writeText(UPI_ID);
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(upiDeepLink);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,16 +350,100 @@ export default function Register() {
               </div>
             </div>
 
-            {/* UPI QR */}
-            <div className="text-center space-y-3">
-              <p className="text-sm font-medium text-foreground">Scan QR to Pay</p>
+            {/* UPI QR Code — dynamically generated with correct deep link */}
+            <div className="bg-white rounded-2xl border-2 border-border p-4 flex flex-col items-center">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Scan with any UPI app
+              </p>
               <img
-                src="/assets/generated/upi-qr-code.dim_300x300.png"
-                alt="UPI QR Code"
-                className="w-48 h-48 mx-auto rounded-lg border border-border"
+                key={qrImageUrl}
+                src={qrImageUrl}
+                alt="UPI Payment QR Code"
+                width={240}
+                height={240}
+                className="rounded-xl border border-gray-200"
+                style={{ imageRendering: 'pixelated' }}
               />
+              <div className="mt-3 px-4 py-1.5 bg-primary/10 rounded-full">
+                <span className="text-primary font-bold text-lg">₹{totalAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <Smartphone className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">
+                  Works with Google Pay, PhonePe, BHIM, Paytm & all UPI apps
+                </p>
+              </div>
+            </div>
+
+            {/* Fallback: Copy UPI ID + Open App */}
+            <div className="bg-muted/40 rounded-xl border border-border p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Can't scan? Use these instead:
+              </p>
+
+              {/* Copy UPI ID */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground select-all">
+                  {UPI_ID}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyUpiId}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                    copiedUpi
+                      ? 'bg-green-50 border-green-300 text-green-700'
+                      : 'bg-background border-border text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {copiedUpi ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy UPI ID
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Open in UPI App */}
+              <div className="flex items-center gap-2">
+                <a
+                  href={upiDeepLink}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open Payment App
+                </a>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                    copiedLink
+                      ? 'bg-green-50 border-green-300 text-green-700'
+                      : 'bg-background border-border text-foreground hover:bg-muted'
+                  }`}
+                  title="Copy payment link"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy Link
+                    </>
+                  )}
+                </button>
+              </div>
+
               <p className="text-xs text-muted-foreground">
-                Pay ₹{totalAmount.toLocaleString()} to complete registration
+                Tap "Open Payment App" on your mobile to launch your UPI app directly with payment details pre-filled.
               </p>
             </div>
 

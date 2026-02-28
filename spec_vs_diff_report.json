@@ -1,30 +1,40 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T16:03:22.640Z",
-  "summary": "The diff implements all three requirements for improving UPI payment QR code scannability with a fallback section. REQ-1 is addressed via buildUpiDeepLink() generating a proper upi://pay?pa=...&pn=...&am=...&cu=INR URI. REQ-2 is addressed via buildQrImageUrl() using api.qrserver.com with ecc=H, size=300x300, margin=10, high contrast colors. REQ-3 is addressed via a fallback section with copyable UPI ID, copy confirmation state (copiedUpi), and an 'Open Payment App' deep link anchor. All requirements appear to be implemented.",
-  "missing_requirements": [],
-  "hallucinated_features": [
+  "generatedAt": "2026-02-28T17:56:23.603Z",
+  "summary": "The diff implements most of the required changes: REQ-1 (payment gate removed from Login.tsx), REQ-2 (Students page shows approvals + payments with status), REQ-3 (ManageStudentSessions dropdown built from approvals/payments), REQ-4 (ManageStudentMaterials dropdown built from approvals/payments), and REQ-5 (backend getSessionsForStudent/getMaterialsForStudent use only principal/user permission checks). However, REQ-3 has a partial implementation issue where the dropdown logic builds studentOptions from approvals but the payment matching is broken (no principal linkage). REQ-2 also has a broken payment-per-principal mapping left as an empty loop.",
+  "missing_requirements": [
     {
-      "description": "A 'copy payment link' button (copiedLink state and handleCopyLink function) that copies the full UPI deep link to clipboard",
-      "reason": "REQ-3 only requests a tappable anchor that opens the UPI app when clicked, not a separate copy button for the full deep link. The spec mentions copying the UPI ID with feedback, but not copying the full link.",
+      "id": "REQ-2",
+      "requirement": "Each student row shows their payment status and active status badge; students who have paid and are active are visually distinguished from pending students",
+      "reason": "In Students.tsx, the paymentsByPrincipal map is built inside an empty for-loop with no data inserted, because payments use email and cannot be linked to principal. The per-student payment status display is therefore non-functional.",
       "evidence": [
-        "frontend/src/pages/student/Book.tsx"
+        "frontend/src/pages/admin/Students.tsx"
       ]
     },
     {
-      "description": "A transaction note (tn=Session Booking - Rajats Equation) appended to the UPI deep link",
-      "reason": "The build request specifies the UPI deep link format as upi://pay?pa=...&pn=...&am=...&cu=INR with no mention of a 'tn' (transaction note) parameter.",
+      "id": "REQ-3",
+      "requirement": "The student dropdown in ManageStudentSessions shows all enrolled/booked/active students so admin can select and add sessions for any such student",
+      "reason": "In ManageStudentSessions.tsx, the studentOptions loop attempts to find a matchingPayment using p.status.__kind__ === 'approved' without linking it to the approval's principal. The approvedPayments variable is built but never added to studentOptions. The dropdown may not correctly show all enrolled/booked students.",
       "evidence": [
-        "frontend/src/pages/student/Book.tsx"
+        "frontend/src/pages/admin/ManageStudentSessions.tsx"
       ]
     }
   ],
-  "confidence": 0.82,
+  "hallucinated_features": [],
+  "confidence": 0.62,
   "changed_files": [
+    "backend/main.mo",
     "frontend-file-summaries.txt",
-    "frontend/src/pages/student/Book.tsx",
-    "frontend/src/utils/urlParams.ts",
+    "frontend/src/hooks/useMaterials.ts",
+    "frontend/src/hooks/useQueries.ts",
+    "frontend/src/hooks/useSessions.ts",
+    "frontend/src/pages/Login.tsx",
+    "frontend/src/pages/admin/ManageStudentMaterials.tsx",
+    "frontend/src/pages/admin/ManageStudentSessions.tsx",
+    "frontend/src/pages/admin/Payments.tsx",
+    "frontend/src/pages/admin/Students.tsx",
+    "frontend/src/routeTree.ts",
     "project_state.json"
   ]
 }
