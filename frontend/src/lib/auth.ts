@@ -1,39 +1,50 @@
-// Authentication helpers — thin wrappers that delegate to store.ts auth helpers
-// Kept for backward compatibility with files that import from lib/auth
+// auth.ts — thin compatibility wrapper around store.ts auth helpers.
+// NOTE: Student authentication now relies on Internet Identity (useInternetIdentity hook).
+// After a successful Internet Identity login + approval check, storeAuthState is called
+// with role='student' so that route guards can verify access via localStorage.
+// Admin authentication continues to use a hardcoded email check (mrjain950761@gmail.com).
 
-export type { AuthState } from './store';
-export { getAuthState, storeAuthState, clearAuthState } from './store';
+const AUTH_KEY = 'rajats_equation_auth';
 
-export function getCurrentStudentId(): string | null {
+export interface AuthState {
+  userId: string;
+  role: 'admin' | 'student';
+  name: string;
+  /** Optional — kept for backward compatibility with student pages that read auth.email */
+  email?: string;
+}
+
+export function getAuthState(): AuthState | null {
   try {
-    const raw = localStorage.getItem('rajats_equation_auth');
+    const raw = localStorage.getItem(AUTH_KEY);
     if (!raw) return null;
-    const auth = JSON.parse(raw) as { role?: string; userId?: string };
-    if (auth?.role === 'student') return auth.userId ?? null;
-    return null;
+    return JSON.parse(raw) as AuthState;
   } catch {
     return null;
   }
+}
+
+export function storeAuthState(state: AuthState): void {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(state));
+}
+
+export function clearAuthState(): void {
+  localStorage.removeItem(AUTH_KEY);
+}
+
+export function getCurrentStudentId(): string | null {
+  // Student ID is now the Internet Identity principal stored after II login + approval check.
+  const state = getAuthState();
+  if (state && state.role === 'student') return state.userId;
+  return null;
 }
 
 export function isAdmin(): boolean {
-  try {
-    const raw = localStorage.getItem('rajats_equation_auth');
-    if (!raw) return false;
-    const auth = JSON.parse(raw) as { role?: string };
-    return auth?.role === 'admin';
-  } catch {
-    return false;
-  }
+  const state = getAuthState();
+  return state?.role === 'admin';
 }
 
 export function isStudent(): boolean {
-  try {
-    const raw = localStorage.getItem('rajats_equation_auth');
-    if (!raw) return false;
-    const auth = JSON.parse(raw) as { role?: string };
-    return auth?.role === 'student';
-  } catch {
-    return false;
-  }
+  const state = getAuthState();
+  return state?.role === 'student';
 }

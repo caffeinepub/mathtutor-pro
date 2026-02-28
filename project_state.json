@@ -1,45 +1,76 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "ICP-based project with a canister (32yku-taaaa-aaaan-q4swq-cai) handling UPI payment approval. Currently fixing IC0508 canister-stopped error affecting the approveUpiPayment method.",
+  "summary": "Student Course Management Platform where students browse courses, pay via UPI (9424135055@ptyes), submit transaction ID, wait for admin approval, then log in via Internet Identity. Admin logs in with hardcoded email (mrjain950761@gmail.com) to approve/reject payments, manage per-student Google Meet sessions, materials, and attendance tracking.",
   "architectural_notes": [
-    "Backend runs on Internet Computer (ICP) canister ID: 32yku-taaaa-aaaan-q4swq-cai",
-    "Payment approval handled via approveUpiPayment canister method"
+    "Authentication: Students use Internet Identity (blockchain-based, no passwords). Admin uses hardcoded email login (mrjain950761@gmail.com only, no public registration).",
+    "UPI payment flow is fully manual: student pays externally, submits transaction ID as proof, admin manually verifies and approves.",
+    "All sessions and materials are assigned per individual student by admin — no shared/public content."
   ],
   "known_issues": [
-    "IC0508: Canister 32yku-taaaa-aaaan-q4swq-cai is stopped — approveUpiPayment calls are being rejected; fix in progress (frontend error handling, health check, logic review)"
+    "Build has failed twice when attempting to implement Internet Identity + full system together; user now requests scoped change only (remove custom login, add Internet Identity for students)."
   ],
-  "isFixRequest": true,
+  "isFixRequest": false,
   "existing_features": [
     {
-      "id": "feature-in-the-admin-payments-page-frontend-src-pages-admin-payments-tsx-and-students-page-frontend-src-pages-admin-students-tsx-wrap-all-backend-actor-calls-approveupipayment-rejectupipayment-and-any-related-payment-approval-methods-in-try-catch-blocks-that-specifically-detect-ic0508-canister-is-stopped-rejection-errors-when-this-error-is-caught-display-a-clear-user-friendly-toast-or-inline-error-message-such-as-the-backend-service-is-temporarily-unavailable-please-try-again-shortly-or-contact-support",
-      "title": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
+      "id": "feature-remove-the-custom-student-login-form-email-unique-code-fields-from-the-login-page-replace-it-with-an-internet-identity-login-button-for-students-when-a-student-clicks-the-button-trigger-the-internet-identity-authentication-flow-using-the-existing-useinternetidentity-hook-after-successful-authentication-check-if-the-student-s-principal-is-approved-in-the-backend-if-approved-redirect-to-the-student-dashboard-if-not-yet-approved-show-a-message-that-their-account-is-pending-admin-approval",
+      "title": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
       "reqIds": [
         "REQ-1"
       ],
       "version": 1
     },
     {
-      "id": "feature-add-a-canister-health-check-indicator-to-the-adminlayout-frontend-src-layouts-adminlayout-tsx-on-mount-and-periodically-every-60-seconds-ping-the-backend-actor-with-a-lightweight-read-call-e-g-a-simple-query-to-fetch-a-count-or-status-display-a-small-status-badge-in-the-admin-sidebar-header-green-online-when-the-canister-is-reachable-and-red-service-unavailable-when-an-ic0508-or-network-error-is-returned-this-gives-admins-immediate-visibility-into-backend-availability-before-attempting-approval-actions",
-      "title": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
+      "id": "feature-update-the-student-facing-layouts-and-route-guards-to-use-the-internet-identity-principal-from-useinternetidentity-hook-instead-of-any-localstorage-based-custom-auth-token-or-unique-code-for-determining-if-a-student-is-logged-in-the-studentlayout-sidebar-logout-button-should-call-the-internet-identity-logout-function-do-not-change-the-adminlayout-or-any-admin-route-guards",
+      "title": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
       "reqIds": [
-        "REQ-2"
+        "REQ-3"
       ],
       "version": 1
     }
   ],
   "new_feature_requests": [
     {
+      "id": "AR-1",
+      "summary": "Student Course Management Platform with Internet Identity auth for students and hardcoded email auth for admin",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Pre-login flow: browse courses with hourly pricing, select course, enter hours, see total, pay via UPI, submit transaction ID",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
       "id": "AR-3",
-      "summary": "Review the approveUpiPayment method in backend/main.mo and ensure it does not contain any logic that could cause the canister to stop or trap unexpectedly (e.g., unguarded assertions, out-of-memory conditions, or explicit stop calls). Add defensive checks: validate that input parameters are non-empty before processing, and wrap any mutable state updates in safe patterns to prevent partial state corruption. The method should return a structured Result type (e.g., Result<Text, Text>) so callers can distinguish success from error without relying on traps.",
+      "summary": "Admin panel: approve/reject payments, generate access, add Google Meet sessions per student, add materials per student, track attendance, view student list with counts",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Student dashboard (post-approval): My Course, My Classes (Google Meet), My Materials, Attendance status, Payment status",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Remove all custom login logic; students authenticate exclusively via Internet Identity; admin authenticates via hardcoded email mrjain950761@gmail.com",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Remove all remaining custom credential authentication logic for students from the backend (main.mo). Any functions that validate email + unique code combinations for student login should be removed or disabled. Student identity verification must rely solely on the caller's Internet Identity principal. Do not change any admin-related logic, payment approval logic, session management, materials management, or attendance tracking.",
       "reqIds": [
-        "REQ-3"
+        "REQ-2"
       ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "The Rajat's Equation",
+  "projectName": "Student Course Management Platform",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

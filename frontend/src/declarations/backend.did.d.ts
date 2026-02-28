@@ -31,8 +31,6 @@ export interface AttendanceSummary {
   'totalSessions' : bigint,
   'absentCount' : bigint,
 }
-export type AuthResult = { 'ok' : boolean } |
-  { 'err' : string };
 export interface Material {
   'id' : bigint,
   'title' : string,
@@ -166,7 +164,6 @@ export interface _SERVICE {
   'adminLogin' : ActorMethod<[string, string], boolean>,
   'approveUpiPayment' : ActorMethod<[bigint, string], ApproveResult>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'authenticateStudent' : ActorMethod<[string, string], AuthResult>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string

@@ -1,344 +1,236 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from '@tanstack/react-router';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { useInternetIdentity } from '../hooks/useInternetIdentity';
 import { useActor } from '../hooks/useActor';
 import { storeAuthState } from '../lib/auth';
-import { getStore } from '../lib/store';
+import { Shield, Loader2, CheckCircle, Clock } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { actor } = useActor();
+  const { login, clear, loginStatus, identity, isInitializing } = useInternetIdentity();
+  const { actor, isFetching: actorFetching } = useActor();
 
-  const [mode, setMode] = useState<'student' | 'admin'>('student');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [uniqueCode, setUniqueCode] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  // Admin login state
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminError, setAdminError] = useState('');
+  const [adminLoading, setAdminLoading] = useState(false);
 
-  const handleStudentLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  // Student II state
+  const [approvalStatus, setApprovalStatus] = useState<'idle' | 'checking' | 'approved' | 'pending' | 'error'>('idle');
+  const [approvalError, setApprovalError] = useState('');
 
-    try {
-      if (!email.trim() || !uniqueCode.trim()) {
-        setError('Please enter your email and unique code.');
-        setLoading(false);
-        return;
-      }
+  const isAuthenticated = !!identity;
+  const isLoggingIn = loginStatus === 'logging-in';
 
-      const normalizedEmail = email.trim().toLowerCase();
-      const normalizedCode = uniqueCode.trim();
+  // When II identity is available and actor is ready, check approval
+  useEffect(() => {
+    if (!isAuthenticated || actorFetching || !actor) return;
+    if (approvalStatus !== 'idle') return;
 
-      // First try backend authentication
-      if (actor) {
-        try {
-          const isValid = await actor.authenticateStudent(normalizedEmail, normalizedCode);
-          if (isValid) {
-            // Find the payment record to get student info
-            const payment = await actor.findByEmailQuery(normalizedEmail);
-            if (payment) {
-              storeAuthState({
-                role: 'student',
-                userId: String(payment.id),
-                email: payment.email,
-                name: payment.fullName,
-              });
-              navigate({ to: '/student' });
-              return;
-            }
-          }
-        } catch (backendErr: any) {
-          const msg = String(backendErr?.message || backendErr || '');
-          if (
-            msg.includes('No payment found') ||
-            msg.includes('No unique code') ||
-            msg.includes('Unique code does not match')
-          ) {
-            // Don't return yet — fall through to localStorage check
-          } else if (msg.includes('Unauthorized')) {
-            // Actor not authenticated — fall through to localStorage
-          }
-          // Fall through to localStorage fallback for all backend errors
-        }
-      }
-
-      // Fallback: check localStorage store
-      // Check students array — match by email + uniqueCode (or accessCode) with approved status
-      try {
-        const store = getStore();
-        const students = store.students || [];
-        const student = students.find(
-          (s) =>
-            s.email?.toLowerCase() === normalizedEmail &&
-            (s.uniqueCode === normalizedCode || s.accessCode === normalizedCode) &&
-            s.status === 'approved'
-        );
-        if (student) {
+    setApprovalStatus('checking');
+    actor.isCallerApproved()
+      .then((approved) => {
+        if (approved) {
+          setApprovalStatus('approved');
           storeAuthState({
+            userId: identity!.getPrincipal().toString(),
             role: 'student',
-            userId: student.id,
-            email: student.email,
-            name: student.name,
+            name: 'Student',
           });
           navigate({ to: '/student' });
-          return;
+        } else {
+          setApprovalStatus('pending');
         }
+      })
+      .catch((err) => {
+        console.error('Approval check failed:', err);
+        setApprovalStatus('error');
+        setApprovalError('Failed to check approval status. Please try again.');
+      });
+  }, [isAuthenticated, actorFetching, actor, approvalStatus, identity, navigate]);
 
-        // Also check payments array for uniqueCode match (in case student record wasn't updated)
-        const payments = store.payments || [];
-        const matchedPayment = payments.find(
-          (p) =>
-            p.studentName && // has a name
-            p.status === 'approved' &&
-            p.uniqueCode === normalizedCode
-        );
-        if (matchedPayment) {
-          // Find the corresponding student
-          const matchedStudent = students.find(s => s.id === matchedPayment.studentId);
-          if (matchedStudent && matchedStudent.email.toLowerCase() === normalizedEmail) {
-            storeAuthState({
-              role: 'student',
-              userId: matchedStudent.id,
-              email: matchedStudent.email,
-              name: matchedStudent.name,
-            });
-            navigate({ to: '/student' });
-            return;
-          }
-        }
-      } catch {
-        // ignore store errors
-      }
-
-      setError('Invalid email or unique code. Please check your credentials.');
+  const handleStudentLogin = async () => {
+    if (isAuthenticated) {
+      // Already logged in but not approved — log out and try again
+      await clear();
+      setApprovalStatus('idle');
+      setApprovalError('');
+      return;
+    }
+    try {
+      setApprovalStatus('idle');
+      setApprovalError('');
+      await login();
     } catch (err: any) {
-      setError('Login failed. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('II login error:', err);
+      setApprovalError('Login failed. Please try again.');
     }
   };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
+    setAdminError('');
+    setAdminLoading(true);
     try {
-      const ADMIN_EMAIL = 'admin@mathtutor.com';
+      const ADMIN_EMAIL = 'mrjain950761@gmail.com';
       const ADMIN_PASSWORD = 'Admin@123';
-
-      // First try backend adminLogin
-      if (actor) {
-        try {
-          const isValid = await actor.adminLogin(email.trim().toLowerCase(), password);
-          if (isValid) {
-            storeAuthState({
-              role: 'admin',
-              userId: 'admin',
-              email: ADMIN_EMAIL,
-              name: 'Admin',
-            });
-            navigate({ to: '/admin' });
-            return;
-          }
-        } catch {
-          // Fall through to local check
-        }
-      }
-
-      // Local hardcoded admin credentials check
-      if (
-        email.trim().toLowerCase() === ADMIN_EMAIL &&
-        password === ADMIN_PASSWORD
-      ) {
-        storeAuthState({
-          role: 'admin',
-          userId: 'admin',
-          email: ADMIN_EMAIL,
-          name: 'Admin',
-        });
+      if (adminEmail === ADMIN_EMAIL && adminPassword === ADMIN_PASSWORD) {
+        storeAuthState({ userId: 'admin', role: 'admin', name: 'Admin' });
         navigate({ to: '/admin' });
-        return;
+      } else {
+        setAdminError('Invalid email or password.');
       }
-
-      // Also check localStorage store admins array
-      try {
-        const store = getStore();
-        const admins: any[] = (store as any).admins || [];
-        const admin = admins.find(
-          (a: any) =>
-            a.email?.toLowerCase() === email.trim().toLowerCase() &&
-            a.password === password
-        );
-        if (admin) {
-          storeAuthState({
-            role: 'admin',
-            userId: admin.id,
-            email: admin.email,
-            name: admin.name,
-          });
-          navigate({ to: '/admin' });
-          return;
-        }
-      } catch {
-        // ignore
-      }
-
-      setError('Invalid admin credentials.');
-    } catch (err: any) {
-      setError('Login failed. Please try again.');
+    } catch {
+      setAdminError('Login failed. Please try again.');
     } finally {
-      setLoading(false);
+      setAdminLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link to="/">
-            <img
-              src="/assets/generated/rajats-equation-logo.dim_400x300.png"
-              alt="Rajat's Equation"
-              className="h-16 mx-auto mb-3 object-contain"
-            />
-          </Link>
-          <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
+      <div className="w-full max-w-md space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex justify-center mb-3">
+            <img src="/assets/generated/logo-mark.dim_128x128.png" alt="Logo" className="h-14 w-14 rounded-xl" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">The Rajat's Equation</h1>
           <p className="text-muted-foreground text-sm mt-1">Sign in to your account</p>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="flex rounded-lg border border-border overflow-hidden mb-6">
-          <button
-            onClick={() => { setMode('student'); setError(''); }}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-              mode === 'student'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            Student Login
-          </button>
-          <button
-            onClick={() => { setMode('admin'); setError(''); }}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-              mode === 'admin'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            Admin Login
-          </button>
-        </div>
+        {/* Student Login */}
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Student Login</h2>
+          </div>
 
-        {/* Form */}
-        <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-          {mode === 'student' ? (
-            <form onSubmit={handleStudentLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Unique Login Code
-                </label>
-                <input
-                  type="text"
-                  value={uniqueCode}
-                  onChange={e => setUniqueCode(e.target.value.toUpperCase())}
-                  placeholder="Enter your unique code (e.g. AB12CD34)"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm font-mono"
-                  required
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your unique login code is provided by the admin after payment approval.
-                </p>
-              </div>
-
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
-                  {error}
-                </div>
-              )}
-
+          {!isAuthenticated && approvalStatus === 'idle' && (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                Students log in securely using Internet Identity — no password required.
+              </p>
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleStudentLogin}
+                disabled={isLoggingIn || isInitializing}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-3 px-4 font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Login with Internet Identity
+                  </>
+                )}
               </button>
-            </form>
-          ) : (
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Admin Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@mathtutor.com"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter admin password"
-                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                  required
-                />
-              </div>
+            </>
+          )}
 
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2.5 text-sm">
-                  {error}
+          {(approvalStatus === 'checking' || (isAuthenticated && actorFetching)) && (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Checking your approval status…</p>
+            </div>
+          )}
+
+          {approvalStatus === 'approved' && (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <CheckCircle className="h-8 w-8 text-green-500" />
+              <p className="text-sm text-muted-foreground">Approved! Redirecting to dashboard…</p>
+            </div>
+          )}
+
+          {approvalStatus === 'pending' && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Account Pending Approval</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                    Your account is pending admin approval. Please wait for confirmation after your payment is verified.
+                  </p>
                 </div>
-              )}
-
+              </div>
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={async () => {
+                  await clear();
+                  setApprovalStatus('idle');
+                  setApprovalError('');
+                }}
+                className="w-full text-sm text-muted-foreground hover:text-foreground underline transition-colors"
               >
-                {loading ? 'Signing in...' : 'Sign In as Admin'}
+                Sign out and try a different account
               </button>
-            </form>
+            </div>
+          )}
+
+          {approvalStatus === 'error' && (
+            <div className="space-y-4">
+              <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4">
+                <p className="text-sm text-destructive">{approvalError}</p>
+              </div>
+              <button
+                onClick={async () => {
+                  await clear();
+                  setApprovalStatus('idle');
+                  setApprovalError('');
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-3 px-4 font-medium hover:bg-primary/90 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Register link */}
-        {mode === 'student' && (
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary hover:underline font-medium">
-              Register here
-            </Link>
-          </p>
-        )}
+        {/* Admin Login */}
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Admin Login</h2>
+          <form onSubmit={handleAdminLogin} className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+              <input
+                type="email"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                placeholder="admin@example.com"
+                required
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Password</label>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            {adminError && (
+              <p className="text-xs text-destructive">{adminError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={adminLoading}
+              className="w-full flex items-center justify-center gap-2 bg-secondary text-secondary-foreground rounded-xl py-2.5 px-4 font-medium hover:bg-secondary/80 transition-colors disabled:opacity-50"
+            >
+              {adminLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {adminLoading ? 'Signing in…' : 'Sign In as Admin'}
+            </button>
+          </form>
+        </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()} The Rajat's Equation. All rights reserved.
+        <p className="text-center text-xs text-muted-foreground">
+          <a href="/" className="hover:underline">← Back to Home</a>
         </p>
       </div>
     </div>

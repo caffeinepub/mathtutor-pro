@@ -1,76 +1,81 @@
 {
   "kind": "build_request",
-  "title": "Fix IC0508 canister-stopped error with frontend error handling and health check",
+  "title": "Replace custom student login with Internet Identity authentication",
   "projectName": "The Rajat's Equation",
-  "priority": "high",
+  "priority": "normal",
   "requirements": [
     {
       "id": "REQ-1",
-      "text": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
+      "text": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-recent-1"
+          "msg-latest"
         ],
         "quotes": [
-          "Add better error handling on the frontend for IC0508 errors"
+          "Remove custom login and use Internet Identity for students only."
         ]
       },
       "acceptanceCriteria": [
-        "When approveUpiPayment or rejectUpiPayment returns an IC0508 rejection, no unhandled error is thrown in the UI",
-        "A user-friendly error message is displayed informing the admin the canister is temporarily unavailable",
-        "The error message distinguishes IC0508 from other generic errors"
+        "The student login section shows only an Internet Identity login button — no email field, no unique code field, no password field",
+        "Clicking the Internet Identity button initiates the Internet Identity auth flow via useInternetIdentity hook",
+        "After successful Internet Identity login, an approved student is redirected to the student dashboard",
+        "After successful Internet Identity login, a non-approved student sees a pending approval message and is not redirected to the dashboard",
+        "Admin login section (email-only, mrjain950761@gmail.com) is completely unchanged"
       ]
     },
     {
       "id": "REQ-2",
-      "text": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
-      "target": "frontend",
+      "text": "Remove all remaining custom credential authentication logic for students from the backend (main.mo). Any functions that validate email + unique code combinations for student login should be removed or disabled. Student identity verification must rely solely on the caller's Internet Identity principal. Do not change any admin-related logic, payment approval logic, session management, materials management, or attendance tracking.",
+      "target": "backend",
       "source": {
         "messageIds": [
-          "msg-recent-1"
+          "msg-latest"
         ],
         "quotes": [
-          "Add a canister health check / status indicator so admins can see if the backend is reachable before attempting actions"
+          "Remove custom login and use Internet Identity for students only.",
+          "Do not change other features."
         ]
       },
       "acceptanceCriteria": [
-        "Admin layout shows a health status badge (Online / Service Unavailable)",
-        "Status is checked on mount and every 60 seconds",
-        "IC0508 errors set the status to 'Service Unavailable' with a red indicator",
-        "Successful responses set the status to 'Online' with a green indicator"
+        "No backend function accepts an email + unique code pair to authenticate a student",
+        "Student authorization checks use the caller's principal only",
+        "All other backend functions (payment approval, sessions, materials, attendance) remain unchanged"
       ]
     },
     {
       "id": "REQ-3",
-      "text": "Review the approveUpiPayment method in backend/main.mo and ensure it does not contain any logic that could cause the canister to stop or trap unexpectedly (e.g., unguarded assertions, out-of-memory conditions, or explicit stop calls). Add defensive checks: validate that input parameters are non-empty before processing, and wrap any mutable state updates in safe patterns to prevent partial state corruption. The method should return a structured Result type (e.g., Result<Text, Text>) so callers can distinguish success from error without relying on traps.",
-      "target": "backend",
+      "text": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-recent-1"
+          "msg-latest"
         ],
         "quotes": [
-          "Review the approveUpiPayment method for any logic that might trigger an unintended stop"
+          "Remove custom login and use Internet Identity for students only.",
+          "Do not change other features."
         ]
       },
       "acceptanceCriteria": [
-        "approveUpiPayment returns a Result<Text, Text> or equivalent structured response instead of trapping",
-        "Empty or invalid input parameters are handled gracefully with an error result rather than an assertion trap",
-        "No explicit canister stop calls exist within the payment approval flow",
-        "The method compiles and deploys without errors"
+        "Student routes are protected by Internet Identity login state (isAuthenticated from useInternetIdentity)",
+        "Unauthenticated access to student routes redirects to the login page",
+        "Logout in StudentLayout calls the Internet Identity logout function and redirects to login",
+        "Admin routes and AdminLayout are completely unchanged"
       ]
     }
   ],
   "constraints": [
-    "Do not modify any files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
-    "Canister ID 32yku-taaaa-aaaan-q4swq-cai must remain unchanged",
-    "Do not alter existing localStorage-based data flows unrelated to the payment approval fix"
+    "Do not change admin login logic — admin authenticates via hardcoded email mrjain950761@gmail.com only",
+    "Do not change UPI payment submission flow, admin approval/rejection, session management, materials management, or attendance tracking",
+    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
+    "Do not add new features beyond replacing the student custom login with Internet Identity"
   ],
   "nonGoals": [
-    "Topping up or managing canister cycles (infrastructure concern)",
-    "Rewriting the entire payment flow or data model",
-    "Adding new payment methods or changing UPI logic",
-    "Modifying student-facing pages"
+    "Changing the admin authentication system",
+    "Modifying the UPI payment flow or registration form",
+    "Changing student dashboard content or layout",
+    "Adding new features to session, materials, or attendance management",
+    "Implementing Internet Identity for admin users"
   ],
   "imageRequirements": {
     "required": [],

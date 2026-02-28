@@ -1,7 +1,7 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T12:59:38.766Z",
+  "generatedAt": "2026-02-28T13:51:04.385Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
@@ -12,42 +12,40 @@
     "items": [
       {
         "id": "REQ-1",
-        "summary": "In the admin Payments page (frontend/src/pages/admin/Payments.tsx) and Students page (frontend/src/pages/admin/Students.tsx), wrap all backend actor calls (approveUpiPayment, rejectUpiPayment, and any related payment approval methods) in try/catch blocks that specifically detect IC0508 / 'Canister is stopped' rejection errors. When this error is caught, display a clear, user-friendly toast or inline error message such as: 'The backend service is temporarily unavailable. Please try again shortly or contact support.'",
+        "summary": "Remove the custom student login form (email + unique code fields) from the Login page. Replace it with an Internet Identity login button for students. When a student clicks the button, trigger the Internet Identity authentication flow using the existing useInternetIdentity hook. After successful authentication, check if the student's principal is approved in the backend; if approved, redirect to the student dashboard. If not yet approved, show a message that their account is pending admin approval.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/admin/Payments.tsx",
-          "frontend/src/pages/admin/Students.tsx"
+          "frontend/src/pages/Login.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/admin/Payments.tsx",
-          "frontend/src/pages/admin/Students.tsx"
+          "frontend/src/pages/Login.tsx"
         ]
       },
       {
         "id": "REQ-2",
-        "summary": "Add a canister health check indicator to the AdminLayout (frontend/src/layouts/AdminLayout.tsx). On mount and periodically (every 60 seconds), ping the backend actor with a lightweight read call (e.g., a simple query to fetch a count or status). Display a small status badge in the admin sidebar/header: green 'Online' when the canister is reachable, and red 'Service Unavailable' when an IC0508 or network error is returned. This gives admins immediate visibility into backend availability before attempting approval actions.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/hooks/useCanisterHealth.ts",
-          "frontend/src/layouts/AdminLayout.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/hooks/useCanisterHealth.ts",
-          "frontend/src/layouts/AdminLayout.tsx"
-        ]
-      },
-      {
-        "id": "REQ-3",
-        "summary": "Review the approveUpiPayment method in backend/main.mo and ensure it does not contain any logic that could cause the canister to stop or trap unexpectedly (e.g., unguarded assertions, out-of-memory conditions, or explicit stop calls). Add defensive checks: validate that input parameters are non-empty before processing, and wrap any mutable state updates in safe patterns to prevent partial state corruption. The method should return a structured Result type (e.g., Result<Text, Text>) so callers can distinguish success from error without relying on traps.",
+        "summary": "Remove all remaining custom credential authentication logic for students from the backend (main.mo). Any functions that validate email + unique code combinations for student login should be removed or disabled. Student identity verification must rely solely on the caller's Internet Identity principal. Do not change any admin-related logic, payment approval logic, session management, materials management, or attendance tracking.",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
+      },
+      {
+        "id": "REQ-3",
+        "summary": "Update the student-facing layouts and route guards to use the Internet Identity principal (from useInternetIdentity hook) instead of any localStorage-based custom auth token or unique code for determining if a student is logged in. The StudentLayout sidebar logout button should call the Internet Identity logout function. Do not change the AdminLayout or any admin route guards.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/routeTree.ts",
+          "frontend/src/layouts/StudentLayout.tsx",
+          "frontend/src/lib/auth.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/layouts/StudentLayout.tsx",
+          "frontend/src/lib/auth.ts"
+        ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
-    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
@@ -56,10 +54,9 @@
     "frontend/src/backend.ts",
     "frontend/src/declarations/backend.did.d.ts",
     "frontend/src/declarations/backend.did.js",
-    "frontend/src/hooks/useCanisterHealth.ts",
-    "frontend/src/layouts/AdminLayout.tsx",
-    "frontend/src/pages/admin/Payments.tsx",
-    "frontend/src/pages/admin/Students.tsx",
+    "frontend/src/layouts/StudentLayout.tsx",
+    "frontend/src/lib/auth.ts",
+    "frontend/src/pages/Login.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

@@ -134,13 +134,6 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
-export type AuthResult = {
-    __kind__: "ok";
-    ok: boolean;
-} | {
-    __kind__: "err";
-    err: string;
-};
 export interface UserProfile {
     name: string;
     accessCode?: string;
@@ -169,7 +162,6 @@ export interface backendInterface {
     adminLogin(email: string, password: string): Promise<boolean>;
     approveUpiPayment(paymentId: bigint, uniqueCode: string): Promise<ApproveResult>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    authenticateStudent(email: string, enteredUniqueCode: string): Promise<AuthResult>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     deleteMaterial(materialId: bigint): Promise<void>;
     deleteProduct(productName: string): Promise<void>;

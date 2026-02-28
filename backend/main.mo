@@ -13,9 +13,7 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import UserApproval "user-approval/approval";
-import Migration "migration";
 
-(with migration = Migration.run)
 actor {
   include MixinStorage();
   let accessControlState = AccessControl.initState();
@@ -27,7 +25,11 @@ actor {
     AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
   };
 
+  // Only authenticated users (not guests/anonymous) can request approval
   public shared ({ caller }) func requestApproval() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can request approval");
+    };
     UserApproval.requestApproval(approvalState, caller);
   };
 
@@ -353,7 +355,14 @@ actor {
     configuration := ?config;
   };
 
-  public func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+  // Only authenticated users or admins can check Stripe session status
+  public shared ({ caller }) func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+    if (
+      not AccessControl.hasPermission(accessControlState, caller, #user) and
+      not AccessControl.isAdmin(accessControlState, caller)
+    ) {
+      Runtime.trap("Unauthorized: Must be logged in to check Stripe session status");
+    };
     switch (configuration) {
       case (null) { Runtime.trap("Stripe not configured") };
       case (?config) {
@@ -362,7 +371,11 @@ actor {
     };
   };
 
+  // Only authenticated users can create checkout sessions
   public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only authenticated users can create checkout sessions");
+    };
     switch (configuration) {
       case (null) { Runtime.trap("Stripe not configured") };
       case (?config) {
@@ -415,7 +428,6 @@ actor {
     "RJMATH-" # padNat(number);
   };
 
-  // Or type
   public type PaymentResult = {
     #ok : Nat;
     #err : Text;
@@ -428,11 +440,6 @@ actor {
 
   public type RejectResult = {
     #ok : ();
-    #err : Text;
-  };
-
-  public type AuthResult = {
-    #ok : Bool;
     #err : Text;
   };
 
@@ -681,45 +688,7 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // authenticateStudent restricted to logged-in users or admins to protect credential validation
-  public query ({ caller }) func authenticateStudent(email : Text, enteredUniqueCode : Text) : async AuthResult {
-    if (
-      not AccessControl.hasPermission(accessControlState, caller, #user) and
-      not AccessControl.isAdmin(accessControlState, caller)
-    ) {
-      return #err("Unauthorized: Must be logged in to authenticate");
-    };
-
-    if (email.size() == 0) {
-      return #err("Email must not be empty");
-    };
-    if (enteredUniqueCode.size() == 0) {
-      return #err("Unique code must not be empty");
-    };
-
-    let payment = findByEmail(email);
-    switch (payment) {
-      case (null) {
-        #err("No payment found for provided email");
-      };
-      case (?p) {
-        switch (p.uniqueCode) {
-          case (null) {
-            #err("No unique code set for this payment record");
-          };
-          case (?storedCode) {
-            if (storedCode != enteredUniqueCode) {
-              #err("Unique code does not match");
-            } else {
-              #ok(true);
-            };
-          };
-        };
-      };
-    };
-  };
-
-  // Admin login functionality
+  // Admin login functionality — no ICP auth guard needed as it validates its own credentials
   public query func adminLogin(email : Text, password : Text) : async Bool {
     let adminEmail = "admin@mathtutor.com";
     let adminPassword = "Admin@123";

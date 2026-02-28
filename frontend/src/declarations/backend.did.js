@@ -39,7 +39,6 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const AuthResult = IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text });
 export const UpiPaymentStatus = IDL.Variant({
   'pending' : IDL.Null,
   'approved' : IDL.Text,
@@ -193,11 +192,6 @@ export const idlService = IDL.Service({
   'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
   'approveUpiPayment' : IDL.Func([IDL.Nat, IDL.Text], [ApproveResult], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'authenticateStudent' : IDL.Func(
-      [IDL.Text, IDL.Text],
-      [AuthResult],
-      ['query'],
-    ),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
       [IDL.Text],
@@ -329,7 +323,6 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const AuthResult = IDL.Variant({ 'ok' : IDL.Bool, 'err' : IDL.Text });
   const UpiPaymentStatus = IDL.Variant({
     'pending' : IDL.Null,
     'approved' : IDL.Text,
@@ -487,11 +480,6 @@ export const idlFactory = ({ IDL }) => {
     'adminLogin' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], ['query']),
     'approveUpiPayment' : IDL.Func([IDL.Nat, IDL.Text], [ApproveResult], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'authenticateStudent' : IDL.Func(
-        [IDL.Text, IDL.Text],
-        [AuthResult],
-        ['query'],
-      ),
     'createCheckoutSession' : IDL.Func(
         [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
         [IDL.Text],
