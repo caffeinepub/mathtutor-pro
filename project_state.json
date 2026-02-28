@@ -1,43 +1,40 @@
 {
   "schemaVersion": "1.0.0",
   "projectStateVersion": 3,
-  "summary": "Student learning portal with admin dashboard. Students can register and sign in via Internet Identity with no access code or payment gate. All registered students are visible in the admin dashboard with payment/active status. Admin can add sessions and materials for specific booked/enrolled students via dropdown menus.",
-  "architectural_notes": [
-    "Student registration system remains unchanged; only sign-in flow is modified to remove payment/access-code gate",
-    "Student portal access is open to all registered users regardless of payment status; payment info is informational only in admin dashboard"
-  ],
+  "summary": "An educational platform with a student portal and admin dashboard. The admin dashboard is being enhanced to show all registered students with their enrolled courses, allow editing of all student details (name, email, contact, enrollment status, etc.), and enable admins to add student-specific sessions and materials that appear only on the individual student's dashboard.",
+  "architectural_notes": [],
   "known_issues": [
-    "Active students were incorrectly blocked by payment pending message during sign-in"
+    "Admin dashboard does not currently display registered students, their enrolled courses, or student details"
   ],
   "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-remove-all-payment-gate-and-access-code-checks-from-the-student-sign-in-flow-any-student-who-logs-in-via-internet-identity-must-be-granted-immediate-access-to-the-student-portal-regardless-of-payment-status-active-pending-approved-flag-or-access-code-the-payment-is-still-pending-approval-block-and-any-similar-payment-based-login-interruption-must-be-fully-removed",
-      "title": "Remove all payment gate and access code checks from the student sign-in flow. Any student who logs in via Internet Identity must be granted immediate access to the student portal regardless of payment status, active/pending/approved flag, or access code. The 'payment is still pending approval' block and any similar payment-based login interruption must be fully removed.",
+      "id": "feature-update-the-admin-students-page-frontend-src-pages-admin-students-tsx-to-display-all-registered-students-fetched-from-the-backend-showing-each-student-s-full-details-including-name-email-contact-info-enrolled-course-and-enrollment-payment-status",
+      "title": "Update the admin Students page (frontend/src/pages/admin/Students.tsx) to display all registered students fetched from the backend, showing each student's full details including name, email, contact info, enrolled course, and enrollment/payment status.",
       "reqIds": [
         "REQ-1"
       ],
       "version": 1
     },
     {
-      "id": "feature-the-admin-dashboard-students-section-must-display-all-registered-students-regardless-of-payment-status-with-their-payment-and-active-status-clearly-shown-for-each-student",
-      "title": "The admin dashboard Students section must display all registered students (regardless of payment status) with their payment and active status clearly shown for each student.",
+      "id": "feature-add-an-edit-student-capability-in-the-admin-students-page-that-allows-admins-to-edit-all-fields-for-a-student-name-email-contact-info-enrollment-status-and-any-other-stored-student-fields-changes-must-be-persisted-to-the-backend",
+      "title": "Add an 'Edit Student' capability in the admin Students page that allows admins to edit all fields for a student: name, email, contact info, enrollment status, and any other stored student fields. Changes must be persisted to the backend.",
       "reqIds": [
         "REQ-2"
       ],
       "version": 1
     },
     {
-      "id": "feature-in-the-admin-managestudentsessions-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-have-booked-or-registered-for-a-session-enrolled-active-students-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-sessions-specifically-for-that-student-currently-there-is-no-option-to-add-a-student-even-if-they-have-booked-this-must-be-fixed-so-enrolled-booked-students-always-appear-in-the-dropdown",
-      "title": "In the admin ManageStudentSessions page, the student selector dropdown must be populated with all students who have booked or registered for a session (enrolled/active students). The admin must be able to select any such student from the dropdown and add sessions specifically for that student. Currently there is no option to add a student even if they have booked — this must be fixed so enrolled/booked students always appear in the dropdown.",
+      "id": "feature-update-the-admin-managestudentsessions-page-frontend-src-pages-admin-managestudentsessions-tsx-to-allow-admins-to-select-any-registered-student-from-a-dropdown-and-add-sessions-date-time-google-meet-link-topic-that-are-stored-and-displayed-exclusively-on-that-specific-student-s-dashboard-existing-backend-session-hooks-usesessions-ts-must-be-used",
+      "title": "Update the admin ManageStudentSessions page (frontend/src/pages/admin/ManageStudentSessions.tsx) to allow admins to select any registered student from a dropdown and add sessions (date, time, Google Meet link, topic) that are stored and displayed exclusively on that specific student's dashboard. Existing backend session hooks (useSessions.ts) must be used.",
       "reqIds": [
         "REQ-3"
       ],
       "version": 1
     },
     {
-      "id": "feature-in-the-admin-managestudentmaterials-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-are-enrolled-or-registered-same-logic-as-sessions-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-materials-specifically-for-that-student-this-mirrors-the-sessions-fix-enrolled-students-must-always-appear-in-the-materials-dropdown",
-      "title": "In the admin ManageStudentMaterials page, the student selector dropdown must be populated with all students who are enrolled or registered (same logic as sessions). The admin must be able to select any such student from the dropdown and add materials specifically for that student. This mirrors the sessions fix: enrolled students must always appear in the materials dropdown.",
+      "id": "feature-update-the-admin-managestudentmaterials-page-frontend-src-pages-admin-managestudentmaterials-tsx-to-allow-admins-to-select-any-registered-student-from-a-dropdown-and-add-study-materials-title-description-link-url-that-are-stored-and-displayed-exclusively-on-that-specific-student-s-dashboard-existing-backend-materials-hooks-usematerials-ts-must-be-used",
+      "title": "Update the admin ManageStudentMaterials page (frontend/src/pages/admin/ManageStudentMaterials.tsx) to allow admins to select any registered student from a dropdown and add study materials (title, description, link/URL) that are stored and displayed exclusively on that specific student's dashboard. Existing backend materials hooks (useMaterials.ts) must be used.",
       "reqIds": [
         "REQ-4"
       ],
@@ -47,39 +44,47 @@
   "new_feature_requests": [
     {
       "id": "AR-1",
-      "summary": "Remove payment gate and access code from student sign-in — any student can log in via Internet Identity",
+      "summary": "Admin dashboard: view all registered students with enrolled courses and full details",
       "reqIds": [],
       "status": "pending"
     },
     {
       "id": "AR-2",
-      "summary": "Admin dashboard shows all registered students with payment/active status",
+      "summary": "Admin dashboard: edit all student details (name, email, contact info, enrollment status, etc.)",
       "reqIds": [],
       "status": "pending"
     },
     {
       "id": "AR-3",
-      "summary": "Sessions section: booked/enrolled students appear in dropdown so admin can add sessions per student",
+      "summary": "Admin dashboard: add sessions for a specific student that appear only on that student's dashboard",
       "reqIds": [],
       "status": "pending"
     },
     {
       "id": "AR-4",
-      "summary": "Materials section: enrolled students appear in dropdown so admin can add materials per student",
+      "summary": "Admin dashboard: add materials for a specific student that are visible only to that student",
       "reqIds": [],
       "status": "pending"
     },
     {
       "id": "AR-9",
-      "summary": "Update the backend actor to remove any payment status or access code validation that blocks student login or portal access. Student authentication via Internet Identity should only verify that the principal exists; no payment gate, approval status check, or access code check should prevent a logged-in student from accessing their data.",
+      "summary": "Ensure the admin Dashboard overview page (frontend/src/pages/admin/Dashboard.tsx) correctly fetches and displays the recent students list and summary stats (total students, active, pending, payments) from the backend using existing React Query hooks.",
       "reqIds": [
         "REQ-5"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "Extend the backend (backend/main.mo) with an updateStudent function that allows admins to update any field of a registered student record (name, email, contact info, enrollment status, and any other stored fields). Restrict this function to admin-only access.",
+      "reqIds": [
+        "REQ-6"
       ],
       "status": "pending"
     }
   ],
   "gameProjectType": "none",
-  "projectName": "Student Learning Portal",
+  "projectName": "Educational Platform",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

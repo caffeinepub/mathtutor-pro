@@ -22,6 +22,13 @@ export interface UpiPayment {
     phone: string;
     courseName: string;
 }
+export interface UserProfile {
+    name: string;
+    accessCode?: string;
+    email: string;
+    uniqueCode?: string;
+    phone: string;
+}
 export interface TransformationOutput {
     status: bigint;
     body: Uint8Array;
@@ -134,12 +141,24 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
-export interface UserProfile {
-    name: string;
-    accessCode?: string;
+export interface Student {
+    principal: Principal;
+    paymentStatus: {
+        __kind__: "upi";
+        upi: UpiPaymentStatus;
+    } | {
+        __kind__: "stripe";
+        stripe: StripeSessionStatus;
+    };
+    hours: bigint;
+    sessionType: string;
+    fullName: string;
+    isActive: boolean;
     email: string;
-    uniqueCode?: string;
+    enrollmentDate: bigint;
     phone: string;
+    course: string;
+    transactionId: string;
 }
 export enum ApprovalStatus {
     pending = "pending",
@@ -167,13 +186,22 @@ export interface backendInterface {
     deleteSession(sessionId: bigint): Promise<void>;
     findByEmailQuery(email: string): Promise<UpiPayment | null>;
     findUpiPaymentByAccessCode(code: string): Promise<UpiPayment | null>;
+    finishStudentRegistration(fullName: string, email: string, phone: string, course: string, sessionType: string, hours: bigint, paymentType: {
+        __kind__: "upi";
+        upi: UpiPaymentStatus;
+    } | {
+        __kind__: "stripe";
+        stripe: StripeSessionStatus;
+    }, transactionId: string): Promise<void>;
     getAllPayments(): Promise<Array<UpiPayment>>;
+    getAllStudents(): Promise<Array<Student>>;
     getAllUpiPaymentsByEmail(email: string): Promise<Array<UpiPayment>>;
     getAttendanceForStudent(studentPrincipal: Principal): Promise<Array<Attendance>>;
     getAttendanceSummary(studentPrincipal: Principal): Promise<AttendanceSummary>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getMaterialsForStudent(studentPrincipal: Principal): Promise<Array<Material>>;
+    getMyEnrollment(): Promise<Student | null>;
     getPendingPayments(): Promise<Array<UpiPayment>>;
     getProducts(): Promise<Array<ShoppingItem>>;
     getSessionsForStudent(studentPrincipal: Principal): Promise<Array<Session>>;
@@ -194,4 +222,11 @@ export interface backendInterface {
     submitUpiPayment(courseName: string, sessionType: string, pricePerHour: bigint, hours: bigint, totalAmount: bigint, upiTransactionId: string, fullName: string, email: string, phone: string): Promise<PaymentResult>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
     updateProduct(product: ShoppingItem): Promise<void>;
+    updateStudent(principal: Principal, fullName: string, email: string, phone: string, course: string, sessionType: string, hours: bigint, paymentStatus: {
+        __kind__: "upi";
+        upi: UpiPaymentStatus;
+    } | {
+        __kind__: "stripe";
+        stripe: StripeSessionStatus;
+    }, transactionId: string, enrollmentDate: bigint, isActive: boolean): Promise<void>;
 }

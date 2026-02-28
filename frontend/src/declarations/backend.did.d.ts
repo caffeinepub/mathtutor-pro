@@ -70,6 +70,20 @@ export type StripeSessionStatus = {
     'completed' : { 'userPrincipal' : [] | [string], 'response' : string }
   } |
   { 'failed' : { 'error' : string } };
+export interface Student {
+  'principal' : Principal,
+  'paymentStatus' : { 'upi' : UpiPaymentStatus } |
+    { 'stripe' : StripeSessionStatus },
+  'hours' : bigint,
+  'sessionType' : string,
+  'fullName' : string,
+  'isActive' : boolean,
+  'email' : string,
+  'enrollmentDate' : bigint,
+  'phone' : string,
+  'course' : string,
+  'transactionId' : string,
+}
 export interface TransformationInput {
   'context' : Uint8Array,
   'response' : http_request_result,
@@ -172,13 +186,29 @@ export interface _SERVICE {
   'deleteSession' : ActorMethod<[bigint], undefined>,
   'findByEmailQuery' : ActorMethod<[string], [] | [UpiPayment]>,
   'findUpiPaymentByAccessCode' : ActorMethod<[string], [] | [UpiPayment]>,
+  'finishStudentRegistration' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      string,
+      string,
+      bigint,
+      { 'upi' : UpiPaymentStatus } |
+        { 'stripe' : StripeSessionStatus },
+      string,
+    ],
+    undefined
+  >,
   'getAllPayments' : ActorMethod<[], Array<UpiPayment>>,
+  'getAllStudents' : ActorMethod<[], Array<Student>>,
   'getAllUpiPaymentsByEmail' : ActorMethod<[string], Array<UpiPayment>>,
   'getAttendanceForStudent' : ActorMethod<[Principal], Array<Attendance>>,
   'getAttendanceSummary' : ActorMethod<[Principal], AttendanceSummary>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getMaterialsForStudent' : ActorMethod<[Principal], Array<Material>>,
+  'getMyEnrollment' : ActorMethod<[], [] | [Student]>,
   'getPendingPayments' : ActorMethod<[], Array<UpiPayment>>,
   'getProducts' : ActorMethod<[], Array<ShoppingItem>>,
   'getSessionsForStudent' : ActorMethod<[Principal], Array<Session>>,
@@ -202,6 +232,23 @@ export interface _SERVICE {
   >,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
   'updateProduct' : ActorMethod<[ShoppingItem], undefined>,
+  'updateStudent' : ActorMethod<
+    [
+      Principal,
+      string,
+      string,
+      string,
+      string,
+      string,
+      bigint,
+      { 'upi' : UpiPaymentStatus } |
+        { 'stripe' : StripeSessionStatus },
+      string,
+      bigint,
+      boolean,
+    ],
+    undefined
+  >,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

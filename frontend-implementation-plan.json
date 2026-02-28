@@ -1,91 +1,102 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Remove payment gate from student sign-in and fix admin dropdown for sessions/materials",
+  "title": "Admin Dashboard: Student Registry, Edit Details, Per-Student Sessions & Materials",
   "requirements": [
     {
       "id": "REQ-1",
-      "summary": "Remove all payment gate and access code checks from the student sign-in flow so any student who logs in via Internet Identity can immediately access the student portal",
+      "summary": "Display all registered students in admin Students page with full details including name, email, contact info, enrolled course, and enrollment/payment status",
       "acceptanceCriteria": [
-        "A student who logs in via Internet Identity is never shown a 'payment pending' or 'access code required' error screen",
-        "Active students, pending students, and newly registered students can all log in and reach the student dashboard without interruption",
-        "The existing student registration flow and Internet Identity authentication mechanism remain unchanged"
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/pages/Login.tsx",
-          "operation": "modify",
-          "description": "Remove access code requirement and payment status checks from student login flow. After Internet Identity authentication succeeds, allow immediate navigation to /student/dashboard without validating payment status, approval status, or access code. Keep admin login flow unchanged."
-        },
-        {
-          "path": "frontend/src/routeTree.ts",
-          "operation": "modify",
-          "description": "Update the student route beforeLoad guard to remove any payment status or approval checks that block authenticated students from accessing the student portal. Only verify that the user has a valid Internet Identity authentication; do not check payment or approval status."
-        },
-        {
-          "path": "frontend/src/lib/auth.ts",
-          "operation": "modify",
-          "description": "Remove any payment status validation or access code checks from the authentication helper functions. Ensure offline credential validation no longer blocks students based on payment or approval status."
-        }
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "summary": "Display all registered students on the admin dashboard Students page with their payment and active status clearly shown for each student",
-      "acceptanceCriteria": [
-        "Admin dashboard Students page lists every registered student",
-        "Each student row shows their payment status (e.g., pending, paid/active) and active status badge",
-        "Students who have paid and are active are visually distinguished from pending students"
+        "Admin Students page fetches and displays all students from the backend via React Query",
+        "Each student row/card shows name, email, contact info, enrolled course name, and enrollment/payment status",
+        "Page renders an empty state message when no students are registered",
+        "Search and filter controls work against the displayed student list"
       ],
       "file_operations": [
         {
           "path": "frontend/src/pages/admin/Students.tsx",
           "operation": "modify",
-          "description": "Update the students list to display all registered students fetched from the backend using listApprovals and getAllPayments queries. For each student row, show their payment status using the StatusBadge component (pending, approved, rejected) and display their active/pending state clearly. Ensure the table includes columns for student name, email, payment status badge, approval status badge, and action buttons. Use the backend interface methods listApprovals() and getAllPayments() to gather complete student data."
+          "description": "Update the Students page to fetch all registered students using the useGetAllStudents hook from useQueries.ts. Display each student's full details in a table or card layout, showing fullName, email, phone, course, sessionType, hours, enrollmentDate, paymentStatus (with StatusBadge), and isActive flag. Add an empty state message when the students array is empty. Ensure search and filter controls work against the fetched student list."
+        }
+      ]
+    },
+    {
+      "id": "REQ-2",
+      "summary": "Add Edit Student capability in admin Students page to edit all student fields with backend persistence",
+      "acceptanceCriteria": [
+        "An 'Edit' action is available per student in the admin Students page",
+        "Clicking Edit opens a modal or inline form pre-populated with the student's current data",
+        "Form includes fields for name, email, contact info, enrollment status, and all other student fields stored in the backend",
+        "Saving the form calls the backend to persist the changes",
+        "The student list refreshes to reflect the updated data after a successful save",
+        "Validation prevents saving with empty required fields"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Add a new mutation hook useUpdateStudent that wraps the backend updateStudent function. Accept parameters matching the Student interface fields (principal, fullName, email, phone, course, sessionType, hours, paymentStatus, transactionId, enrollmentDate, isActive). On success, invalidate the 'students' query key to trigger a refetch of the student list."
+        },
+        {
+          "path": "frontend/src/pages/admin/Students.tsx",
+          "operation": "modify",
+          "description": "Add an Edit button or action per student row/card that opens a modal or inline form. Create a form component pre-populated with the selected student's current data, including fields for fullName, email, phone, course, sessionType, hours, paymentStatus (as a select dropdown for UPI/Stripe status), transactionId, enrollmentDate (as a date picker), and isActive (as a checkbox). Use the useUpdateStudent mutation hook to save changes. Add validation to prevent submission with empty required fields (fullName, email, phone, course). Show a success toast on save and close the form. The student list will automatically refresh due to query invalidation."
         }
       ]
     },
     {
       "id": "REQ-3",
-      "summary": "Fix the student selector dropdown in admin ManageStudentSessions to populate with all enrolled/booked/active students so admin can select and add sessions for them",
+      "summary": "Update admin ManageStudentSessions page to allow per-student session assignment using a student selector dropdown",
       "acceptanceCriteria": [
-        "The student dropdown in ManageStudentSessions shows all enrolled/booked/active students",
-        "Admin can select a student from the dropdown and add a session for that specific student",
-        "Sessions added for a student are saved and visible under that student's record",
-        "No existing session structure or fields are changed"
+        "Admin can select any registered student from a dropdown populated from the backend",
+        "Session form includes fields for date, time, Google Meet link, and topic",
+        "On submission, the session is saved and associated only with the selected student",
+        "The session appears in the selected student's sessions list on their student dashboard",
+        "The session does NOT appear on other students' dashboards",
+        "Admin can view and delete sessions per selected student",
+        "Sessions list updates immediately after adding or deleting"
       ],
       "file_operations": [
         {
           "path": "frontend/src/pages/admin/ManageStudentSessions.tsx",
           "operation": "modify",
-          "description": "Fix the student selector dropdown to query listApprovals() from the backend and filter for approved students (status === 'approved'). Populate the dropdown with all approved/enrolled students showing their name and email. When a student is selected, use their Principal from the UserApprovalInfo to pass to addSession mutation. Ensure the dropdown is never empty when approved students exist in the system."
-        },
-        {
-          "path": "frontend/src/hooks/useSessions.ts",
-          "operation": "modify",
-          "description": "Ensure the addSession mutation and getSessionsForStudent query properly handle Principal objects. Add helper functions if needed to convert between principal string representations and Principal objects for the dropdown selection flow."
+          "description": "Update the ManageStudentSessions page to add a student selector dropdown at the top. Populate the dropdown with all registered students fetched via useGetAllStudents, displaying each student's fullName and email. When a student is selected, store their Principal in component state. Update the session form to pass the selected studentPrincipal to the addSession mutation from useSessions.ts (which already accepts studentPrincipal as the first parameter). Display the sessions list for the selected student using the existing useGetSessionsForStudent hook with the selected Principal. Ensure the delete session functionality works per selected student. Add empty state messages when no student is selected or when the selected student has no sessions."
         }
       ]
     },
     {
       "id": "REQ-4",
-      "summary": "Fix the student selector dropdown in admin ManageStudentMaterials to populate with all enrolled/registered students so admin can select and add materials for them",
+      "summary": "Update admin ManageStudentMaterials page to allow per-student material assignment using a student selector dropdown",
       "acceptanceCriteria": [
-        "The student dropdown in ManageStudentMaterials shows all enrolled/registered/active students",
-        "Admin can select a student from the dropdown and add materials for that specific student",
-        "Materials added for a student are saved and visible under that student's record",
-        "No existing materials structure or fields are changed"
+        "Admin can select any registered student from a dropdown populated from the backend",
+        "Materials form includes fields for title, description, and a file/URL link",
+        "On submission, the material is saved and associated only with the selected student",
+        "The material appears in the selected student's materials page on their student dashboard",
+        "The material does NOT appear on other students' dashboards",
+        "Admin can view and delete materials per selected student",
+        "Materials list updates immediately after adding or deleting"
       ],
       "file_operations": [
         {
           "path": "frontend/src/pages/admin/ManageStudentMaterials.tsx",
           "operation": "modify",
-          "description": "Fix the student selector dropdown to query listApprovals() from the backend and filter for approved students (status === 'approved'). Populate the dropdown with all approved/enrolled students showing their name and email. When a student is selected, use their Principal from the UserApprovalInfo to pass to addMaterial mutation. Ensure the dropdown is never empty when approved students exist in the system."
-        },
+          "description": "Update the ManageStudentMaterials page to add a student selector dropdown at the top. Populate the dropdown with all registered students fetched via useGetAllStudents, displaying each student's fullName and email. When a student is selected, store their Principal in component state. Update the materials form to pass the selected studentPrincipal to the addMaterial mutation from useMaterials.ts (which already accepts studentPrincipal as the first parameter). The form should include fields for title, description (optional), fileData (optional file upload converted to Uint8Array), fileLink (optional URL string), and relatedCourse. Display the materials list for the selected student using the existing useGetMaterialsForStudent hook with the selected Principal. Ensure the delete material functionality works per selected student. Add empty state messages when no student is selected or when the selected student has no materials."
+        }
+      ]
+    },
+    {
+      "id": "REQ-5",
+      "summary": "Ensure admin Dashboard overview page correctly displays recent students list and summary stats from backend",
+      "acceptanceCriteria": [
+        "Admin Dashboard stat cards show accurate counts fetched from the backend",
+        "Recent students section lists students with their enrolled course and status",
+        "Data is sourced from backend via React Query, not localStorage"
+      ],
+      "file_operations": [
         {
-          "path": "frontend/src/hooks/useMaterials.ts",
+          "path": "frontend/src/pages/admin/Dashboard.tsx",
           "operation": "modify",
-          "description": "Ensure the addMaterial mutation and getMaterialsForStudent query properly handle Principal objects. Add helper functions if needed to convert between principal string representations and Principal objects for the dropdown selection flow."
+          "description": "Verify that the Dashboard page uses the useGetAllStudents hook from useQueries.ts to fetch all students from the backend. Compute the summary stats (total students, active students, pending payments, approved payments) by processing the fetched students array. Display StatCard components with these computed counts. In the recent students section, map over the students array (sorted by enrollmentDate descending, limited to 5-10 recent entries) and display each student's fullName, course, paymentStatus (with StatusBadge), and enrollmentDate. Remove any references to localStorage for student data. Add loading states and error handling for the query."
         }
       ]
     }

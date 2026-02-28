@@ -1,69 +1,73 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-28T17:56:23.607Z",
+  "generatedAt": "2026-02-28T18:56:34.552Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 5,
+    "total": 6,
     "implemented": 4,
     "items": [
       {
         "id": "REQ-1",
-        "summary": "Remove all payment gate and access code checks from the student sign-in flow. Any student who logs in via Internet Identity must be granted immediate access to the student portal regardless of payment status, active/pending/approved flag, or access code. The 'payment is still pending approval' block and any similar payment-based login interruption must be fully removed.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/routeTree.ts",
-          "frontend/src/lib/auth.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/pages/Login.tsx",
-          "frontend/src/routeTree.ts"
-        ]
-      },
-      {
-        "id": "REQ-2",
-        "summary": "The admin dashboard Students section must display all registered students (regardless of payment status) with their payment and active status clearly shown for each student.",
+        "summary": "Update the admin Students page (frontend/src/pages/admin/Students.tsx) to display all registered students fetched from the backend, showing each student's full details including name, email, contact info, enrolled course, and enrollment/payment status.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/pages/admin/Students.tsx"
         ],
         "matchedFiles": [
+          "frontend/src/pages/admin/Students.tsx"
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "summary": "Add an 'Edit Student' capability in the admin Students page that allows admins to edit all fields for a student: name, email, contact info, enrollment status, and any other stored student fields. Changes must be persisted to the backend.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/admin/Students.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/hooks/useQueries.ts",
           "frontend/src/pages/admin/Students.tsx"
         ]
       },
       {
         "id": "REQ-3",
-        "summary": "In the admin ManageStudentSessions page, the student selector dropdown must be populated with all students who have booked or registered for a session (enrolled/active students). The admin must be able to select any such student from the dropdown and add sessions specifically for that student. Currently there is no option to add a student even if they have booked — this must be fixed so enrolled/booked students always appear in the dropdown.",
+        "summary": "Update the admin ManageStudentSessions page (frontend/src/pages/admin/ManageStudentSessions.tsx) to allow admins to select any registered student from a dropdown and add sessions (date, time, Google Meet link, topic) that are stored and displayed exclusively on that specific student's dashboard. Existing backend session hooks (useSessions.ts) must be used.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/admin/ManageStudentSessions.tsx",
-          "frontend/src/hooks/useSessions.ts"
+          "frontend/src/pages/admin/ManageStudentSessions.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/admin/ManageStudentSessions.tsx",
-          "frontend/src/hooks/useSessions.ts"
+          "frontend/src/pages/admin/ManageStudentSessions.tsx"
         ]
       },
       {
         "id": "REQ-4",
-        "summary": "In the admin ManageStudentMaterials page, the student selector dropdown must be populated with all students who are enrolled or registered (same logic as sessions). The admin must be able to select any such student from the dropdown and add materials specifically for that student. This mirrors the sessions fix: enrolled students must always appear in the materials dropdown.",
+        "summary": "Update the admin ManageStudentMaterials page (frontend/src/pages/admin/ManageStudentMaterials.tsx) to allow admins to select any registered student from a dropdown and add study materials (title, description, link/URL) that are stored and displayed exclusively on that specific student's dashboard. Existing backend materials hooks (useMaterials.ts) must be used.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/admin/ManageStudentMaterials.tsx",
-          "frontend/src/hooks/useMaterials.ts"
+          "frontend/src/pages/admin/ManageStudentMaterials.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/admin/ManageStudentMaterials.tsx",
-          "frontend/src/hooks/useMaterials.ts"
+          "frontend/src/pages/admin/ManageStudentMaterials.tsx"
         ]
       },
       {
         "id": "REQ-5",
-        "summary": "Update the backend actor to remove any payment status or access code validation that blocks student login or portal access. Student authentication via Internet Identity should only verify that the principal exists; no payment gate, approval status check, or access code check should prevent a logged-in student from accessing their data.",
+        "summary": "Ensure the admin Dashboard overview page (frontend/src/pages/admin/Dashboard.tsx) correctly fetches and displays the recent students list and summary stats (total students, active, pending, payments) from the backend using existing React Query hooks.",
+        "status": "missing",
+        "plannedFiles": [
+          "frontend/src/pages/admin/Dashboard.tsx"
+        ],
+        "matchedFiles": []
+      },
+      {
+        "id": "REQ-6",
+        "summary": "Extend the backend (backend/main.mo) with an updateStudent function that allows admins to update any field of a registered student record (name, email, contact info, enrollment status, and any other stored fields). Restrict this function to admin-only access.",
         "status": "unknown",
         "plannedFiles": [],
         "matchedFiles": []
@@ -76,15 +80,14 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/hooks/useMaterials.ts",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/hooks/useSessions.ts",
-    "frontend/src/pages/Login.tsx",
     "frontend/src/pages/admin/ManageStudentMaterials.tsx",
     "frontend/src/pages/admin/ManageStudentSessions.tsx",
-    "frontend/src/pages/admin/Payments.tsx",
     "frontend/src/pages/admin/Students.tsx",
-    "frontend/src/routeTree.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

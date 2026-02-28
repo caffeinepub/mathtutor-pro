@@ -1,67 +1,81 @@
-import { useState } from 'react';
-import { useListApprovals, useGetAllPayments } from '../../hooks/useQueries';
+import React, { useState } from 'react';
+import { useAllStudents } from '../../hooks/useQueries';
 import { useGetMaterialsForStudent, useAddMaterial, useDeleteMaterial } from '../../hooks/useMaterials';
+import { Student } from '../../backend';
 import { Principal } from '@dfinity/principal';
 import {
-  BookOpen,
-  Plus,
-  Trash2,
-  Loader2,
-  User,
-  Link as LinkIcon,
-  FileText,
-  ExternalLink,
+  BookOpen, Plus, Trash2, Loader2, User, Link as LinkIcon,
+  FileText, ExternalLink, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
+function getPaymentStatusLabel(student: Student): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
+  const ps = student.paymentStatus;
+  if (ps.__kind__ === 'upi') {
+    if (ps.upi.__kind__ === 'approved') return { label: 'Active', variant: 'default' };
+    if (ps.upi.__kind__ === 'pending') return { label: 'Pending', variant: 'secondary' };
+    if (ps.upi.__kind__ === 'rejected') return { label: 'Rejected', variant: 'destructive' };
+  }
+  if (ps.__kind__ === 'stripe') {
+    if (ps.stripe.__kind__ === 'completed') return { label: 'Active', variant: 'default' };
+    if (ps.stripe.__kind__ === 'failed') return { label: 'Failed', variant: 'destructive' };
+  }
+  return { label: 'Unknown', variant: 'outline' };
+}
+
+function formatDate(ns: bigint): string {
+  const ms = Number(ns) / 1_000_000;
+  return new Date(ms).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function ManageStudentMaterials() {
-  const { data: approvals = [], isLoading: approvalsLoading } = useListApprovals();
-  const { data: allPayments = [], isLoading: paymentsLoading } = useGetAllPayments();
+  const { data: allStudents = [], isLoading: studentsLoading } = useAllStudents();
 
   const [selectedPrincipal, setSelectedPrincipal] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [fileLink, setFileLink] = useState('');
   const [relatedCourse, setRelatedCourse] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-
-  const isLoading = approvalsLoading || paymentsLoading;
-
-  const approvedPayments = allPayments.filter((p) => p.status.__kind__ === 'approved');
 
   const selectedPrincipalObj = selectedPrincipal
     ? (() => {
-        try {
-          return Principal.fromText(selectedPrincipal);
-        } catch {
-          return null;
-        }
+        try { return Principal.fromText(selectedPrincipal); } catch { return null; }
       })()
     : null;
 
-  const { data: materials = [], isLoading: materialsLoading, refetch: refetchMaterials } =
-    useGetMaterialsForStudent(selectedPrincipalObj);
-
+  const { data: materials = [], isLoading: materialsLoading } = useGetMaterialsForStudent(selectedPrincipalObj);
   const addMaterialMutation = useAddMaterial();
   const deleteMaterialMutation = useDeleteMaterial();
 
-  const handleAddMaterial = async () => {
-    if (!selectedPrincipal || !title || !relatedCourse) {
-      toast.error('Please fill in all required fields');
-      return;
+  const selectedStudent = allStudents.find(s => s.principal.toString() === selectedPrincipal);
+
+  const filteredStudents = allStudents.filter(s =>
+    s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.course.toLowerCase().includes(studentSearch.toLowerCase())
+  );
+
+  // Auto-fill relatedCourse when student is selected
+  const handleSelectStudent = (principalStr: string) => {
+    setSelectedPrincipal(principalStr);
+    const student = allStudents.find(s => s.principal.toString() === principalStr);
+    if (student && !relatedCourse) {
+      setRelatedCourse(student.course);
     }
+  };
+
+  const handleAddMaterial = async () => {
+    if (!selectedPrincipal) { toast.error('Please select a student'); return; }
+    if (!title.trim()) { toast.error('Title is required'); return; }
+    if (!relatedCourse.trim()) { toast.error('Related course is required'); return; }
 
     let principalObj: Principal;
     try {
@@ -71,26 +85,21 @@ export default function ManageStudentMaterials() {
       return;
     }
 
-    setIsAdding(true);
     try {
       await addMaterialMutation.mutateAsync({
         studentPrincipal: principalObj,
-        title,
-        description: description || null,
+        title: title.trim(),
+        description: description.trim() || null,
         fileData: null,
-        fileLink: fileLink || null,
-        relatedCourse,
+        fileLink: fileLink.trim() || null,
+        relatedCourse: relatedCourse.trim(),
       });
       toast.success('Material added successfully!');
       setTitle('');
       setDescription('');
       setFileLink('');
-      setRelatedCourse('');
-      refetchMaterials();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to add material');
-    } finally {
-      setIsAdding(false);
     }
   };
 
@@ -98,7 +107,6 @@ export default function ManageStudentMaterials() {
     try {
       await deleteMaterialMutation.mutateAsync(materialId);
       toast.success('Material deleted');
-      refetchMaterials();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to delete material');
     }
@@ -113,216 +121,221 @@ export default function ManageStudentMaterials() {
           Manage Student Materials
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Select a student and add or manage their study materials
+          Select any registered student and add study materials — materials appear only on that student's dashboard
         </p>
       </div>
 
-      {/* Student Selector */}
-      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <h2 className="font-semibold text-foreground flex items-center gap-2">
-          <User className="h-4 w-4 text-primary" />
-          Select Student
-        </h2>
-
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading students...
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Dropdown for portal users (Internet Identity) */}
-            {approvals.length > 0 && (
-              <div>
-                <Label className="text-sm text-muted-foreground mb-1 block">
-                  Portal Users (Internet Identity)
-                </Label>
-                <Select value={selectedPrincipal} onValueChange={setSelectedPrincipal}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a student..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {approvals.map((approval) => {
-                      const principalStr = approval.principal.toString();
-                      return (
-                        <SelectItem key={principalStr} value={principalStr}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs">{principalStr.slice(0, 16)}...</span>
-                            <Badge
-                              variant="outline"
-                              className={
-                                approval.status === 'approved'
-                                  ? 'text-green-600 border-green-300 text-xs'
-                                  : 'text-amber-600 border-amber-300 text-xs'
-                              }
-                            >
-                              {approval.status}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Manual principal entry */}
-            <div>
-              <Label className="text-sm text-muted-foreground mb-1 block">
-                Or enter Principal ID manually
-              </Label>
-              <Input
-                placeholder="e.g. aaaaa-aa or full principal ID"
-                value={selectedPrincipal}
-                onChange={(e) => setSelectedPrincipal(e.target.value)}
-                className="font-mono text-sm"
-              />
-            </div>
-
-            {/* Approved payment students info */}
-            {approvedPayments.length > 0 && (
-              <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Active Students (Paid) — {approvedPayments.length} student(s)
-                </p>
-                <div className="space-y-1">
-                  {approvedPayments.map((p) => (
-                    <div key={String(p.id)} className="flex items-center justify-between text-xs">
-                      <span className="text-foreground font-medium">{p.fullName}</span>
-                      <span className="text-muted-foreground">{p.email} · {p.courseName}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Add Material Form */}
-      {selectedPrincipal && (
-        <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Add Material Form */}
+        <div className="bg-card border rounded-xl p-5 space-y-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" />
-            Add New Material
+            <Plus className="h-4 w-4" /> Add New Material
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label>Title <span className="text-destructive">*</span></Label>
-              <Input
-                placeholder="e.g. Chapter 5 Notes"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Related Course <span className="text-destructive">*</span></Label>
-              <Input
-                placeholder="e.g. Mathematics Grade 10"
-                value={relatedCourse}
-                onChange={(e) => setRelatedCourse(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <Label>File / Resource Link</Label>
-              <Input
-                placeholder="https://drive.google.com/..."
-                value={fileLink}
-                onChange={(e) => setFileLink(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <Label>Description (optional)</Label>
-              <Textarea
-                placeholder="Brief description of this material..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
+          {/* Student Selector */}
+          <div className="space-y-1.5">
+            <Label>Select Student *</Label>
+            {studentsLoading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : (
+              <Select value={selectedPrincipal} onValueChange={handleSelectStudent}>
+                <SelectTrigger>
+                  <SelectValue placeholder={allStudents.length === 0 ? 'No students registered yet' : 'Choose a student...'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {allStudents.map(s => {
+                    const statusInfo = getPaymentStatusLabel(s);
+                    return (
+                      <SelectItem key={s.principal.toString()} value={s.principal.toString()}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{s.fullName}</span>
+                          <span className="text-muted-foreground text-xs">— {s.course}</span>
+                          <Badge variant={statusInfo.variant} className="text-xs ml-1">{statusInfo.label}</Badge>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedStudent && (
+              <p className="text-xs text-muted-foreground">
+                Selected: <span className="font-medium text-foreground">{selectedStudent.fullName}</span> — {selectedStudent.email}
+              </p>
+            )}
+          </div>
+
+          {/* Title */}
+          <div className="space-y-1.5">
+            <Label htmlFor="mat-title">Title *</Label>
+            <Input
+              id="mat-title"
+              placeholder="e.g. Chapter 5 Notes"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label htmlFor="mat-desc">Description (optional)</Label>
+            <Textarea
+              id="mat-desc"
+              placeholder="Brief description of the material..."
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          {/* File Link */}
+          <div className="space-y-1.5">
+            <Label htmlFor="mat-link">File / Resource Link (optional)</Label>
+            <Input
+              id="mat-link"
+              type="url"
+              placeholder="https://drive.google.com/..."
+              value={fileLink}
+              onChange={e => setFileLink(e.target.value)}
+            />
+          </div>
+
+          {/* Related Course */}
+          <div className="space-y-1.5">
+            <Label htmlFor="mat-course">Related Course *</Label>
+            <Input
+              id="mat-course"
+              placeholder="e.g. Mathematics"
+              value={relatedCourse}
+              onChange={e => setRelatedCourse(e.target.value)}
+            />
           </div>
 
           <Button
+            className="w-full"
             onClick={handleAddMaterial}
-            disabled={isAdding || !title || !relatedCourse}
-            className="w-full md:w-auto"
+            disabled={addMaterialMutation.isPending || !selectedPrincipal}
           >
-            {isAdding ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Adding...
-              </>
+            {addMaterialMutation.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Adding Material...</>
             ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Material
-              </>
+              <><Plus className="h-4 w-4 mr-2" />Add Material</>
             )}
           </Button>
         </div>
-      )}
 
-      {/* Materials List */}
-      {selectedPrincipal && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-foreground">Materials for Selected Student</h2>
-            <Badge variant="outline" className="ml-auto">{materials.length}</Badge>
-          </div>
+        {/* Right: Materials for selected student */}
+        <div className="bg-card border rounded-xl p-5 space-y-4">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            {selectedStudent ? `Materials for ${selectedStudent.fullName}` : 'Select a student to view materials'}
+          </h2>
 
-          {materialsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          {!selectedPrincipal && (
+            <div className="text-center py-10 text-muted-foreground">
+              <User className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Select a student from the form to view their materials</p>
             </div>
-          ) : materials.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p>No materials yet for this student</p>
+          )}
+
+          {selectedPrincipal && materialsLoading && (
+            <div className="space-y-2">
+              {[1, 2].map(i => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {materials.map((material) => (
-                <div key={String(material.id)} className="p-4 flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="font-medium text-foreground">{material.title}</div>
-                    <div className="text-sm text-muted-foreground">{material.relatedCourse}</div>
-                    {material.description && (
-                      <div className="text-sm text-muted-foreground">{material.description}</div>
-                    )}
-                    {material.fileLink && (
-                      <a
-                        href={material.fileLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View Resource
-                      </a>
-                    )}
+          )}
+
+          {selectedPrincipal && !materialsLoading && materials.length === 0 && (
+            <div className="text-center py-10 text-muted-foreground">
+              <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">No materials assigned to this student yet</p>
+              <p className="text-xs mt-1">Use the form on the left to add a material</p>
+            </div>
+          )}
+
+          {selectedPrincipal && !materialsLoading && materials.length > 0 && (
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              {[...materials].sort((a, b) => Number(b.uploadedAt) - Number(a.uploadedAt)).map(material => (
+                <div key={material.id.toString()} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{material.title}</p>
+                      {material.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{material.description}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="outline" className="text-xs">{material.relatedCourse}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatDate(material.uploadedAt)}</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive flex-shrink-0"
+                      onClick={() => handleDeleteMaterial(material.id)}
+                      disabled={deleteMaterialMutation.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
-                    onClick={() => handleDeleteMaterial(material.id)}
-                    disabled={deleteMaterialMutation.isPending}
-                  >
-                    {deleteMaterialMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3 w-3" />
-                    )}
-                  </Button>
+                  {material.fileLink && (
+                    <a
+                      href={material.fileLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline truncate"
+                    >
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                      {material.fileLink}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* All students reference panel */}
+      <div className="bg-card border rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <User className="h-4 w-4" /> All Students ({allStudents.length})
+          </h2>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search students..."
+              value={studentSearch}
+              onChange={e => setStudentSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+        </div>
+        {studentsLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : filteredStudents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {studentSearch ? 'No students match your search.' : 'No students registered yet.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {filteredStudents.map(s => {
+              const statusInfo = getPaymentStatusLabel(s);
+              return (
+                <div
+                  key={s.principal.toString()}
+                  className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedPrincipal === s.principal.toString() ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
+                  onClick={() => handleSelectStudent(s.principal.toString())}
+                >
+                  <p className="font-medium text-sm truncate">{s.fullName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{s.course}</p>
+                  <Badge variant={statusInfo.variant} className="text-xs mt-1">{statusInfo.label}</Badge>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

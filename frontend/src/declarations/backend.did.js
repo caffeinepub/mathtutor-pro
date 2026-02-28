@@ -59,6 +59,29 @@ export const UpiPayment = IDL.Record({
   'phone' : IDL.Text,
   'courseName' : IDL.Text,
 });
+export const StripeSessionStatus = IDL.Variant({
+  'completed' : IDL.Record({
+    'userPrincipal' : IDL.Opt(IDL.Text),
+    'response' : IDL.Text,
+  }),
+  'failed' : IDL.Record({ 'error' : IDL.Text }),
+});
+export const Student = IDL.Record({
+  'principal' : IDL.Principal,
+  'paymentStatus' : IDL.Variant({
+    'upi' : UpiPaymentStatus,
+    'stripe' : StripeSessionStatus,
+  }),
+  'hours' : IDL.Nat,
+  'sessionType' : IDL.Text,
+  'fullName' : IDL.Text,
+  'isActive' : IDL.Bool,
+  'email' : IDL.Text,
+  'enrollmentDate' : IDL.Nat,
+  'phone' : IDL.Text,
+  'course' : IDL.Text,
+  'transactionId' : IDL.Text,
+});
 export const AttendanceStatus = IDL.Variant({
   'present' : IDL.Null,
   'absent' : IDL.Null,
@@ -101,13 +124,6 @@ export const Session = IDL.Record({
   'time' : IDL.Text,
   'durationHours' : IDL.Nat,
   'studentPrincipal' : IDL.Principal,
-});
-export const StripeSessionStatus = IDL.Variant({
-  'completed' : IDL.Record({
-    'userPrincipal' : IDL.Opt(IDL.Text),
-    'response' : IDL.Text,
-  }),
-  'failed' : IDL.Record({ 'error' : IDL.Text }),
 });
 export const ApprovalStatus = IDL.Variant({
   'pending' : IDL.Null,
@@ -205,7 +221,25 @@ export const idlService = IDL.Service({
       [IDL.Opt(UpiPayment)],
       ['query'],
     ),
+  'finishStudentRegistration' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Variant({
+          'upi' : UpiPaymentStatus,
+          'stripe' : StripeSessionStatus,
+        }),
+        IDL.Text,
+      ],
+      [],
+      [],
+    ),
   'getAllPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
+  'getAllStudents' : IDL.Func([], [IDL.Vec(Student)], ['query']),
   'getAllUpiPaymentsByEmail' : IDL.Func(
       [IDL.Text],
       [IDL.Vec(UpiPayment)],
@@ -228,6 +262,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(Material)],
       ['query'],
     ),
+  'getMyEnrollment' : IDL.Func([], [IDL.Opt(Student)], ['query']),
   'getPendingPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
   'getProducts' : IDL.Func([], [IDL.Vec(ShoppingItem)], ['query']),
   'getSessionsForStudent' : IDL.Func(
@@ -286,6 +321,26 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'updateProduct' : IDL.Func([ShoppingItem], [], []),
+  'updateStudent' : IDL.Func(
+      [
+        IDL.Principal,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Variant({
+          'upi' : UpiPaymentStatus,
+          'stripe' : StripeSessionStatus,
+        }),
+        IDL.Text,
+        IDL.Nat,
+        IDL.Bool,
+      ],
+      [],
+      [],
+    ),
 });
 
 export const idlInitArgs = [];
@@ -342,6 +397,29 @@ export const idlFactory = ({ IDL }) => {
     'phone' : IDL.Text,
     'courseName' : IDL.Text,
   });
+  const StripeSessionStatus = IDL.Variant({
+    'completed' : IDL.Record({
+      'userPrincipal' : IDL.Opt(IDL.Text),
+      'response' : IDL.Text,
+    }),
+    'failed' : IDL.Record({ 'error' : IDL.Text }),
+  });
+  const Student = IDL.Record({
+    'principal' : IDL.Principal,
+    'paymentStatus' : IDL.Variant({
+      'upi' : UpiPaymentStatus,
+      'stripe' : StripeSessionStatus,
+    }),
+    'hours' : IDL.Nat,
+    'sessionType' : IDL.Text,
+    'fullName' : IDL.Text,
+    'isActive' : IDL.Bool,
+    'email' : IDL.Text,
+    'enrollmentDate' : IDL.Nat,
+    'phone' : IDL.Text,
+    'course' : IDL.Text,
+    'transactionId' : IDL.Text,
+  });
   const AttendanceStatus = IDL.Variant({
     'present' : IDL.Null,
     'absent' : IDL.Null,
@@ -384,13 +462,6 @@ export const idlFactory = ({ IDL }) => {
     'time' : IDL.Text,
     'durationHours' : IDL.Nat,
     'studentPrincipal' : IDL.Principal,
-  });
-  const StripeSessionStatus = IDL.Variant({
-    'completed' : IDL.Record({
-      'userPrincipal' : IDL.Opt(IDL.Text),
-      'response' : IDL.Text,
-    }),
-    'failed' : IDL.Record({ 'error' : IDL.Text }),
   });
   const ApprovalStatus = IDL.Variant({
     'pending' : IDL.Null,
@@ -492,7 +563,25 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UpiPayment)],
         ['query'],
       ),
+    'finishStudentRegistration' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Variant({
+            'upi' : UpiPaymentStatus,
+            'stripe' : StripeSessionStatus,
+          }),
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
     'getAllPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
+    'getAllStudents' : IDL.Func([], [IDL.Vec(Student)], ['query']),
     'getAllUpiPaymentsByEmail' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(UpiPayment)],
@@ -515,6 +604,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Material)],
         ['query'],
       ),
+    'getMyEnrollment' : IDL.Func([], [IDL.Opt(Student)], ['query']),
     'getPendingPayments' : IDL.Func([], [IDL.Vec(UpiPayment)], ['query']),
     'getProducts' : IDL.Func([], [IDL.Vec(ShoppingItem)], ['query']),
     'getSessionsForStudent' : IDL.Func(
@@ -577,6 +667,26 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'updateProduct' : IDL.Func([ShoppingItem], [], []),
+    'updateStudent' : IDL.Func(
+        [
+          IDL.Principal,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Variant({
+            'upi' : UpiPaymentStatus,
+            'stripe' : StripeSessionStatus,
+          }),
+          IDL.Text,
+          IDL.Nat,
+          IDL.Bool,
+        ],
+        [],
+        [],
+      ),
   });
 };
 

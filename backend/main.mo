@@ -1,20 +1,20 @@
-import Map "mo:core/Map";
-import Iter "mo:core/Iter";
-import Text "mo:core/Text";
-import Nat "mo:core/Nat";
-import Int "mo:core/Int";
-import Time "mo:core/Time";
 import Blob "mo:core/Blob";
+import Int "mo:core/Int";
+import Iter "mo:core/Iter";
+import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import OutCall "http-outcalls/outcall";
-import Stripe "stripe/stripe";
-import AccessControl "authorization/access-control";
-import MixinStorage "blob-storage/Mixin";
-import MixinAuthorization "authorization/MixinAuthorization";
 import Runtime "mo:core/Runtime";
-import Principal "mo:core/Principal";
+import Stripe "stripe/stripe";
+import Text "mo:core/Text";
+import Time "mo:core/Time";
+
+import AccessControl "authorization/access-control";
+import MixinAuthorization "authorization/MixinAuthorization";
+import MixinStorage "blob-storage/Mixin";
 import UserApproval "user-approval/approval";
 
-(actor {
+actor {
   include MixinStorage();
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -42,6 +42,133 @@ import UserApproval "user-approval/approval";
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     UserApproval.listApprovals(approvalState);
+  };
+
+  // Student data
+  public type Student = {
+    principal : Principal;
+    fullName : Text;
+    email : Text;
+    phone : Text;
+    course : Text;
+    sessionType : Text;
+    hours : Nat;
+    paymentStatus : {
+      #stripe : Stripe.StripeSessionStatus;
+      #upi : UpiPaymentStatus;
+    };
+    transactionId : Text;
+    enrollmentDate : Nat;
+    isActive : Bool;
+  };
+
+  let students = Map.empty<Principal, Student>();
+
+  public shared ({ caller }) func finishStudentRegistration(
+    fullName : Text,
+    email : Text,
+    phone : Text,
+    course : Text,
+    sessionType : Text,
+    hours : Nat,
+    paymentType : { #stripe : Stripe.StripeSessionStatus; #upi : UpiPaymentStatus },
+    transactionId : Text
+  ) : async () {
+    // Only authenticated (non-anonymous) users can register as students
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Must be logged in to complete registration");
+    };
+
+    validateStudentFields(fullName, email, phone, course, sessionType);
+
+    let student : Student = {
+      principal = caller;
+      fullName;
+      email;
+      phone;
+      course;
+      sessionType;
+      hours;
+      paymentStatus = paymentType;
+      transactionId;
+      enrollmentDate = Int.abs(Time.now());
+      isActive = true;
+    };
+
+    students.add(caller, student);
+  };
+
+  public shared ({ caller }) func updateStudent(
+    principal : Principal,
+    fullName : Text,
+    email : Text,
+    phone : Text,
+    course : Text,
+    sessionType : Text,
+    hours : Nat,
+    paymentStatus : {
+      #stripe : Stripe.StripeSessionStatus;
+      #upi : UpiPaymentStatus;
+    },
+    transactionId : Text,
+    enrollmentDate : Nat,
+    isActive : Bool,
+  ) : async () {
+    // Only admins can update students
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update students");
+    };
+
+    validateStudentFields(fullName, email, phone, course, sessionType);
+
+    let updatedStudent : Student = {
+      principal;
+      fullName;
+      email;
+      phone;
+      course;
+      sessionType;
+      hours;
+      paymentStatus;
+      transactionId;
+      enrollmentDate;
+      isActive;
+    };
+
+    students.add(principal, updatedStudent);
+  };
+
+  func validateStudentFields(fullName : Text, email : Text, phone : Text, course : Text, sessionType : Text) {
+    if (fullName.size() == 0) {
+      Runtime.trap("Full name must not be empty");
+    };
+    if (email.size() == 0) {
+      Runtime.trap("Email must not be empty");
+    };
+    if (phone.size() == 0) {
+      Runtime.trap("Phone must not be empty");
+    };
+    if (course.size() == 0) {
+      Runtime.trap("Course must not be empty");
+    };
+    if (sessionType.size() == 0) {
+      Runtime.trap("Session type must not be empty");
+    };
+  };
+
+  public query ({ caller }) func getAllStudents() : async [Student] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view all students");
+    };
+    students.values().toArray();
+  };
+
+  public query ({ caller }) func getMyEnrollment() : async ?Student {
+    // Only authenticated users can retrieve their own enrollment
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Must be logged in to view your enrollment");
+    };
+    students.get(caller);
   };
 
   // Sessions
@@ -684,4 +811,4 @@ import UserApproval "user-approval/approval";
     };
     userProfiles.add(caller, profile);
   };
-});
+};

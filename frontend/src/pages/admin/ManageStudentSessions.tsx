@@ -1,377 +1,327 @@
-import { useState } from 'react';
-import { useActor } from '../../hooks/useActor';
-import { useListApprovals, useGetAllPayments } from '../../hooks/useQueries';
-import { useGetSessionsForStudent, useAddSession, useDeleteSession } from '../../hooks/useSessions';
+import React, { useState } from 'react';
+import { Plus, Trash2, Video, Calendar, Clock, User, Link as LinkIcon, Loader2, Search } from 'lucide-react';
+import { useAllStudents, useGetSessionsForStudent, useAddSession, useDeleteSession } from '../../hooks/useQueries';
+import { Student } from '../../backend';
 import { Principal } from '@dfinity/principal';
-import {
-  CalendarDays,
-  Plus,
-  Trash2,
-  Loader2,
-  User,
-  Clock,
-  Video,
-  ChevronDown,
-  BookOpen,
-} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
-interface StudentOption {
-  principalStr: string;
-  displayName: string;
-  email?: string;
-  isActive: boolean;
+function getPaymentStatusLabel(student: Student): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
+  const ps = student.paymentStatus;
+  if (ps.__kind__ === 'upi') {
+    if (ps.upi.__kind__ === 'approved') return { label: 'Active', variant: 'default' };
+    if (ps.upi.__kind__ === 'pending') return { label: 'Pending', variant: 'secondary' };
+    if (ps.upi.__kind__ === 'rejected') return { label: 'Rejected', variant: 'destructive' };
+  }
+  if (ps.__kind__ === 'stripe') {
+    if (ps.stripe.__kind__ === 'completed') return { label: 'Active', variant: 'default' };
+    if (ps.stripe.__kind__ === 'failed') return { label: 'Failed', variant: 'destructive' };
+  }
+  return { label: 'Unknown', variant: 'outline' };
 }
 
 export default function ManageStudentSessions() {
-  const { actor } = useActor();
-  const { data: approvals = [], isLoading: approvalsLoading } = useListApprovals();
-  const { data: allPayments = [], isLoading: paymentsLoading } = useGetAllPayments();
+  const { data: allStudents, isLoading: studentsLoading } = useAllStudents();
 
-  const [selectedPrincipal, setSelectedPrincipal] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState('1');
-  const [meetLink, setMeetLink] = useState('');
-  const [topic, setTopic] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [selectedPrincipal, setSelectedPrincipal] = useState<string>('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [form, setForm] = useState({
+    date: '',
+    time: '',
+    durationHours: '1',
+    meetLink: '',
+    topic: '',
+  });
 
-  // Build student options from both approvals and payments
-  // Approvals = Internet Identity users who logged in
-  // Payments = students who registered and paid
-  const studentOptions: StudentOption[] = [];
+  const principalObj = selectedPrincipal ? (() => {
+    try { return Principal.fromText(selectedPrincipal); } catch { return null; }
+  })() : null;
 
-  // Add approved portal users
-  for (const approval of approvals) {
-    const principalStr = approval.principal.toString();
-    // Try to find matching payment by looking for any payment
-    const matchingPayment = allPayments.find(
-      (p) => p.status.__kind__ === 'approved'
-    );
-    studentOptions.push({
-      principalStr,
-      displayName: `Student (${principalStr.slice(0, 8)}...)`,
-      isActive: approval.status === 'approved',
-    });
-  }
+  const { data: sessions, isLoading: sessionsLoading } = useGetSessionsForStudent(principalObj);
+  const addSession = useAddSession();
+  const deleteSession = useDeleteSession();
 
-  // If no approvals, show approved payment holders as options
-  // (admin can manually enter principal or select from approved payments)
-  const approvedPayments = allPayments.filter((p) => p.status.__kind__ === 'approved');
+  const allStudentsList = allStudents ?? [];
+  const filteredStudents = allStudentsList.filter(s =>
+    s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.course.toLowerCase().includes(studentSearch.toLowerCase())
+  );
 
-  const isLoading = approvalsLoading || paymentsLoading;
+  const selectedStudent = allStudentsList.find(s => s.principal.toString() === selectedPrincipal);
 
-  const selectedPrincipalObj = selectedPrincipal
-    ? (() => {
-        try {
-          return Principal.fromText(selectedPrincipal);
-        } catch {
-          return null;
-        }
-      })()
-    : null;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!principalObj) { toast.error('Please select a student'); return; }
+    if (!form.date) { toast.error('Please enter a date'); return; }
+    if (!form.time) { toast.error('Please enter a time'); return; }
+    if (!form.meetLink) { toast.error('Please enter a Google Meet link'); return; }
 
-  const { data: sessions = [], isLoading: sessionsLoading, refetch: refetchSessions } =
-    useGetSessionsForStudent(selectedPrincipalObj);
-
-  const addSessionMutation = useAddSession();
-  const deleteSessionMutation = useDeleteSession();
-
-  const handleAddSession = async () => {
-    if (!selectedPrincipal || !date || !time || !meetLink) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    let principalObj: Principal;
     try {
-      principalObj = Principal.fromText(selectedPrincipal);
-    } catch {
-      toast.error('Invalid principal ID');
-      return;
-    }
-
-    setIsAdding(true);
-    try {
-      await addSessionMutation.mutateAsync({
+      await addSession.mutateAsync({
         studentPrincipal: principalObj,
-        date,
-        time,
-        durationHours: BigInt(parseInt(duration) || 1),
-        meetLink,
-        topic: topic || null,
+        date: form.date,
+        time: form.time,
+        durationHours: BigInt(parseInt(form.durationHours) || 1),
+        meetLink: form.meetLink,
+        topic: form.topic || undefined,
       });
       toast.success('Session added successfully!');
-      setDate('');
-      setTime('');
-      setDuration('1');
-      setMeetLink('');
-      setTopic('');
-      refetchSessions();
+      setForm({ date: '', time: '', durationHours: '1', meetLink: '', topic: '' });
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to add session');
-    } finally {
-      setIsAdding(false);
+      toast.error(err?.message ?? 'Failed to add session');
     }
   };
 
-  const handleDeleteSession = async (sessionId: bigint) => {
+  const handleDelete = async (sessionId: bigint) => {
     try {
-      await deleteSessionMutation.mutateAsync(sessionId);
+      await deleteSession.mutateAsync(sessionId);
       toast.success('Session deleted');
-      refetchSessions();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to delete session');
+      toast.error(err?.message ?? 'Failed to delete session');
     }
   };
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <CalendarDays className="h-6 w-6 text-primary" />
-          Manage Student Sessions
-        </h1>
+        <h1 className="text-2xl font-bold text-foreground">Manage Student Sessions</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Select a student and add or manage their sessions
+          Select any registered student and assign Google Meet sessions — sessions appear only on that student's dashboard
         </p>
       </div>
 
-      {/* Student Selector */}
-      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <h2 className="font-semibold text-foreground flex items-center gap-2">
-          <User className="h-4 w-4 text-primary" />
-          Select Student
-        </h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Add Session Form */}
+        <div className="bg-card border rounded-xl p-5 space-y-4">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <Plus className="h-4 w-4" /> Add New Session
+          </h2>
 
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading students...
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Dropdown for portal users (Internet Identity) */}
-            {approvals.length > 0 && (
-              <div>
-                <Label className="text-sm text-muted-foreground mb-1 block">
-                  Portal Users (Internet Identity)
-                </Label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Student selector */}
+            <div className="space-y-1.5">
+              <Label>Select Student *</Label>
+              {studentsLoading ? (
+                <Skeleton className="h-10 w-full" />
+              ) : (
                 <Select value={selectedPrincipal} onValueChange={setSelectedPrincipal}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a student..." />
+                    <SelectValue placeholder={allStudentsList.length === 0 ? 'No students registered yet' : 'Choose a student...'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {approvals.map((approval) => {
-                      const principalStr = approval.principal.toString();
+                    {allStudentsList.map(s => {
+                      const statusInfo = getPaymentStatusLabel(s);
                       return (
-                        <SelectItem key={principalStr} value={principalStr}>
+                        <SelectItem key={s.principal.toString()} value={s.principal.toString()}>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs">{principalStr.slice(0, 16)}...</span>
-                            <Badge
-                              variant="outline"
-                              className={
-                                approval.status === 'approved'
-                                  ? 'text-green-600 border-green-300 text-xs'
-                                  : 'text-amber-600 border-amber-300 text-xs'
-                              }
-                            >
-                              {approval.status}
-                            </Badge>
+                            <span className="font-medium">{s.fullName}</span>
+                            <span className="text-muted-foreground text-xs">— {s.course}</span>
+                            <Badge variant={statusInfo.variant} className="text-xs ml-1">{statusInfo.label}</Badge>
                           </div>
                         </SelectItem>
                       );
                     })}
                   </SelectContent>
                 </Select>
-              </div>
-            )}
-
-            {/* Manual principal entry */}
-            <div>
-              <Label className="text-sm text-muted-foreground mb-1 block">
-                Or enter Principal ID manually
-              </Label>
-              <Input
-                placeholder="e.g. aaaaa-aa or full principal ID"
-                value={selectedPrincipal}
-                onChange={(e) => setSelectedPrincipal(e.target.value)}
-                className="font-mono text-sm"
-              />
-            </div>
-
-            {/* Approved payment students info */}
-            {approvedPayments.length > 0 && (
-              <div className="bg-muted/50 rounded-lg p-3">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Active Students (Paid) — {approvedPayments.length} student(s)
+              )}
+              {allStudentsList.length === 0 && !studentsLoading && (
+                <p className="text-xs text-amber-600">No students registered yet.</p>
+              )}
+              {selectedStudent && (
+                <p className="text-xs text-muted-foreground">
+                  Selected: <span className="font-medium text-foreground">{selectedStudent.fullName}</span> — {selectedStudent.email}
                 </p>
-                <div className="space-y-1">
-                  {approvedPayments.map((p) => (
-                    <div key={String(p.id)} className="flex items-center justify-between text-xs">
-                      <span className="text-foreground font-medium">{p.fullName}</span>
-                      <span className="text-muted-foreground">{p.email} · {p.courseName}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
 
-      {/* Add Session Form */}
-      {selectedPrincipal && (
-        <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-          <h2 className="font-semibold text-foreground flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" />
-            Add New Session
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label>Date <span className="text-destructive">*</span></Label>
+            {/* Date */}
+            <div className="space-y-1.5">
+              <Label htmlFor="date">Date *</Label>
               <Input
+                id="date"
                 type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                value={form.date}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                required
               />
             </div>
-            <div className="space-y-1">
-              <Label>Time <span className="text-destructive">*</span></Label>
+
+            {/* Time */}
+            <div className="space-y-1.5">
+              <Label htmlFor="time">Time *</Label>
               <Input
+                id="time"
                 type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
+                value={form.time}
+                onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
+                required
               />
             </div>
-            <div className="space-y-1">
-              <Label>Duration (hours)</Label>
+
+            {/* Duration */}
+            <div className="space-y-1.5">
+              <Label htmlFor="duration">Duration (hours) *</Label>
               <Input
+                id="duration"
                 type="number"
                 min="1"
                 max="8"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
+                value={form.durationHours}
+                onChange={e => setForm(f => ({ ...f, durationHours: e.target.value }))}
+                required
               />
             </div>
-            <div className="space-y-1">
-              <Label>Google Meet Link <span className="text-destructive">*</span></Label>
-              <Input
-                placeholder="https://meet.google.com/..."
-                value={meetLink}
-                onChange={(e) => setMeetLink(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <Label>Topic (optional)</Label>
-              <Input
-                placeholder="e.g. Quadratic Equations, Calculus..."
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <Button
-            onClick={handleAddSession}
-            disabled={isAdding || !date || !time || !meetLink}
-            className="w-full md:w-auto"
-          >
-            {isAdding ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Adding...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Session
-              </>
-            )}
-          </Button>
+            {/* Google Meet Link */}
+            <div className="space-y-1.5">
+              <Label htmlFor="meetLink">Google Meet Link *</Label>
+              <Input
+                id="meetLink"
+                type="url"
+                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                value={form.meetLink}
+                onChange={e => setForm(f => ({ ...f, meetLink: e.target.value }))}
+                required
+              />
+            </div>
+
+            {/* Topic */}
+            <div className="space-y-1.5">
+              <Label htmlFor="topic">Topic (optional)</Label>
+              <Input
+                id="topic"
+                placeholder="e.g. Algebra - Chapter 3"
+                value={form.topic}
+                onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
+              />
+            </div>
+
+            <Button type="submit" className="w-full" disabled={addSession.isPending || !selectedPrincipal}>
+              {addSession.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Adding Session...</>
+              ) : (
+                <><Plus className="h-4 w-4 mr-2" />Add Session</>
+              )}
+            </Button>
+          </form>
         </div>
-      )}
 
-      {/* Sessions List */}
-      {selectedPrincipal && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-foreground">Sessions for Selected Student</h2>
-            <Badge variant="outline" className="ml-auto">{sessions.length}</Badge>
-          </div>
+        {/* Right: Sessions for selected student */}
+        <div className="bg-card border rounded-xl p-5 space-y-4">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <Video className="h-4 w-4" />
+            {selectedStudent ? `Sessions for ${selectedStudent.fullName}` : 'Select a student to view sessions'}
+          </h2>
 
-          {sessionsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          {!selectedPrincipal && (
+            <div className="text-center py-10 text-muted-foreground">
+              <User className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">Select a student from the form to view their sessions</p>
             </div>
-          ) : sessions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CalendarDays className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p>No sessions yet for this student</p>
+          )}
+
+          {selectedPrincipal && sessionsLoading && (
+            <div className="space-y-2">
+              {[1, 2].map(i => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {sessions.map((session) => (
-                <div key={String(session.id)} className="p-4 flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-primary" />
-                      <span className="font-medium text-foreground">{session.date} at {session.time}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {String(session.durationHours)}h
-                      </span>
-                      <a
-                        href={session.meetLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <Video className="h-3 w-3" />
-                        Join Meet
-                      </a>
-                    </div>
-                    {session.topic && (
-                      <div className="text-sm text-muted-foreground">
-                        Topic: {session.topic}
+          )}
+
+          {selectedPrincipal && !sessionsLoading && (sessions ?? []).length === 0 && (
+            <div className="text-center py-10 text-muted-foreground">
+              <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm">No sessions assigned to this student yet</p>
+              <p className="text-xs mt-1">Use the form on the left to add a session</p>
+            </div>
+          )}
+
+          {selectedPrincipal && !sessionsLoading && (sessions ?? []).length > 0 && (
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              {[...(sessions ?? [])].sort((a, b) => a.date.localeCompare(b.date)).map(session => (
+                <div key={session.id.toString()} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-sm">{session.topic ?? 'Session'}</p>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{session.date}</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{session.time}</span>
+                        <span>{session.durationHours.toString()}h</span>
                       </div>
-                    )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(session.id)}
+                      disabled={deleteSession.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
-                    onClick={() => handleDeleteSession(session.id)}
-                    disabled={deleteSessionMutation.isPending}
-                  >
-                    {deleteSessionMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3 w-3" />
-                    )}
-                  </Button>
+                  {session.meetLink && (
+                    <a
+                      href={session.meetLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline truncate"
+                    >
+                      <LinkIcon className="h-3 w-3 flex-shrink-0" />
+                      {session.meetLink}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* All students reference panel */}
+      <div className="bg-card border rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+          <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <User className="h-4 w-4" /> All Students ({allStudentsList.length})
+          </h2>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search students..."
+              value={studentSearch}
+              onChange={e => setStudentSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+        </div>
+        {studentsLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : filteredStudents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {studentSearch ? 'No students match your search.' : 'No students registered yet.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {filteredStudents.map(s => {
+              const statusInfo = getPaymentStatusLabel(s);
+              return (
+                <div
+                  key={s.principal.toString()}
+                  className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedPrincipal === s.principal.toString() ? 'border-primary bg-primary/5' : 'hover:border-primary/50'}`}
+                  onClick={() => setSelectedPrincipal(s.principal.toString())}
+                >
+                  <p className="font-medium text-sm truncate">{s.fullName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{s.course}</p>
+                  <Badge variant={statusInfo.variant} className="text-xs mt-1">{statusInfo.label}</Badge>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

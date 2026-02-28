@@ -1,198 +1,474 @@
-import { useState } from 'react';
-import { useActor } from '../../hooks/useActor';
-import { useListApprovals, useGetAllPayments } from '../../hooks/useQueries';
-import { ApprovalStatus, UserApprovalInfo, UpiPayment } from '../../backend';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState } from 'react';
 import {
-  Users,
-  Search,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Loader2,
-  RefreshCw,
-  CreditCard,
-  UserCheck,
+  Users, Search, CheckCircle, Clock, Mail, Phone, BookOpen,
+  Calendar, CreditCard, Eye, Pencil, Loader2, X, Save
 } from 'lucide-react';
+import { useAllStudents, useUpdateStudent } from '../../hooks/useQueries';
+import { Student, UpiPaymentStatus, StripeSessionStatus } from '../../backend';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
-function isIC0508Error(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('IC0508') || msg.toLowerCase().includes('canister stopped');
+function getPaymentStatusLabel(student: Student): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
+  const ps = student.paymentStatus;
+  if (ps.__kind__ === 'upi') {
+    const upi = ps.upi;
+    if (upi.__kind__ === 'approved') return { label: 'Active / Booked', variant: 'default' };
+    if (upi.__kind__ === 'pending') return { label: 'Pending Payment', variant: 'secondary' };
+    if (upi.__kind__ === 'rejected') return { label: 'Rejected', variant: 'destructive' };
+  }
+  if (ps.__kind__ === 'stripe') {
+    const stripe = ps.stripe;
+    if (stripe.__kind__ === 'completed') return { label: 'Active / Booked', variant: 'default' };
+    if (stripe.__kind__ === 'failed') return { label: 'Payment Failed', variant: 'destructive' };
+  }
+  return { label: 'Unknown', variant: 'outline' };
 }
 
-export default function AdminStudents() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [backendError, setBackendError] = useState('');
+function isActiveStudent(student: Student): boolean {
+  const ps = student.paymentStatus;
+  if (ps.__kind__ === 'upi' && ps.upi.__kind__ === 'approved') return true;
+  if (ps.__kind__ === 'stripe' && ps.stripe.__kind__ === 'completed') return true;
+  return false;
+}
 
-  const { data: approvals = [], isLoading: approvalsLoading, refetch: refetchApprovals } = useListApprovals();
-  const { data: allPayments = [], isLoading: paymentsLoading } = useGetAllPayments();
+function isPendingStudent(student: Student): boolean {
+  const ps = student.paymentStatus;
+  return ps.__kind__ === 'upi' && ps.upi.__kind__ === 'pending';
+}
 
-  const isLoading = approvalsLoading || paymentsLoading;
+function formatDate(ns: bigint): string {
+  const ms = Number(ns) / 1_000_000;
+  return new Date(ms).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
-  // Approve mutation
-  const approveMutation = useMutation({
-    mutationFn: async (principal: any) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.setApproval(principal, ApprovalStatus.approved);
-    },
-    onSuccess: () => {
-      setBackendError('');
-      queryClient.invalidateQueries({ queryKey: ['approvals'] });
-    },
-    onError: (err) => {
-      if (isIC0508Error(err)) {
-        setBackendError('Backend is temporarily unavailable. Please try again in a moment.');
-      } else {
-        setBackendError('Failed to approve student. Please try again.');
-      }
-    },
-  });
+// ─── View Detail Modal ────────────────────────────────────────────────────────
+function StudentDetailModal({ student, open, onClose, onEdit }: {
+  student: Student | null;
+  open: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  if (!student) return null;
+  const statusInfo = getPaymentStatusLabel(student);
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Student Details</DialogTitle>
+          <DialogDescription>Full enrollment information for {student.fullName}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-lg">{student.fullName}</span>
+            <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-muted-foreground">Email</p>
+              <p className="font-medium">{student.email}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Phone</p>
+              <p className="font-medium">{student.phone}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Course</p>
+              <p className="font-medium">{student.course}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Session Type</p>
+              <p className="font-medium">{student.sessionType}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Hours</p>
+              <p className="font-medium">{student.hours.toString()} hrs</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Enrollment Date</p>
+              <p className="font-medium">{formatDate(student.enrollmentDate)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Active Status</p>
+              <p className="font-medium">{student.isActive ? 'Active' : 'Inactive'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-muted-foreground">Transaction ID</p>
+              <p className="font-medium font-mono text-xs break-all">{student.transactionId || '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-muted-foreground">Principal</p>
+              <p className="font-medium font-mono text-xs break-all">{student.principal.toString()}</p>
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button onClick={onEdit}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Edit Student
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-  // Reject mutation
-  const rejectMutation = useMutation({
-    mutationFn: async (principal: any) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.setApproval(principal, ApprovalStatus.rejected);
-    },
-    onSuccess: () => {
-      setBackendError('');
-      queryClient.invalidateQueries({ queryKey: ['approvals'] });
-    },
-    onError: (err) => {
-      if (isIC0508Error(err)) {
-        setBackendError('Backend is temporarily unavailable. Please try again in a moment.');
-      } else {
-        setBackendError('Failed to reject student. Please try again.');
-      }
-    },
-  });
+// ─── Edit Student Modal ───────────────────────────────────────────────────────
+interface EditForm {
+  fullName: string;
+  email: string;
+  phone: string;
+  course: string;
+  sessionType: string;
+  hours: string;
+  transactionId: string;
+  enrollmentDate: string; // ISO date string YYYY-MM-DD
+  isActive: boolean;
+  paymentKind: 'upi_pending' | 'upi_approved' | 'upi_rejected' | 'stripe_completed' | 'stripe_failed';
+  upiApprovedCode: string;
+  upiRejectedNote: string;
+}
 
-  // Revoke mutation
-  const revokeMutation = useMutation({
-    mutationFn: async (principal: any) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.setApproval(principal, ApprovalStatus.pending);
-    },
-    onSuccess: () => {
-      setBackendError('');
-      queryClient.invalidateQueries({ queryKey: ['approvals'] });
-    },
-    onError: (err) => {
-      if (isIC0508Error(err)) {
-        setBackendError('Backend is temporarily unavailable. Please try again in a moment.');
-      } else {
-        setBackendError('Failed to revoke approval. Please try again.');
-      }
-    },
-  });
+function toEditForm(student: Student): EditForm {
+  const ps = student.paymentStatus;
+  let paymentKind: EditForm['paymentKind'] = 'upi_pending';
+  let upiApprovedCode = '';
+  let upiRejectedNote = '';
 
-  // Build a map of principal → payment info for quick lookup
-  const paymentsByPrincipal = new Map<string, UpiPayment[]>();
-  for (const payment of allPayments) {
-    // We can't directly map principal to payment since payments use email
-    // We'll show payment info separately
+  if (ps.__kind__ === 'upi') {
+    if (ps.upi.__kind__ === 'approved') {
+      paymentKind = 'upi_approved';
+      upiApprovedCode = ps.upi.approved;
+    } else if (ps.upi.__kind__ === 'rejected') {
+      paymentKind = 'upi_rejected';
+      upiRejectedNote = ps.upi.rejected ?? '';
+    } else {
+      paymentKind = 'upi_pending';
+    }
+  } else if (ps.__kind__ === 'stripe') {
+    paymentKind = ps.stripe.__kind__ === 'completed' ? 'stripe_completed' : 'stripe_failed';
   }
 
-  // Get approved payments (students who paid)
-  const approvedPayments = allPayments.filter(
-    (p) => p.status.__kind__ === 'approved'
-  );
-  const pendingPayments = allPayments.filter(
-    (p) => p.status.__kind__ === 'pending'
-  );
+  const ms = Number(student.enrollmentDate) / 1_000_000;
+  const dateStr = new Date(ms).toISOString().split('T')[0];
 
-  // Combine approvals with payment data
-  // Each approval entry has a principal; we show their approval status
-  // Payment data shows who has paid (by email/name)
-  const filteredApprovals = approvals.filter((a) => {
-    const principalStr = a.principal.toString();
-    return principalStr.toLowerCase().includes(search.toLowerCase());
-  });
+  return {
+    fullName: student.fullName,
+    email: student.email,
+    phone: student.phone,
+    course: student.course,
+    sessionType: student.sessionType,
+    hours: student.hours.toString(),
+    transactionId: student.transactionId,
+    enrollmentDate: dateStr,
+    isActive: student.isActive,
+    paymentKind,
+    upiApprovedCode,
+    upiRejectedNote,
+  };
+}
 
-  // Also show payment records that aren't in approvals yet
-  const filteredPayments = allPayments.filter((p) => {
-    const searchLower = search.toLowerCase();
-    return (
-      p.fullName.toLowerCase().includes(searchLower) ||
-      p.email.toLowerCase().includes(searchLower) ||
-      p.courseName.toLowerCase().includes(searchLower)
-    );
-  });
+function buildPaymentStatus(form: EditForm): { __kind__: 'upi'; upi: UpiPaymentStatus } | { __kind__: 'stripe'; stripe: StripeSessionStatus } {
+  switch (form.paymentKind) {
+    case 'upi_pending':
+      return { __kind__: 'upi', upi: { __kind__: 'pending', pending: null } };
+    case 'upi_approved':
+      return { __kind__: 'upi', upi: { __kind__: 'approved', approved: form.upiApprovedCode } };
+    case 'upi_rejected':
+      return { __kind__: 'upi', upi: { __kind__: 'rejected', rejected: form.upiRejectedNote || null } };
+    case 'stripe_completed':
+      return { __kind__: 'stripe', stripe: { __kind__: 'completed', completed: { response: '', userPrincipal: undefined } } };
+    case 'stripe_failed':
+      return { __kind__: 'stripe', stripe: { __kind__: 'failed', failed: { error: '' } } };
+  }
+}
 
-  const getApprovalStatusBadge = (status: ApprovalStatus) => {
-    switch (status) {
-      case ApprovalStatus.approved:
-        return <Badge className="bg-green-100 text-green-800 border-green-200">✓ Approved</Badge>;
-      case ApprovalStatus.rejected:
-        return <Badge variant="destructive">✗ Rejected</Badge>;
-      default:
-        return <Badge variant="outline" className="text-amber-600 border-amber-300">⏳ Pending</Badge>;
+function EditStudentModal({ student, open, onClose }: {
+  student: Student | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const updateStudent = useUpdateStudent();
+  const [form, setForm] = useState<EditForm | null>(null);
+
+  // Sync form when student changes
+  React.useEffect(() => {
+    if (student) setForm(toEditForm(student));
+  }, [student]);
+
+  if (!student || !form) return null;
+
+  const set = (patch: Partial<EditForm>) => setForm(f => f ? { ...f, ...patch } : f);
+
+  const handleSave = async () => {
+    if (!form.fullName.trim()) { toast.error('Full name is required'); return; }
+    if (!form.email.trim()) { toast.error('Email is required'); return; }
+    if (!form.phone.trim()) { toast.error('Phone is required'); return; }
+    if (!form.course.trim()) { toast.error('Course is required'); return; }
+    if (!form.sessionType.trim()) { toast.error('Session type is required'); return; }
+
+    const enrollmentMs = form.enrollmentDate
+      ? new Date(form.enrollmentDate).getTime() * 1_000_000
+      : Number(student.enrollmentDate);
+
+    try {
+      await updateStudent.mutateAsync({
+        principal: student.principal,
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        course: form.course.trim(),
+        sessionType: form.sessionType.trim(),
+        hours: BigInt(parseInt(form.hours) || 0),
+        paymentStatus: buildPaymentStatus(form),
+        transactionId: form.transactionId.trim(),
+        enrollmentDate: BigInt(enrollmentMs),
+        isActive: form.isActive,
+      });
+      toast.success('Student updated successfully!');
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to update student');
     }
   };
 
-  const getPaymentStatusBadge = (status: UpiPayment['status']) => {
-    if (status.__kind__ === 'approved') {
-      return <Badge className="bg-green-100 text-green-800 border-green-200">💰 Paid</Badge>;
-    }
-    if (status.__kind__ === 'rejected') {
-      return <Badge variant="destructive">✗ Rejected</Badge>;
-    }
-    return <Badge variant="outline" className="text-amber-600 border-amber-300">⏳ Pending</Badge>;
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-5 w-5" />
+            Edit Student
+          </DialogTitle>
+          <DialogDescription>Update enrollment details for {student.fullName}</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 py-2">
+          {/* Personal Info */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Personal Information</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-fullName">Full Name *</Label>
+                <Input
+                  id="edit-fullName"
+                  value={form.fullName}
+                  onChange={e => set({ fullName: e.target.value })}
+                  placeholder="Student full name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-email">Email *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={form.email}
+                  onChange={e => set({ email: e.target.value })}
+                  placeholder="student@email.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-phone">Phone *</Label>
+                <Input
+                  id="edit-phone"
+                  value={form.phone}
+                  onChange={e => set({ phone: e.target.value })}
+                  placeholder="+91 XXXXX XXXXX"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-enrollmentDate">Enrollment Date</Label>
+                <Input
+                  id="edit-enrollmentDate"
+                  type="date"
+                  value={form.enrollmentDate}
+                  onChange={e => set({ enrollmentDate: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Course Info */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Course Information</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-course">Course *</Label>
+                <Input
+                  id="edit-course"
+                  value={form.course}
+                  onChange={e => set({ course: e.target.value })}
+                  placeholder="e.g. Mathematics"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-sessionType">Session Type *</Label>
+                <Input
+                  id="edit-sessionType"
+                  value={form.sessionType}
+                  onChange={e => set({ sessionType: e.target.value })}
+                  placeholder="e.g. Online / Offline"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-hours">Hours</Label>
+                <Input
+                  id="edit-hours"
+                  type="number"
+                  min="0"
+                  value={form.hours}
+                  onChange={e => set({ hours: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-transactionId">Transaction ID</Label>
+                <Input
+                  id="edit-transactionId"
+                  value={form.transactionId}
+                  onChange={e => set({ transactionId: e.target.value })}
+                  placeholder="UPI / Stripe transaction ID"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Status */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Payment & Enrollment Status</h3>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Payment Status</Label>
+                <Select value={form.paymentKind} onValueChange={v => set({ paymentKind: v as EditForm['paymentKind'] })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upi_pending">UPI — Pending</SelectItem>
+                    <SelectItem value="upi_approved">UPI — Approved / Active</SelectItem>
+                    <SelectItem value="upi_rejected">UPI — Rejected</SelectItem>
+                    <SelectItem value="stripe_completed">Stripe — Completed</SelectItem>
+                    <SelectItem value="stripe_failed">Stripe — Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.paymentKind === 'upi_approved' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-upiCode">Access Code (UPI Approved)</Label>
+                  <Input
+                    id="edit-upiCode"
+                    value={form.upiApprovedCode}
+                    onChange={e => set({ upiApprovedCode: e.target.value })}
+                    placeholder="e.g. RJMATH-001"
+                  />
+                </div>
+              )}
+
+              {form.paymentKind === 'upi_rejected' && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-rejNote">Rejection Note</Label>
+                  <Input
+                    id="edit-rejNote"
+                    value={form.upiRejectedNote}
+                    onChange={e => set({ upiRejectedNote: e.target.value })}
+                    placeholder="Reason for rejection (optional)"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-1">
+                <Checkbox
+                  id="edit-isActive"
+                  checked={form.isActive}
+                  onCheckedChange={checked => set({ isActive: !!checked })}
+                />
+                <Label htmlFor="edit-isActive" className="cursor-pointer">
+                  Student is Active
+                </Label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4 gap-2">
+          <Button variant="outline" onClick={onClose} disabled={updateStudent.isPending}>
+            <X className="h-4 w-4 mr-2" />
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={updateStudent.isPending}>
+            {updateStudent.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+            ) : (
+              <><Save className="h-4 w-4 mr-2" />Save Changes</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function AdminStudents() {
+  const { data: students, isLoading, error } = useAllStudents();
+  const [search, setSearch] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const filtered = (students ?? []).filter(s =>
+    s.fullName.toLowerCase().includes(search.toLowerCase()) ||
+    s.email.toLowerCase().includes(search.toLowerCase()) ||
+    s.course.toLowerCase().includes(search.toLowerCase()) ||
+    s.phone.includes(search)
+  );
+
+  const activeCount = (students ?? []).filter(isActiveStudent).length;
+  const pendingCount = (students ?? []).filter(isPendingStudent).length;
+
+  const openDetail = (student: Student) => {
+    setSelectedStudent(student);
+    setDetailOpen(true);
+  };
+
+  const openEdit = (student: Student) => {
+    setSelectedStudent(student);
+    setDetailOpen(false);
+    setEditOpen(true);
   };
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Users className="h-6 w-6 text-primary" />
-            Students
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage all registered students and their access
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">Students</h1>
+          <p className="text-muted-foreground text-sm mt-1">All registered students and their enrollment details</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetchApprovals()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
-      {/* Backend Error */}
-      {backendError && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-sm text-destructive">
-          {backendError}
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold text-foreground">{allPayments.length}</div>
-          <div className="text-sm text-muted-foreground">Total Registered</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold text-green-600">{approvedPayments.length}</div>
-          <div className="text-sm text-muted-foreground">Paid / Active</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold text-amber-600">{pendingPayments.length}</div>
-          <div className="text-sm text-muted-foreground">Payment Pending</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="text-2xl font-bold text-primary">{approvals.filter(a => a.status === ApprovalStatus.approved).length}</div>
-          <div className="text-sm text-muted-foreground">Portal Approved</div>
+        <div className="flex gap-3">
+          <div className="bg-card border rounded-lg px-4 py-2 text-center">
+            <p className="text-2xl font-bold text-primary">{students?.length ?? 0}</p>
+            <p className="text-xs text-muted-foreground">Total</p>
+          </div>
+          <div className="bg-card border rounded-lg px-4 py-2 text-center">
+            <p className="text-2xl font-bold text-green-600">{activeCount}</p>
+            <p className="text-xs text-muted-foreground">Active</p>
+          </div>
+          <div className="bg-card border rounded-lg px-4 py-2 text-center">
+            <p className="text-2xl font-bold text-amber-500">{pendingCount}</p>
+            <p className="text-xs text-muted-foreground">Pending</p>
+          </div>
         </div>
       </div>
 
@@ -200,181 +476,112 @@ export default function AdminStudents() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by name, email, or course..."
+          placeholder="Search by name, email, course, or phone..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={e => setSearch(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      {/* Payments Table (All Registered Students) */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center gap-2">
-          <CreditCard className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-foreground">All Registered Students (Payment Records)</h2>
-          <Badge variant="outline" className="ml-auto">{filteredPayments.length}</Badge>
+      {/* Loading */}
+      {isLoading && (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          ))}
         </div>
+      )}
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : filteredPayments.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No students registered yet</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Student</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Course</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Amount</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Payment Status</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Access Code</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredPayments.map((payment) => (
-                  <tr key={String(payment.id)} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-3">
-                      <div className="font-medium text-foreground">{payment.fullName}</div>
-                      <div className="text-xs text-muted-foreground">{payment.email}</div>
-                      <div className="text-xs text-muted-foreground">{payment.phone}</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="text-foreground">{payment.courseName}</div>
-                      <div className="text-xs text-muted-foreground">{payment.sessionType} · {String(payment.hours)}h</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-medium text-foreground">₹{String(payment.totalAmount)}</div>
-                      <div className="text-xs text-muted-foreground">UPI: {payment.upiTransactionId}</div>
-                    </td>
-                    <td className="p-3">
-                      {getPaymentStatusBadge(payment.status)}
-                    </td>
-                    <td className="p-3">
-                      {payment.accessCode ? (
-                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{payment.accessCode}</code>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+      {/* Error */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive text-sm">
+          Failed to load students. Please refresh the page.
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!isLoading && !error && filtered.length === 0 && (
+        <div className="text-center py-16">
+          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground">
+            {search ? 'No students match your search' : 'No students registered yet'}
+          </h3>
+          <p className="text-muted-foreground text-sm mt-1">
+            {search ? 'Try a different search term.' : 'Students will appear here after they complete registration.'}
+          </p>
+        </div>
+      )}
+
+      {/* Students list */}
+      {!isLoading && !error && filtered.length > 0 && (
+        <div className="space-y-3">
+          {filtered.map(student => {
+            const statusInfo = getPaymentStatusLabel(student);
+            const active = isActiveStudent(student);
+            return (
+              <div
+                key={student.principal.toString()}
+                className={`bg-card border rounded-xl p-4 flex items-start justify-between gap-4 transition-shadow hover:shadow-md ${active ? 'border-l-4 border-l-green-500' : ''}`}
+              >
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}>
+                    {active ? <CheckCircle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-foreground">{student.fullName}</span>
+                      <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>
+                      {!student.isActive && (
+                        <Badge variant="outline" className="text-xs text-muted-foreground">Inactive</Badge>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Portal Access Table (Internet Identity users) */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center gap-2">
-          <UserCheck className="h-5 w-5 text-primary" />
-          <h2 className="font-semibold text-foreground">Portal Access (Internet Identity Users)</h2>
-          <Badge variant="outline" className="ml-auto">{filteredApprovals.length}</Badge>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{student.email}</span>
+                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{student.phone}</span>
+                      <span className="flex items-center gap-1"><BookOpen className="h-3 w-3" />{student.course}</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(student.enrollmentDate)}</span>
+                      <span className="flex items-center gap-1"><CreditCard className="h-3 w-3" />{student.sessionType} · {student.hours.toString()} hrs</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openDetail(student)}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(student)}
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
+      )}
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : filteredApprovals.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <UserCheck className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p>No portal users yet</p>
-            <p className="text-xs mt-1">Students who log in via Internet Identity will appear here</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Principal ID</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Portal Status</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredApprovals.map((approval) => {
-                  const principalStr = approval.principal.toString();
-                  const isApproving = approveMutation.isPending && approveMutation.variables?.toString() === principalStr;
-                  const isRejecting = rejectMutation.isPending && rejectMutation.variables?.toString() === principalStr;
-                  const isRevoking = revokeMutation.isPending && revokeMutation.variables?.toString() === principalStr;
+      {/* View Detail Modal */}
+      <StudentDetailModal
+        student={selectedStudent}
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        onEdit={() => openEdit(selectedStudent!)}
+      />
 
-                  return (
-                    <tr key={principalStr} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-3">
-                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono break-all">
-                          {principalStr}
-                        </code>
-                      </td>
-                      <td className="p-3">
-                        {getApprovalStatusBadge(approval.status)}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          {approval.status !== ApprovalStatus.approved && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-green-600 border-green-300 hover:bg-green-50"
-                              onClick={() => approveMutation.mutate(approval.principal)}
-                              disabled={isApproving || isRejecting || isRevoking}
-                            >
-                              {isApproving ? (
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              ) : (
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                              )}
-                              Approve
-                            </Button>
-                          )}
-                          {approval.status !== ApprovalStatus.rejected && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                              onClick={() => rejectMutation.mutate(approval.principal)}
-                              disabled={isApproving || isRejecting || isRevoking}
-                            >
-                              {isRejecting ? (
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              ) : (
-                                <XCircle className="h-3 w-3 mr-1" />
-                              )}
-                              Reject
-                            </Button>
-                          )}
-                          {approval.status === ApprovalStatus.approved && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-amber-600 border-amber-300 hover:bg-amber-50"
-                              onClick={() => revokeMutation.mutate(approval.principal)}
-                              disabled={isApproving || isRejecting || isRevoking}
-                            >
-                              {isRevoking ? (
-                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                              ) : (
-                                <Clock className="h-3 w-3 mr-1" />
-                              )}
-                              Revoke
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Edit Modal */}
+      <EditStudentModal
+        student={selectedStudent}
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+      />
     </div>
   );
 }

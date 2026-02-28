@@ -2,11 +2,10 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-remove-all-payment-gate-and-access-code-checks-from-the-student-sign-in-flow-any-student-who-logs-in-via-internet-identity-must-be-granted-immediate-access-to-the-student-portal-regardless-of-payment-status-active-pending-approved-flag-or-access-code-the-payment-is-still-pending-approval-block-and-any-similar-payment-based-login-interruption-must-be-fully-removed",
-      "featureTitle": "Remove all payment gate and access code checks from the student sign-in flow. Any student who logs in via Internet Identity must be granted immediate access to the student portal regardless of payment status, active/pending/approved flag, or access code. The 'payment is still pending approval' block and any similar payment-based login interruption must be fully removed.",
+      "featureId": "feature-update-the-admin-students-page-frontend-src-pages-admin-students-tsx-to-display-all-registered-students-fetched-from-the-backend-showing-each-student-s-full-details-including-name-email-contact-info-enrolled-course-and-enrollment-payment-status",
+      "featureTitle": "Update the admin Students page (frontend/src/pages/admin/Students.tsx) to display all registered students fetched from the backend, showing each student's full details including name, email, contact info, enrolled course, and enrollment/payment status.",
       "files": [
-        "frontend/src/pages/Login.tsx",
-        "frontend/src/routeTree.ts"
+        "frontend/src/pages/admin/Students.tsx"
       ],
       "components": [
         "authorization@4.0.0",
@@ -28,9 +27,10 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-the-admin-dashboard-students-section-must-display-all-registered-students-regardless-of-payment-status-with-their-payment-and-active-status-clearly-shown-for-each-student",
-      "featureTitle": "The admin dashboard Students section must display all registered students (regardless of payment status) with their payment and active status clearly shown for each student.",
+      "featureId": "feature-add-an-edit-student-capability-in-the-admin-students-page-that-allows-admins-to-edit-all-fields-for-a-student-name-email-contact-info-enrollment-status-and-any-other-stored-student-fields-changes-must-be-persisted-to-the-backend",
+      "featureTitle": "Add an 'Edit Student' capability in the admin Students page that allows admins to edit all fields for a student: name, email, contact info, enrollment status, and any other stored student fields. Changes must be persisted to the backend.",
       "files": [
+        "frontend/src/hooks/useQueries.ts",
         "frontend/src/pages/admin/Students.tsx"
       ],
       "components": [
@@ -53,10 +53,9 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-in-the-admin-managestudentsessions-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-have-booked-or-registered-for-a-session-enrolled-active-students-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-sessions-specifically-for-that-student-currently-there-is-no-option-to-add-a-student-even-if-they-have-booked-this-must-be-fixed-so-enrolled-booked-students-always-appear-in-the-dropdown",
-      "featureTitle": "In the admin ManageStudentSessions page, the student selector dropdown must be populated with all students who have booked or registered for a session (enrolled/active students). The admin must be able to select any such student from the dropdown and add sessions specifically for that student. Currently there is no option to add a student even if they have booked — this must be fixed so enrolled/booked students always appear in the dropdown.",
+      "featureId": "feature-update-the-admin-managestudentsessions-page-frontend-src-pages-admin-managestudentsessions-tsx-to-allow-admins-to-select-any-registered-student-from-a-dropdown-and-add-sessions-date-time-google-meet-link-topic-that-are-stored-and-displayed-exclusively-on-that-specific-student-s-dashboard-existing-backend-session-hooks-usesessions-ts-must-be-used",
+      "featureTitle": "Update the admin ManageStudentSessions page (frontend/src/pages/admin/ManageStudentSessions.tsx) to allow admins to select any registered student from a dropdown and add sessions (date, time, Google Meet link, topic) that are stored and displayed exclusively on that specific student's dashboard. Existing backend session hooks (useSessions.ts) must be used.",
       "files": [
-        "frontend/src/hooks/useSessions.ts",
         "frontend/src/pages/admin/ManageStudentSessions.tsx"
       ],
       "components": [
@@ -79,10 +78,9 @@
       "confidence": "high"
     },
     {
-      "featureId": "feature-in-the-admin-managestudentmaterials-page-the-student-selector-dropdown-must-be-populated-with-all-students-who-are-enrolled-or-registered-same-logic-as-sessions-the-admin-must-be-able-to-select-any-such-student-from-the-dropdown-and-add-materials-specifically-for-that-student-this-mirrors-the-sessions-fix-enrolled-students-must-always-appear-in-the-materials-dropdown",
-      "featureTitle": "In the admin ManageStudentMaterials page, the student selector dropdown must be populated with all students who are enrolled or registered (same logic as sessions). The admin must be able to select any such student from the dropdown and add materials specifically for that student. This mirrors the sessions fix: enrolled students must always appear in the materials dropdown.",
+      "featureId": "feature-update-the-admin-managestudentmaterials-page-frontend-src-pages-admin-managestudentmaterials-tsx-to-allow-admins-to-select-any-registered-student-from-a-dropdown-and-add-study-materials-title-description-link-url-that-are-stored-and-displayed-exclusively-on-that-specific-student-s-dashboard-existing-backend-materials-hooks-usematerials-ts-must-be-used",
+      "featureTitle": "Update the admin ManageStudentMaterials page (frontend/src/pages/admin/ManageStudentMaterials.tsx) to allow admins to select any registered student from a dropdown and add study materials (title, description, link/URL) that are stored and displayed exclusively on that specific student's dashboard. Existing backend materials hooks (useMaterials.ts) must be used.",
       "files": [
-        "frontend/src/hooks/useMaterials.ts",
         "frontend/src/pages/admin/ManageStudentMaterials.tsx"
       ],
       "components": [

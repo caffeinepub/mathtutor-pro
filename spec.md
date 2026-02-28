@@ -1,13 +1,14 @@
 # Specification
 
 ## Summary
-**Goal:** Remove the payment gate from student sign-in so all registered students can access the portal freely, and fix the student selector dropdowns in the admin sessions and materials management pages so enrolled/registered students always appear.
+**Goal:** Fix the admin dashboard so registered students are visible with full details, add the ability to edit student records, and make sessions and study materials per-student (assigned to and visible only on a specific student's dashboard).
 
 **Planned changes:**
-- Remove all payment status, access code, and approval checks from the student sign-in flow on the frontend so any student authenticated via Internet Identity reaches the student dashboard without interruption
-- Remove backend payment gate / access-denied guards that block authenticated student principals from accessing their sessions, materials, or profile data
-- Update the admin Students section to list all registered students with their payment and active status visually displayed
-- Fix the ManageStudentSessions admin page so the student selector dropdown is populated with all enrolled/booked/active students, allowing the admin to add sessions for any listed student
-- Fix the ManageStudentMaterials admin page so the student selector dropdown is populated with all enrolled/registered/active students, allowing the admin to add materials for any listed student
+- Update the admin Students page to fetch and display all registered students from the backend, showing name, email, contact info, enrolled course, and enrollment/payment status with search/filter support
+- Add an Edit Student modal/form in the admin Students page, pre-populated with the student's current data, allowing admins to update any field (name, email, contact info, enrollment status, etc.) and persist changes to the backend
+- Add a backend `updateStudent` function (admin-only) that updates any field of a student record in stable storage
+- Update the admin ManageStudentSessions page with a student selector dropdown; sessions added (date, time, Google Meet link, topic) are saved and associated only with the selected student, appearing solely on that student's dashboard
+- Update the admin ManageStudentMaterials page with a student selector dropdown; materials added (title, description, URL/link) are saved and associated only with the selected student, appearing solely on that student's dashboard
+- Fix the admin Dashboard overview to fetch and display accurate stats (total, active, pending, payments) and a recent students list from the backend via React Query
 
-**User-visible outcome:** Students can log in via Internet Identity and immediately access the student portal with no payment or access code prompts. Admins can view all registered students with their statuses, and can select any enrolled student from the dropdowns in both the sessions and materials management pages to add records for them.
+**User-visible outcome:** Admins can see all registered students with their details, edit any student's information, and assign sessions and study materials to individual students — each student only sees their own assigned sessions and materials on their dashboard.
